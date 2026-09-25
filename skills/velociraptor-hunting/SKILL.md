@@ -5,6 +5,70 @@ description: Canonical Velociraptor cross-host workflow for Windows, Linux, and 
 
 # Velociraptor Hunting
 
+## Prefer existing hunt evidence
+
+Always prefer reviewing suitable existing hunts before proposing new collection,
+including when the user gives a question or artifact rather than a hunt ID. Reuse
+the known inventory or discover existing hunts read-only, check their case, target,
+artifact/parameter, time and result coverage, then use the analysis branch below.
+A compatible multi-artifact hunt can satisfy a narrower question. Review available
+results even when the hunt is stopped or some flows failed; state the coverage gaps.
+
+Only consider new collection when existing evidence cannot answer the requested
+scope/freshness or the user explicitly requests fresh collection. Explain the
+specific gap and retain collection authorization requirements. A missing local
+baseline, stopped state, or absent prior analysis alone does not justify a new
+hunt. Different-case/template evidence remains outside the current case unless
+the user explicitly selects it for review.
+
+## Analyze an existing hunt
+
+For requests such as "run analysis on H.ID", use this branch directly. The named
+hunt is the evidence scope; collection discovery, `check`/`ensure`, and a separate
+native `status` call are not prerequisites. The analysis command performs live
+metadata and flow-status preflight itself, including for hunts without local
+collection state. It reviews exposed results from RUNNING or STOPPED hunts.
+
+1. Reuse the session's verified server profile, case root, investigation ID,
+   readiness and analyst setup. If they are missing, resolve them from saved
+   engagement/configuration; ask only for an unresolved connection or scope.
+   Apply the server prerequisite below, reusing a successful session check.
+2. Run one existing-evidence analysis. Replace the example values with the exact
+   saved context; `--case-root` is the parent of the investigation directory:
+
+   ```bash
+   vraptor analyze --hunt H.EXAMPLE --id IR1234 --case-root ~/cases \
+     --server-profile lab --synthesis none
+   ```
+
+   Omit `--artifact` to review the hunt's declared artifacts. Preserve requested
+   artifact/time filters and saved task policy; do not invent new bounds or model
+   overrides. General Autoruns review needs `--profile autoruns` plus one exact
+   Autoruns `--artifact`; use its specialized reference below for mixed hunts.
+   Keep default text/progress output and monitor this invocation until terminal.
+3. Review `analysis-hunt.md`. For standard streaming results, retrieve retained
+   candidates without inference (specialized Autoruns/stack review uses its native
+   report and classification state):
+
+   ```bash
+   vraptor analysis-results --checkpoint \
+     ~/cases/IR1234/hunts/H.EXAMPLE/analysis/hunt-analysis-state.json --limit 25
+   ```
+
+   Continue using the returned next offset until the selected candidates are
+   covered. Correlate findings and evidence, make the bounded enrichment decision,
+   then save `hunts/<hunt-id>/assessment-hunt.md` under the case directory using
+   the [caller assessment contract](../../docs/reference/analysis-synthesis.md#caller-assessment-files).
+   Report result-review coverage separately from target execution; missing target
+   baselines mean `not_assessed`, not blocked result review. A running hunt remains
+   a point-in-time review. Caller assessment does not require another analysis run.
+
+These commands cover the ordinary request without help discovery. Use the
+[existing-hunt reference](references/existing-hunt-analysis.md) only for saved
+review versus refresh, paging details, specialized results, or a concrete failure.
+Use source-specific help only for an undocumented option or installed-version
+mismatch. The collection and advanced-review sections below are conditional paths.
+
 **Required server prerequisite:** follow the shared
 [DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md)
 for every new local server and connected live/remote server. If the live catalog
@@ -13,18 +77,12 @@ DetectRaptor CSV row and verify installation before proceeding. Reuse a successf
 session check; a failed import blocks the workflow. Explicit read-only/no-import
 instructions and offline-only work retain their scope.
 
-Use `vraptor analyze --hunt H.ID --id ID` for existing evidence only; collection, retries and GoldenDB uploads remain explicit.
-See the [shared CLI contract](../../docs/contracts/cli.md).
-For caller-led assessment, pass `--synthesis none`; chunk or specialized
-classification still runs, then the caller reviews and correlates the preliminary
-candidates across hosts and artifacts. Use `--synthesis full` for standalone
-harness reporting. Read the [shared synthesis contract](../../docs/reference/analysis-synthesis.md)
-for bounded candidate retrieval, summary-only execution and specialized-path limits.
-The CLI defaults to `--synthesis none`; request `--synthesis full` explicitly
-for harness synthesis. Save caller-reviewed host conclusions as
-`assessment-host.md` and hunt conclusions as `assessment-hunt.md`, following
-the provenance and freshness requirements in the shared
-[synthesis contract](../../docs/reference/analysis-synthesis.md#caller-assessment-files).
+Existing-evidence analysis uses `vraptor analyze`; collection, retries and
+GoldenDB uploads remain explicit. See the [shared CLI contract](../../docs/contracts/cli.md).
+`--synthesis none` is the default: classification runs and the caller reviews its
+preliminary candidates. Use `--synthesis full` only for requested harness synthesis;
+see the [synthesis contract](../../docs/reference/analysis-synthesis.md)
+for saved-summary execution and specialized-path limits.
 
 Use `--skip-ai` for deterministic preparation without an AI assessment; follow the
 [shared output and status contract](../../docs/reference/analysis-skip-ai.md).
@@ -80,10 +138,12 @@ The executable output and closure policy is [velociraptor-persistence-policy.jso
 - Select exact incident/hunt intent or declared assessment discovery before scoping work; apply [task-intent and output policy](references/task-intent-and-output.md). Velociraptor server hunt state, flows, and result rows are authoritative.
 - Before creating anything, enumerate every server hunt containing all requested artifacts. Artifact matching is case-insensitive and a request may be a subset of an existing multi-artifact bundle.
 - Classify candidates as exact current case, generic template, different-IR template, or unrelated. Engagement identifiers and IR labels compare case-insensitively.
-- Reuse only an exact current-case candidate with compatible requested artifact parameters and target scope. A compatible multi-artifact bundle may satisfy a smaller request; do not create a duplicate single-artifact hunt.
+- For collection scheduling, reuse only an exact current-case candidate with compatible requested artifact parameters and target scope. For evidence review, prefer existing in-scope results and disclose their coverage. A compatible multi-artifact bundle may satisfy a smaller request; do not create a duplicate single-artifact hunt.
 - Calculate canonical run identity from source mode, artifact, effective parameters, timeout, OS or label scope, and available source-version data.
-- Rank exact matches as terminal success, in-flight/paused, then
-  failed/cancelled/stopped/unknown. Reuse only the first two classes.
+- For collection scheduling, rank exact matches as terminal success,
+  in-flight/paused, then failed/cancelled/stopped/unknown; reuse only the first
+  two classes as collection runs. This does not exclude available evidence from
+  the other states from review or require `--force-run` to analyze it.
 - Generic and different-IR candidates are templates only. Return their complete
   artifact set and parameters, never treat their results as current-case evidence,
   and never activate, retarget, clone, stop, or mutate them automatically.
@@ -118,7 +178,11 @@ Targeting rules:
 
 Case-aware commands use `--server-profile` for the Velociraptor deployment and `--engagement-id` for local storage. If the engagement id is omitted, it falls back to the server profile. Labels remain explicit and independent.
 
-## Workflow
+## Collection lifecycle and advanced review
+
+For an explicitly named hunt analysis, follow the existing-hunt branch above.
+Steps 2–6 below concern collection selection/lifecycle; stacking, decisions and
+manual review-memory publication apply only when those operations are needed.
 
 1. Inspect saved readiness at session start and reuse valid `engagement.json`;
    use `velociraptor-engagement-setup` only when missing, invalid, or affected by
@@ -199,11 +263,14 @@ Case-aware commands use `--server-profile` for the Velociraptor deployment and `
 11. Requery suspicious groups for original rows and hosts. Submit decisions by
    `review_id`; every suppression requires an exact match count, disposition,
    and reason.
-12. After every structured or bounded semantic review, persist its findings and
+12. For structured or bounded reviews intended for harness publication, persist findings and
     coverage in `analysis/hunt-analysis-state.json`. For manual review outside
     `review_id`, append
     compact `analyst_review_memory`, then rerun `hunt analyze` to regenerate
     `analysis-hunt.md`.
+    Ordinary caller review of accepted candidates instead writes
+    `assessment-hunt.md`; it neither edits the harness checkpoint nor reruns
+    analysis just to publish the caller's conclusions.
 13. Verify the regenerated analysis contains the new memory and still exposes
     any unresolved structured-accounting or target-coverage blockers.
 14. Repeat until no review items remain, result review is complete at the
@@ -220,6 +287,8 @@ Use the shared `analyst-agent` only as a separate read-only semantic-review lane
 ## Reference Routing
 Read only the references needed for the current branch:
 
+- [existing-hunt-analysis.md](references/existing-hunt-analysis.md): saved review,
+  refresh/update choices, candidate paging and failure recovery for an exact hunt.
 - [live-analysis.md](references/live-analysis.md): review IDs, generic adaptive
   reduction, filters, drill-down, and closure.
 - [windows-hunt-orchestration.md](references/windows-hunt-orchestration.md):
@@ -441,11 +510,13 @@ available generic flow state with compact specialized state after every general,
 focused, structured-decision, or bounded analyst-review pass. Stacking and
 focused analysis write their bounded accounting, findings, representative
 context, and next action into this canonical report. Do not edit it directly.
-Analyst work is incomplete if its findings and review scope exist
-only in chat or a sibling note: persist compact `analyst_review_memory` with
+For custom reviews that must enter the harness report, persist compact `analyst_review_memory` with
 the artifact, review time, source row count, source watermark or query hash,
 coverage statement, assessment, limitations, and case-note reference before
 rerunning analysis.
+Caller-owned `assessment-hunt.md` is a separate supported publication: retain its
+checkpoint provenance and coverage without modifying harness state or rerunning
+acquisition. See the caller assessment contract linked above.
 
 `hunt-analysis-state.json` contains watermarks,
 coverage, reviewed branches, findings, analyst review memory, run identity,

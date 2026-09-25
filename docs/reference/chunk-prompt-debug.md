@@ -15,17 +15,20 @@ before any validation or normalization, including malformed responses. Provider
 credentials, configuration files, conversation history, raw HTTP payloads and
 provider-specific system messages are not added to the dump.
 
+Replace `<SERVER REFERENCE>` with the saved connection name for the server that
+owns the referenced flow or hunt.
+
 ```bash
 # Inspect one prompt from an existing flow without making model calls.
-vraptor analyze --id IR1234 --case-root ~/cases --server-profile lab \
+vraptor analyze --id IR1234 --case-root ~/cases --server-profile "<SERVER REFERENCE>" \
   --client C.EXAMPLE --flow F.EXAMPLE --skip-ai --debug-chunk-prompts
 
 # Save up to five prompt/response pairs during normal existing-flow analysis.
-vraptor analyze --id IR1234 --case-root ~/cases --server-profile lab \
+vraptor analyze --id IR1234 --case-root ~/cases --server-profile "<SERVER REFERENCE>" \
   --client C.EXAMPLE --flow F.EXAMPLE --debug-chunk-prompts 5
 
 # Standard streaming hunt analysis uses the same per-command limit.
-vraptor analyze --id IR1234 --server-profile lab --hunt H.EXAMPLE \
+vraptor analyze --id IR1234 --server-profile "<SERVER REFERENCE>" --hunt H.EXAMPLE \
   --debug-chunk-prompts 3
 ```
 

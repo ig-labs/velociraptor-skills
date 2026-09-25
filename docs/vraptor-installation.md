@@ -7,6 +7,8 @@ Python **3.11 or newer** and a supplied source checkout or wheel.
 
 The default path uses an existing server's API-client YAML and an OpenAI API
 key. Local servers, mapped evidence and other AI providers are optional.
+Commands use `"<SERVER REFERENCE>"` for the saved connection name selected during
+setup. Replace the whole placeholder with that name; it is not a server URL.
 
 Before installation:
 
@@ -131,12 +133,19 @@ saved settings, so inspect effective sources after configuration.
 If a saved credential file has moved, the wizard can repair its path; operational
 commands still fail when their selected credential file is missing.
 
-On a fresh machine, Enter accepts the saved-server name `live`. Enter the path
-to the existing API-client YAML when asked. Later, a single saved server is
-suggested automatically; type a different name to add another server. Enter `-`
-for shared connection defaults or local-only work. With several saved servers,
-choose the one to edit explicitly. Use `--server live` on operational commands
-(or substitute your chosen name).
+Choose a server reference at the saved-server-name prompt, then enter the path
+to that server's existing API-client YAML. A fresh setup suggests `live`; this
+is only a suggested name. Later, a single saved server is suggested automatically.
+Enter `-` for shared connection defaults or local-only work.
+
+The same installation supports multiple servers. Run setup again with a different
+reference to add another connection, or reuse a reference to edit it while
+preserving the others. With several saved servers, choose the one to edit
+explicitly. Select the intended server for each command with
+`--server-profile "<SERVER REFERENCE>"` or `--server "<SERVER REFERENCE>"`.
+Run `vraptor config` to list saved names in `connections`. See
+[multiple-server configuration](../CONFIG.md#multiple-server-connections) for
+profile storage, naming and override behavior.
 
 | Wizard section | Configure it for |
 | --- | --- |
@@ -166,7 +175,7 @@ Configure AI analyst settings [Y/n]:
 ```
 
 Operational settings are saved first, then the same `vraptor ai setup` wizard
-opens. Continue at step 3. Enter/No skips AI and prints the command for later.
+opens. Continue at step 3. Answer No to skip AI and print the command for later.
 A failed AI wizard leaves the operational settings saved and reports a retry
 command. The AI wizard may offer a separate native login check/sign-in; it does
 not send an inference request as part of saving settings.
@@ -332,10 +341,10 @@ Full transport and authentication details are in
 ## 4. Inspect the configuration offline
 
 Inspect operational settings first. For remote work, select the server profile
-you configured; for local-only work, omit `--server-profile live`:
+you configured; for local-only work, omit `--server-profile "<SERVER REFERENCE>"`:
 
 ```sh
-vraptor config --server-profile live
+vraptor config --server-profile "<SERVER REFERENCE>"
 ```
 
 Check paths, API username, organization and value sources. This command reads
@@ -376,7 +385,7 @@ To check the live server separately, explicitly run this read-only query after
 connecting to the required network/VPN:
 
 ```sh
-vraptor query --server live --vql 'SELECT 1 AS Ready FROM scope()'
+vraptor query --server "<SERVER REFERENCE>" --vql 'SELECT 1 AS Ready FROM scope()'
 ```
 
 Expect a row containing `Ready: 1`. This verifies the selected API connection;
@@ -437,7 +446,7 @@ sample and review its evidence references before adopting the profile for cases.
 | `venv` / `ensurepip` is unavailable | Install the selected interpreter's venv support, such as `python3-venv` on Debian/Ubuntu, and rerun the installer. |
 | `vraptor` is not on `PATH` | Use `./vraptor` from the checkout or activate `.venv` in this terminal. |
 | AI doctor reports a missing key | Add `OPENAI_API_KEY` to the selected credential file or process environment, then inspect `vraptor ai config` and rerun doctor. |
-| API connection fails | Check `vraptor config --server-profile live`, the API-client YAML path, its server address, VPN/firewall access, and the credential's permissions with your administrator. |
+| API connection fails | Check `vraptor config --server-profile "<SERVER REFERENCE>"`, the API-client YAML path, its server address, VPN/firewall access, and the credential's permissions with your administrator. |
 | OpenAI reports model access or quota failure | Check the API account/project and model availability; select an accessible model with `vraptor ai setup`. Offline doctor cannot verify account access or quota. |
 
 ## 6. Start the first investigation
@@ -454,12 +463,12 @@ configuration checks.
 | Local evidence with a managed local server | `local-deaddisk` | Native binary and evidence; setup manages local server credentials |
 
 ```sh
-# Live remote: the live profile already references the existing API-client YAML.
-vraptor setup start --mode live-remote --id live01 --server-profile live \
+# Live remote: the selected server reference has its existing API-client YAML.
+vraptor setup start --mode live-remote --id live01 --server-profile "<SERVER REFERENCE>" \
   --hostname host01
 
 # Map local evidence to a remote server; use its matching endpoint config.
-vraptor setup start --mode remote-deaddisk --id disk01 --server-profile live \
+vraptor setup start --mode remote-deaddisk --id disk01 --server-profile "<SERVER REFERENCE>" \
   --client-config /configs/live_client.config.yaml --evidence-path /evidence/disk.E01
 
 # Map local evidence to a case-owned local server.
@@ -496,7 +505,7 @@ For example, use the selected AI profile's maximum available token budgets for
 an existing flow:
 
 ```sh
-vraptor analyze --id live01 --server-profile lab \
+vraptor analyze --id live01 --server-profile "<SERVER REFERENCE>" \
   --client C.EXAMPLE --flow F.EXAMPLE \
   --max-input-tokens max --max-output-tokens max
 ```

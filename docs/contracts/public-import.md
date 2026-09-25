@@ -6,7 +6,7 @@ No public repository changes are applied by this implementation. The public
 working tree, existing `.sync-state.json`, adaptations, README, integration tests
 and sync policy remain owned by that repository.
 
-The exact shared mappings are:
+For older checkouts without a sync manifest, the legacy migration mappings are:
 
 | Upstream | Public | Kind |
 | --- | --- | --- |
@@ -14,6 +14,14 @@ The exact shared mappings are:
 | `packages/vraptor/tests/core` | `tests/core` | tree |
 | `packages/vraptor/docs/contracts` | `docs/contracts` | tree |
 | `packages/vraptor/pyproject.toml` | `pyproject.toml` | file |
+
+For current checkouts, the public `config/sync-manifest.tsv` is the authoritative
+export inventory, including explicitly mapped skills, utilities and regression
+tests. The exporter reads Git-visible working-tree files and current baseline
+keys before considering legacy keys. Ignored credentials/generated files,
+retired utilities and broad utility trees are excluded or rejected. Export staging
+never applies files or accepts fingerprints; public installer, launcher, CI,
+configuration and sync-tool adaptations stay owned by the public checkout.
 
 `module-map.json` records the old-to-new Python module names. The exporter uses
 it to map existing public files and accepted baseline keys into the new groups;
@@ -35,12 +43,12 @@ From the upstream checkout:
 
 Use a new output directory for each review. The exporter refuses an existing
 directory, writes outside both repositories, and exports reviewed working-tree
-bytes, including new package files. It records source revision, schema version,
+bytes, including new Git-visible mapped files. It records source revision, schema version,
 every path, SHA-256, mode, original baseline hash, path mapping and plan hash.
 
 Review all of:
 
-- `source/`: complete shared package, laid out at its public destination paths.
+- `source/`: mapped shared content, laid out at its public destination paths.
 - `destination-layout/`: current public bytes at the proposed new locations,
   without namespace rewrites or loss of public adaptations.
 - `export-plan.json`: exact path conversions and source/destination/base
@@ -48,7 +56,8 @@ Review all of:
 - `sync-state-original.json` and `sync-state-proposal.json`: old and renamed keys.
   The proposal preserves accepted fingerprints and the last source revision;
   it does not mark new bytes as accepted.
-- `sync-manifest-additions.tsv`: exact shared tree/file mappings.
+- `sync-manifest-additions.tsv`: current reviewed allowlist, or the four legacy
+  mappings when no public manifest exists. Do not append duplicate mappings.
 
 Run core tests and a clean wheel install against `source/`. Check public deny
 patterns, forbidden dependencies, schemas and GoldenDB pairing before import.
@@ -148,3 +157,14 @@ Retain the functional regression coverage when retiring wrappers. Removing a
 mapping prevents future imports; stale baseline entries are pruned by successful
 sync, not by manually editing accepted fingerprints. Reverse-sync deletions need
 independent review because a private package may retain modules absent publicly.
+
+The private `packages/vraptor/src/vraptor/integrations/__init__.py` is a retained
+package marker. Its absence publicly does not authorize a reverse-sync deletion.
+Review that ownership difference independently; never use blanket `--allow-delete`
+to bypass it. Merge CSV evidence-preservation tests with existing large-field and
+truncation coverage instead of replacing either suite.
+
+Public sync and validation now use `utils/sync-repos.py` and
+`utils/validate-public-export.py`. Their removed shell entrypoints must not be
+recreated by exporters. The Python validator includes the previous syntax, CLI,
+profile and isolated linker checks.

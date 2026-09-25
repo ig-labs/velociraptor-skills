@@ -1,90 +1,96 @@
 # Configuration
 
-Keep reusable operational settings in `~/.config/vraptor/config.toml`, or
-`$XDG_CONFIG_HOME/vraptor/config.toml`. Select another file with
-`--settings-file`. Configure them with the interactive wizard; the
-[generic template](config/vraptor.example.toml) is optional.
-Native API YAML and SSH keys remain protected files referenced by path.
+The default setup uses an **existing Velociraptor server** and the **OpenAI API**.
+Configure both through the installer; no manual TOML editing is needed.
+For prerequisites and other deployment options, see the
+[installation guide](docs/vraptor-installation.md).
+
+## First-time setup
+
+On macOS or Linux, have Python 3.11+, your server's API-client YAML and an
+OpenAI API key ready. From the repository root, run in a terminal:
 
 ```sh
-./vraptor setup configure
-./vraptor setup show --server-profile lab
+./utils/install.sh
 ```
 
-Run the bare configure command in a terminal to reach every section, including
-the AI handoff, selected by default. Fresh setups suggest server name `live`
-and AI connection `openai`; existing selections are retained. Enter `-` at the
-server-name prompt for shared defaults/local-only configuration, or No at the
-AI prompt to skip it. Setting flags such as `--case-root` perform targeted
-configuration and skip the interactive wizard. Package installation is separate:
-`utils/install.sh` creates/reuses `.venv`, installs OpenAI, Anthropic and Claude
-Agent SDK dependencies, then
-opens this wizard in a terminal. `--no-configure` and non-interactive runs install
-dependencies only.
+The installer creates/reuses `.venv`, installs the OpenAI, Anthropic and Claude
+Agent SDKs, and opens the setup wizard. For the default live-server setup:
 
-A repository `.env` is not required. Keep provider secrets in a selected
-credential file or process environment, and use TOML for reusable preferences.
-The wizard records file references without copying secret values.
+1. Choose a **server reference**, such as `production` or `lab`, and enter its
+   existing API-client YAML path. `live` is only the initial name suggestion.
+2. Keep the displayed workstation defaults and skip optional SSH, local-server,
+   mapped-evidence and advanced sections unless you need them.
+3. Select your credential file if needed. At **Configure AI analyst settings
+   [Y/n]**, press Enter, then accept `openai` at **Connection** and choose a model
+   available to your account. Later runs retain saved selections.
 
-Operational precedence is explicit arguments, process environment, selected
-credential dotenv, repository `.env`, shared `~/.codex/.env`, TOML, then defaults.
-An investigation-local `.env` is not loaded. The native executable defaults to
-`~/velociraptor/velociraptor`; tool preparation and setup use the same setting.
-The repository launchers only select Python and import paths; Python resolves
-settings. Existing dotenv overrides can mask changes made in the wizard:
-inspect effective sources with `./vraptor config` and `./vraptor ai config`.
-
-Preview legacy environment migration with `./vraptor setup migrate
---server-profile lab`; add `--write` to save nonconflicting values. Migration
-preserves existing TOML values and does not remove original dotenv overrides.
-
-## Analyst configuration
-
-Analyst profiles live separately in `~/.config/vraptor/analyst-agents.toml`.
-Default-path resolution migrates the legacy `ai_skills` file only when the new
-destination is absent; explicit paths remain unchanged. Ollama is no longer a
-supported provider. The `agent` command remains an alias for `ai`.
-Use [the profile example](config/analyst-agents.example.toml),
-[installation guide](docs/vraptor-installation.md), and
-[model execution reference](docs/model-execution.md).
+Inspect the result, replacing `<SERVER REFERENCE>` with the name you chose:
 
 ```sh
-./vraptor ai setup
+./vraptor config --server-profile "<SERVER REFERENCE>"
 ./vraptor ai config
 ./vraptor ai doctor
 ```
 
-Use `setup configure --analyst-config-file PATH` to save a reference to that
-file. Explicit analyst `--config-file` and
-`AI_SKILLS_ANALYST_AGENT_CONFIG_FILE` override it. Keep API keys in environment
-variables or a selected credential dotenv, never in committed templates.
-Offline diagnostics do not prove authentication or inference. `ai test`
-sends a small synthetic request and should only be run when live testing is wanted.
+These are local checks; they do not test live authentication or inference.
+See the [installation guide](docs/vraptor-installation.md#5-test-ai-if-needed)
+for optional connection tests and starting an investigation.
+
+## Change settings later
+
+```sh
+./vraptor setup configure
+# AI settings only:
+./vraptor ai setup
+```
+
+Enter keeps displayed values. Answer No at the AI prompt to skip AI configuration.
+Use `./utils/install.sh --no-configure` for dependency-only upgrades. Installation
+without a terminal also skips configuration; open the wizard afterward.
+
+## Multiple server connections
+
+One installation supports multiple servers. Run `./vraptor setup configure`
+again and choose a new reference to add a server, or reuse a reference to edit
+it. Other connections are preserved, each with its own API-client YAML path.
+References identify saved connections, not server URLs or investigation IDs.
+Start names with a letter or number; use letters, numbers, dots, underscores or
+hyphens, without spaces.
+
+Select one server per command with `--server-profile "<SERVER REFERENCE>"`
+(or `--server`). Run `./vraptor config` to list saved names in `connections`.
+Named connections live under `[connections.NAME]` and inherit shared
+`[connection_defaults]`. AI profiles are configured separately.
+
+## Settings and credentials
+
+| File | Stores |
+| --- | --- |
+| `~/.config/vraptor/config.toml` | Workstation settings, named servers and credential-file references |
+| `~/.config/vraptor/analyst-agents.toml` | AI providers, models and analysis budgets |
+
+Both paths follow `$XDG_CONFIG_HOME` when configured. Keep API-client YAML and
+provider keys outside the checkout. Supply `OPENAI_API_KEY` through your process
+environment or a credential `.env` selected in the wizard. If asked for the API
+key variable name, enter `OPENAI_API_KEY`, not the key itself. The wizard saves
+references, not secret values; a repository `.env` is optional.
+
+Operational precedence, highest first: explicit arguments, process environment,
+selected credential `.env`, repository `.env`, shared `~/.codex/.env`, TOML,
+then defaults. Investigation-local `.env` files are not loaded. If saved settings
+appear ignored, inspect their sources with the configuration commands above.
 
 ## Export and deploy current settings
 
-```sh
-./vraptor setup export --output ~/.config/vraptor/presets/current.toml
-./vraptor setup deploy --from ~/.config/vraptor/presets/current.toml
-./vraptor setup deploy --from ~/.config/vraptor/presets/current.toml --apply
-```
-
-Export records effective operational settings and connection paths without
-copying credentials or analyst configuration contents. Existing exports are
-never overwritten. Deploy previews by default, merges selected settings, and
-backs up the changed file. Review `setup show` afterward.
+Optional: use `./vraptor setup export --output SNAPSHOT.toml` to save preferences
+and file references. Preview a restore with
+`./vraptor setup deploy --from SNAPSHOT.toml`; add `--apply` to save with a backup.
+Credentials and AI profile contents are not copied. See the
+[CLI reference](docs/contracts/cli.md#operational-setup) for migration and recovery.
 
 ## Reset Velociraptor setup preferences
 
-```sh
-./vraptor setup reset
-./vraptor setup reset --apply
-```
-
-Reset previews by default. Applying it backs up changed files and clears
-operational preferences while retaining credential and analyst references,
-investigations, and installed tools. Only apply the reset to the intended settings.
-
-See the [setup workflow](skills/velociraptor-engagement-setup/SKILL.md) and
-[manual acceptance guide](docs/velociraptor-setup-testing.md) for connection modes,
-readiness, mapping ownership, and remote provisioning requirements.
+Optional: `./vraptor setup reset` previews the changes. Add `--apply` to back up
+and clear operational preferences, retaining credential and analyst references,
+investigations and installed tools.

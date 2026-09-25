@@ -8,22 +8,27 @@ for `ai`. The advanced `setup`, `config`,
 `--server` aliases `--server-profile`; `--profile` remains an analysis profile.
 `--client`, `--hunt`, `--request` and query `--file` alias the existing ID/file flags.
 
+Replace `<SERVER REFERENCE>` in examples with a saved connection name. Multiple
+servers can be configured in the same installation; each command selects one
+reference. `vraptor config` lists saved names in `connections`. See
+[multiple-server configuration](../../CONFIG.md#multiple-server-connections).
+
 ```sh
 vraptor ai config --view defaults
 vraptor config --view defaults
-vraptor config --server lab
+vraptor config --server "<SERVER REFERENCE>"
 vraptor ai setup
 vraptor ai doctor
 vraptor tools prep --help
 vraptor query --api-client /configs/lab.yaml --file clients.vql
-vraptor clients --server lab --name host01
+vraptor clients --server "<SERVER REFERENCE>" --name host01
 vraptor artifacts policy show
-vraptor collect --id IR1234 --server lab --client C.1234abcd --artifact Windows.Forensics.Prefetch
-vraptor analyze --id IR1234 --server lab --client C.1234abcd --flow F.EXAMPLE --skip-ai --json
-vraptor analyze --id IR1234 --server lab --client C.1234abcd --request-id REQUEST_ID --json
-vraptor analyze --id IR1234 --server lab --hunt H.EXAMPLE --artifact Windows.Forensics.Prefetch --skip-ai --json
+vraptor collect --id IR1234 --server "<SERVER REFERENCE>" --client C.1234abcd --artifact Windows.Forensics.Prefetch
+vraptor analyze --id IR1234 --server "<SERVER REFERENCE>" --client C.1234abcd --flow F.EXAMPLE --skip-ai --json
+vraptor analyze --id IR1234 --server "<SERVER REFERENCE>" --client C.1234abcd --request-id REQUEST_ID --json
+vraptor analyze --id IR1234 --server "<SERVER REFERENCE>" --hunt H.EXAMPLE --artifact Windows.Forensics.Prefetch --skip-ai --json
 vraptor analyze --from /exports/hunt-snapshot.json --skip-ai --json
-vraptor export --id IR1234 --server lab --client C.1234abcd --request-id REQUEST_ID
+vraptor export --id IR1234 --server "<SERVER REFERENCE>" --client C.1234abcd --request-id REQUEST_ID
 ```
 
 Configuration inspection uses `vraptor config` for operational settings and
@@ -97,14 +102,14 @@ credential-file references. Inspect effective sources after configuration.
 vraptor setup configure
 # Targeted, non-interactive updates:
 vraptor setup configure --case-root ~/cases
-vraptor setup configure --server-profile lab --api-client /configs/lab.yaml
-vraptor setup show --server-profile lab
-vraptor setup migrate --server-profile lab
-vraptor setup migrate --server-profile lab --write
+vraptor setup configure --server-profile "<SERVER REFERENCE>" --api-client /configs/lab.yaml
+vraptor setup show --server-profile "<SERVER REFERENCE>"
+vraptor setup migrate --server-profile "<SERVER REFERENCE>"
+vraptor setup migrate --server-profile "<SERVER REFERENCE>" --write
 
-vraptor setup start --mode live-remote --id live01 --server-profile lab \
+vraptor setup start --mode live-remote --id live01 --server-profile "<SERVER REFERENCE>" \
   --api-client /configs/lab.yaml --hostname host01
-vraptor setup start --mode remote-deaddisk --id disk01 --server-profile lab \
+vraptor setup start --mode remote-deaddisk --id disk01 --server-profile "<SERVER REFERENCE>" \
   --api-client /configs/lab.yaml --client-config /configs/lab_client.yaml \
   --evidence-path /evidence/disk.E01
 vraptor setup start --mode local-deaddisk --id local01 --evidence-path /evidence/disk.E01
@@ -207,9 +212,9 @@ the lifecycle and older setup commands.
 Setup lifecycle/configuration commands emit JSON; runtime failures return 1 and
 argument errors return 2.
 
-`dfir case` and the `dfir-case` executable have been removed. Installed console
-entrypoints use the flat commands above; the repository `./dfir velociraptor`
-launcher remains a compatibility route to `vraptor.legacy_cli`. `collect analyze` may ensure
+`dfir case` and the `dfir-case` executable have been removed. Installed
+entrypoints use the flat commands above. The checkout `./dfir velociraptor`
+launcher strips the old namespace and enters the same Python settings resolver. `collect analyze` may ensure
 missing collections; `analyze` only selects existing evidence. Neither publishes
 case-management events.
 

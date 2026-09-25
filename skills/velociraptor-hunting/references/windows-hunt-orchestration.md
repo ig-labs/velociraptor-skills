@@ -5,6 +5,13 @@ Use this reference for Windows cross-host questions. The canonical owner is
 
 ## Hunt Choices
 
+First prefer reviewing existing in-scope hunt evidence, including suitable
+multi-artifact hunts. Use the known inventory or read-only discovery to select
+them, then `vraptor analyze --hunt H.ID` with the saved case/connection context.
+The collection choices below apply only when existing evidence is insufficient
+for the requested scope/freshness or fresh collection was explicitly requested.
+Explain the evidence gap before proposing a new hunt.
+
 Use the smallest option that answers the question:
 
 - `detectraptor`: first-pass lead generation, one native hunt per artifact;
@@ -67,13 +74,17 @@ then create new. IR labels and engagement identifiers compare case-insensitively
 An exact current-case multi-artifact hunt prevents a duplicate single-artifact
 hunt when the requested artifact parameters and target scope are compatible.
 
-Reuse terminal-success or in-flight/paused exact current-case matches. Failed,
+For collection scheduling, reuse terminal-success or in-flight/paused exact current-case matches. Failed,
 cancelled, stopped, unknown, stale by operator policy, or intentionally repeated
 exact matches require `--force-run`. Generic and different-IR candidates are
 reference-only templates: report their artifact set and parameters, never use
 their results as current-case evidence, and never mutate them automatically.
 Creating a separate current-case hunt when a template exists requires explicit
 `--authorize-template-create`.
+
+These collection reuse rules do not prevent reviewing results already exposed by
+stopped, failed or cancelled hunts. Analyze their in-scope evidence with explicit
+coverage limits; `--force-run` is not needed for existing-evidence analysis.
 
 ```bash
 dfir hunt native check \

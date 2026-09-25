@@ -43,7 +43,7 @@ def initialize_pair(tmp_path: Path) -> tuple[Path, Path, Path]:
     (ai / "shared").mkdir(parents=True)
     shutil.copy2(SYNC_SCRIPT, public / "utils" / "sync-repos.py")
     shutil.copy2(ROOT / "utils" / "public_audit.py", public / "utils" / "public_audit.py")
-    (public / ".gitignore").write_text("/.local/\n", encoding="utf-8")
+    (public / ".gitignore").write_text("/.local/\n/.sync-state.json\n", encoding="utf-8")
     (public / "config" / "sync-manifest.tsv").write_text(
         "shared/file.txt\tmanaged/file.txt\tfile\n", encoding="utf-8"
     )

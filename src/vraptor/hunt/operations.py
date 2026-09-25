@@ -789,12 +789,24 @@ def raise_for_hunt_scope_validation_errors(
 
 
 def hunt_requested_specs(row: dict[str, Any]) -> list[Any]:
+    requested_artifacts = hunt_requested_artifacts(row)
     start_request = row.get("start_request")
     if isinstance(start_request, dict):
         specs = start_request.get("specs")
         if specs:
-            return collection.parse_specs_json(json.dumps(specs))
-    requested_artifacts = hunt_requested_artifacts(row)
+            parsed_specs = collection.parse_specs_json(json.dumps(specs))
+            represented = {
+                casefold_text(name)
+                for spec in parsed_specs
+                for name in (spec.label, spec.artifact)
+                if str(name).strip()
+            }
+            missing_artifacts = [
+                artifact
+                for artifact in requested_artifacts
+                if casefold_text(artifact) not in represented
+            ]
+            return parsed_specs + collection.build_expected_specs(missing_artifacts)
     if requested_artifacts:
         return collection.build_expected_specs(requested_artifacts)
     return []

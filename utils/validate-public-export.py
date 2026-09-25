@@ -158,6 +158,9 @@ def check_env(errors: list[str]) -> None:
 def check_state(errors: list[str]) -> None:
     try:
         state = json.loads(STATE.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        # A fresh checkout has no local synchronization baseline yet.
+        return
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"invalid sync state: {exc}")
         return
@@ -224,7 +227,9 @@ def validate_static() -> int:
     if has_symlink(DENY_FILE):
         errors.append("deny-pattern configuration must not use symlinks")
     else:
-        findings = check_deny_patterns(files, errors)
+        # Keep checking local baseline contents even though Git ignores them.
+        scan_files = files if STATE in files else [*files, STATE]
+        findings = check_deny_patterns(scan_files, errors)
     for path, check in (
         (REPO_ROOT / "config/example.env", check_env), (STATE, check_state),
         (MANIFEST, check_manifest), (GOLDEN_DB, check_database),

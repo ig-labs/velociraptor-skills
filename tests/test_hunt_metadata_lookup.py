@@ -28,6 +28,52 @@ class HuntMetadataLookupTest(unittest.TestCase):
     def setUpClass(cls):
         cls.module = load_module("hunting.py")
 
+    def test_partial_specs_keep_parameters_and_include_other_declared_artifacts(self):
+        row = {
+            "start_request": {
+                "artifacts": ["Artifact.Files", "Artifact.Remote", "Artifact.Logs"],
+                "specs": [{
+                    "artifact": "Artifact.Files",
+                    "parameters": {"env": [{"key": "Path", "value": "*.log"}]},
+                    "timeout": 120,
+                }],
+            },
+        }
+
+        specs = self.module.hunt_requested_specs(row)
+
+        self.assertEqual([spec.artifact for spec in specs], row["start_request"]["artifacts"])
+        self.assertEqual(specs[0].env, {"Path": "*.log"})
+        self.assertEqual(specs[0].timeout_seconds, 120)
+        self.assertEqual(specs[1].env, {})
+        self.assertIsNone(specs[1].timeout_seconds)
+        self.assertEqual(self.module.hunt_artifact_names(row), row["start_request"]["artifacts"])
+        self.assertEqual(
+            self.module.artifact_filters_match(row, ["Artifact.Remote"], None),
+            (True, ["Artifact.Remote"]),
+        )
+
+    def test_spec_artifact_matching_is_case_insensitive(self):
+        row = {"start_request": {
+            "artifacts": ["Artifact.Files", "Artifact.Remote"],
+            "specs": [{"artifact": "artifact.files"}],
+        }}
+
+        specs = self.module.hunt_requested_specs(row)
+
+        self.assertEqual([spec.artifact for spec in specs], ["artifact.files", "Artifact.Remote"])
+
+    def test_declared_artifacts_survive_unusable_specs(self):
+        row = {"start_request": {
+            "artifacts": ["Artifact.Remote"],
+            "specs": [{"parameters": {}}],
+        }}
+
+        self.assertEqual(
+            [spec.artifact for spec in self.module.hunt_requested_specs(row)],
+            ["Artifact.Remote"],
+        )
+
     def test_modern_complete_row_needs_one_query_and_is_copied(self):
         row = {
             "hunt_id": "H.test",

@@ -30,22 +30,32 @@ your server administrator's API-client YAML, and an OpenAI API key ready.
 See the [fresh-machine guide](docs/vraptor-installation.md) for prerequisites
 and storing credentials outside the checkout.
 
+Replace `<SERVER REFERENCE>` below with the saved server name you choose during
+setup, such as `production` or `lab`. It identifies a connection profile, not a
+server URL or the `live-remote` workflow mode.
+
 ```sh
 git clone https://github.com/ig-labs/velociraptor-skills.git
 cd velociraptor-skills
 ./utils/install.sh
-./vraptor config --server-profile live
+./vraptor config --server-profile "<SERVER REFERENCE>"
 ./vraptor ai config
 ./vraptor ai doctor
 ```
 
-In a terminal, installation opens the setup wizard automatically. Accept the
-server name `live`, enter your existing API-client YAML path, select your
-credential file if needed, and press Enter at **Configure AI analyst settings
+In a terminal, installation opens the setup wizard automatically. Choose a
+server reference (`live` is only the initial suggestion), enter its API-client
+YAML path, select your credential file if needed, and press Enter at **Configure AI analyst settings
 [Y/n]** and the **Connection** prompt to select `openai`. Keep the displayed model
 or choose one available to your account. Optional SSH, local-server and
 mapped-evidence sections can be skipped. Saved server/provider settings are
 retained on later runs.
+
+**Multiple servers are supported in the same installation.** Run setup for each
+distinct server reference and save its own API-client YAML path. Select the
+connection per command with `--server-profile "<SERVER REFERENCE>"` (or the
+`--server` alias). `./vraptor config` lists saved references in `connections`.
+See [multiple-server configuration](CONFIG.md#multiple-server-connections).
 
 Use `./utils/install.sh --no-configure` for dependency-only installation or
 upgrades; non-interactive runs also skip configuration. Run bare
@@ -187,7 +197,12 @@ The shared export uses these folder mappings:
 | `packages/vraptor/pyproject.toml` | `pyproject.toml` |
 
 The manifest is `config/sync-manifest.tsv`; `.sync-state.json` records the
-content hash at the last successful synchronization.
+content hash at the last successful synchronization. The baseline is local to
+each checkout and Git-ignored; keep it locally to preserve change tracking.
+Fresh clones start without a baseline. The first reviewed `--apply` creates it;
+without a baseline, differing files present on both sides are treated as
+conflicts and require manual review. Public-export validation does not require
+the baseline, but checks it when present.
 
 Preview and import a committed revision from a sibling `ai_skills` checkout:
 

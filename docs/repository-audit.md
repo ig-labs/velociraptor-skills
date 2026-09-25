@@ -98,10 +98,10 @@ to manually remove baseline records.
 | --- | --- |
 | `dfir`, `vraptor` | Keep both launcher aliases; both load `utils/runtime-env.sh` and the shared CLI. |
 | `pyproject.toml`, `requirements.txt`, `pytest.ini` | Keep package metadata/dependencies, editable AI install convenience, and test discovery/import configuration. These have different consumers. |
-| `README.md`, `CONFIG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `AGENTS.md`, `LICENSE` | Keep user, contributor, security and repository instructions. README's stale claim that a license was absent was corrected to reference the existing Unlicense. |
+| `README.md`, `CONFIG.md`, `AGENTS.md`, `LICENSE` | Keep user configuration, repository instructions and licensing. README's stale claim that a license was absent was corrected to reference the existing Unlicense. |
 | `.gitattributes` | Keep the GoldenDB CSV line-ending/whitespace exception. |
 | `.gitignore` | Keep credential, evidence and generated-file exclusions. Generic template entries and repeated Python rules can be shortened for readability but consume negligible space and are not a functional problem. |
-| `.sync-state.json` | Keep last-sync fingerprints and mode baselines. Removing it loses the basis for conflict and destination-only change detection. It is scanned by the export gate. |
+| `.sync-state.json` | Keep last-sync fingerprints and mode baselines locally; the file is Git-ignored and untracked. Removing the local copy loses the basis for conflict and destination-only change detection. The export gate checks it when present and permits its absence on fresh clones. |
 | `config/sync-manifest.tsv` | Keep directional file/tree mappings. Removing a file without updating ownership here may reintroduce it on later synchronization. |
 | `config/public-deny-patterns.tsv` | Keep labeled private-marker and recognizable credential regexes. The validator excludes this policy file's own content from matching itself. |
 | `config/example.env` | Keep sanitized environment example. Secret-like key/token/password/secret values must be empty. |

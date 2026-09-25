@@ -1,5 +1,10 @@
 # Live Hunt Analysis Loop
 
+For ordinary analysis of a named hunt, start with the
+`SKILL.md` existing-hunt branch. This reference covers
+advanced stacking, filtering, decisions and manual publication; its commands are
+not extra prerequisites for the normal streaming run.
+
 `--skip-ai` retains deterministic preparation and skips model execution. See the
 [shared output and status contract](../../../docs/reference/analysis-skip-ai.md).
 
@@ -50,12 +55,13 @@ Unsupported stream analysis rejects the switch; a failed stack-field selection
 cannot silently fall back to unfiltered AI review. With `--skip-ai`, all AI
 review is skipped regardless of the cutoff.
 
-Configure analyst execution only through the root `.env` shared settings:
-`AI_SKILLS_ANALYST_AGENT_ENABLED`, `AI_SKILLS_ANALYST_AGENT_MODEL`,
-`AI_SKILLS_ANALYST_AGENT_TIMEOUT_SECONDS`, and
-`AI_SKILLS_ANALYST_AGENT_MAX_CONCURRENCY`. Full live analysis, generic stacks,
-and Autoruns stacks use the same resolved analyst specification. The hunt CLI
-has no stack-specific AI enablement, model, timeout, or concurrency overrides.
+Reuse the saved analyst profile. TOML profiles, process environment and optional
+dotenv overrides resolve through the shared settings layer; a root `.env` is not
+required. Supported run-only profile/model/token overrides are documented in
+[model execution](../../../docs/model-execution.md). Full live analysis, generic
+stacks and Autoruns stacks use the same resolved analyst specification. Inspect
+`vraptor ai config` at session initialization or after relevant changes, rather
+than repeating configuration discovery for each hunt.
 
 ## Start or Continue
 

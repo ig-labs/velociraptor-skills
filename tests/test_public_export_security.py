@@ -31,6 +31,24 @@ def test_malformed_state_is_reported(tmp_path, monkeypatch, state):
     assert errors
 
 
+@pytest.mark.parametrize("state_kind", ["missing", "valid", "malformed", "sensitive"])
+def test_static_gate_handles_untracked_local_state(tmp_path, monkeypatch, state_kind):
+    marker = "Info" + "Guard"
+    monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(validator, "git_files", lambda: [])
+    for setting in ("DENY_FILE", "STATE", "MANIFEST", "GOLDEN_DB"):
+        monkeypatch.setattr(validator, setting, tmp_path / setting.lower())
+    validator.DENY_FILE.write_text("private-organization\t" + marker + "\n")
+    for name in ("check_env", "check_manifest", "check_database"):
+        monkeypatch.setattr(validator, name, lambda errors: None)
+    if state_kind != "missing":
+        state = {"schema_version": 1, "files": {}}
+        if state_kind == "sensitive":
+            state["note"] = marker
+        validator.STATE.write_text("{" if state_kind == "malformed" else json.dumps(state))
+    assert validator.validate_static() == int(state_kind in {"malformed", "sensitive"})
+
+
 def test_symlinked_parent_is_rejected_without_reading_external_content(tmp_path, monkeypatch):
     repo = tmp_path / "repo"
     repo.mkdir()

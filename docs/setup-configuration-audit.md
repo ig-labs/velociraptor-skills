@@ -14,13 +14,15 @@ credential files, case evidence or upstream checkout is changed by this work.
    In a terminal it opens configuration automatically;
    `--no-configure` and non-interactive runs install dependencies only.
 2. Continue in the wizard, or run bare `./vraptor setup configure` later. Fresh
-   setups suggest server name `live`; enter the existing API-client YAML path.
+   setups suggest server name `live`; choose a server reference and enter its
+   existing API-client YAML path. Multiple references can coexist; generic
+   commands use `"<SERVER REFERENCE>"` to select the intended saved connection.
    It saves workstation,
    connection, SSH, transport and mapping settings and credential-file references
    to the XDG-aware `vraptor/config.toml`. Enter accepts the AI handoff and new
    provider `openai`; saved provider/model choices are retained. Analyst profiles
    are saved in `vraptor/analyst-agents.toml`. Setting flags skip the wizard.
-3. Inspect `./vraptor config --server-profile live`, `./vraptor ai config` and `./vraptor ai doctor`.
+3. Inspect `./vraptor config --server-profile "<SERVER REFERENCE>"`, `./vraptor ai config` and `./vraptor ai doctor`.
    A repository `.env` is optional. Explicit arguments, process environment,
    selected credential dotenv, repository dotenv and shared dotenv override
    saved TOML in that order. Existing overrides are preserved.
@@ -221,6 +223,10 @@ and explicitly requested live tests. The public installer now opens configuratio
 in a terminal, supports --no-configure for CI/upgrades, checks Python 3.11+, and
 bootstraps pip in an existing pip-less venv. Adapt these behaviors to private
 installation consumers; do not overwrite private root installation glue.
+Treat live as a suggested profile name only. Use "<SERVER REFERENCE>" in generic
+command examples and installer guidance, and document that one installation
+supports multiple named servers with separate API YAML paths and per-command
+selection. Preserve other profiles when adding or editing one connection.
 The standard dependency install includes ai, anthropic and claude extras while
 keeping OpenAI selected by default. Preserve the SDK compatibility constraints
 in pyproject.toml and document that other providers still need their credentials.

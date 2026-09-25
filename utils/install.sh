@@ -64,9 +64,9 @@ if [[ "${CONFIGURE}" == yes || ( "${CONFIGURE}" == auto && -t 0 && -t 1 ) ]]; th
 else
   printf 'Next, configure live-server access and OpenAI in a terminal: %q setup configure\n' "${REPO_ROOT}/vraptor"
 fi
-printf '\nInspect saved settings: %q config --server-profile live\n' "${REPO_ROOT}/vraptor"
+printf '\nInspect saved settings: %q config --server-profile "<SERVER REFERENCE>"\n' "${REPO_ROOT}/vraptor"
 printf 'Inspect AI settings: %q ai config\n' "${REPO_ROOT}/vraptor"
 printf 'Check AI dependencies and credentials offline: %q ai doctor\n' "${REPO_ROOT}/vraptor"
-printf 'If you chose a different server name, replace live with that name.\n'
+printf 'Replace <SERVER REFERENCE> with a saved server name; multiple server profiles are supported.\n'
 printf 'Configuration is saved separately; a repository .env is optional.\n'
 printf 'Preview skill links with: %q --dry-run\n' "${REPO_ROOT}/utils/link-codex-skills.sh"

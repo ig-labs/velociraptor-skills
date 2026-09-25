@@ -7,6 +7,9 @@ Apply the shared [finding enrichment workflow](../../../docs/reference/indicator
 
 - Require an explicit lead, indicator, identity, behavior, keyword, or
   hypothesis.
+- An explicitly supplied hunt ID is sufficient scope for reviewing that hunt's
+  existing evidence. Inherit saved task policy and the user's question; do not
+  demand another indicator or expand into fleet discovery merely to start analysis.
 - Keep host, user, artifact, time, and filter scope exact. Do not drift into
   generic environment discovery.
 - Return the exact question and seed, hunt/query identifiers, filters, affected

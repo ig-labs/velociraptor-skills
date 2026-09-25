@@ -252,3 +252,6 @@ server.config.yaml
 
 # Local public-export audit records (metadata only; never publish).
 /.local/
+
+# Local repository synchronization baseline.
+/.sync-state.json

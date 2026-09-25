@@ -15,18 +15,21 @@ namespace.
 - Velociraptor labels are independent targeting inputs. A label is never
   inferred from either identifier.
 
-Example:
+Multiple server references can coexist in one installation. Select the intended
+reference per command; it remains separate from the local investigation ID.
+Replace `<SERVER REFERENCE>` below with the saved name and use that server's
+API-client YAML.
 
 ```bash
 ./dfir setup start --mode live-remote \
-  --server-profile lab \
+  --server-profile "<SERVER REFERENCE>" \
   --id ir1234 \
   --api-client /secure/lab_api_client.yaml \
   --case-root "$HOME/cases" \
   --environment-only-ok
 ```
 
-This connects to the `lab` deployment and writes readiness and later hunt or
+This connects to the selected deployment and writes readiness and later hunt or
 collection state under `$HOME/cases/ir1234`. A transient investigation server
 does not need a permanent named connection in user settings. Its concrete
 credential/server binding is retained in `engagement.json`.
