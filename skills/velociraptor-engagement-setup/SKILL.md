@@ -78,9 +78,11 @@ paths, binary and service account. Named profiles may select `org_id`.
 Leave unused environment overrides empty so TOML remains effective.
 
 Interactive configure offers an **AI analyst configuration** section with
-`Configure AI analyst settings [y/N]:`. Explicit Yes saves operational settings,
-then opens the existing `vraptor ai setup` wizard using that settings file. Enter
-skips it. Preview never launches it; a failed AI wizard leaves operational settings
+`Configure AI analyst settings [Y/n]:`. Enter or Yes saves operational settings,
+then opens the existing `vraptor ai setup` wizard using that settings file. No
+skips it. New setups suggest server name `live` and AI provider `openai`; saved
+selections remain authoritative. Enter `-` at the server-name prompt for shared
+defaults/local-only configuration. Preview never launches AI setup; a failed wizard leaves operational settings
 saved and reports a retry command. AI wizard output goes to stderr.
 
 The AI wizard groups **Analysis token budgets** separately and saves

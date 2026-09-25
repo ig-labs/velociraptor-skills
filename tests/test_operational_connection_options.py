@@ -235,10 +235,10 @@ def test_interactive_configure_optionally_runs_ai_setup_after_save(workstation, 
     monkeypatch.setattr(manage, "main", wizard)
     result = cli.main(["setup", "configure", "--settings-file", str(path), *(["--preview"] if preview else [])])
     output = capsys.readouterr()
-    assert "Configure AI analyst settings [y/N]: " in prompts
+    assert "Configure AI analyst settings [Y/n]: " in prompts
     assert "\nAI analyst configuration\n" in output.err
     json.loads(output.out)  # AI wizard output must not append a second JSON document.
-    selected = answer in {"y", "yes"} and not preview
+    selected = answer in {"", "y", "yes"} and not preview
     assert wizard.call_count == int(selected)
     assert result == (status if selected else 0)
     if preview:

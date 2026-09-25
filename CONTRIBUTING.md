@@ -7,7 +7,7 @@ sanitized hostnames, addresses, identities, and case names.
 Run:
 
 ```sh
-./utils/validate-public-export.sh
+./utils/validate-public-export.py
 ```
 
 Repository synchronization is direction-explicit. If the same managed file

@@ -292,8 +292,9 @@ Shared SSH settings belong in `[connection_defaults]`, with named overrides.
 `[api].grpc_max_message_bytes` selects the shared transport limit.
 Successful setup/resume prints the optional `vraptor ai setup` next step for
 AI configuration (`agent` remains an alias). Interactive `setup configure` can
-open that wizard after saving settings when the operator explicitly answers Yes
-to `Configure AI analyst settings [y/N]:`; preview never launches it.
+open that wizard after saving settings when the operator accepts
+`Configure AI analyst settings [Y/n]:`; No skips it and preview never launches it.
+For local-only settings, enter `-` at the suggested `live` server-name prompt.
 
 Legacy environment overrides remain supported:
 

@@ -13,5 +13,6 @@ and their DFIR runtime.
   retries, cancellation, API-user generation, or other server mutation.
 - Preserve dirty work and never overwrite a managed file that changed on both
   sides of a repository synchronization.
-- Use `./utils/sync-repos.sh --check` before `--apply` and review every change.
-- Run `./utils/validate-public-export.sh` before committing.
+- Use `./utils/sync-repos.py from-ai --check` (or `to-ai --check`) before
+  `--apply` and review every change.
+- Run `./utils/validate-public-export.py` before committing.

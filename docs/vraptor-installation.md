@@ -1,13 +1,37 @@
 # Install and set up vraptor
 
 Use this guide for the complete workstation setup: install the Python package,
-configure Velociraptor connections and optional AI analysis, check the settings,
+configure an existing live Velociraptor server and OpenAI analysis, check the settings,
 then start a live or mapped investigation. Commands assume macOS or Linux with
 Python **3.11 or newer** and a supplied source checkout or wheel.
 
+The default path uses an existing server's API-client YAML and an OpenAI API
+key. Local servers, mapped evidence and other AI providers are optional.
+
+Before installation:
+
+- Install Git and Python 3.11+ with `venv` support. Check `git --version` and
+  `python3 --version`. On macOS, install a current Python from
+  [python.org](https://www.python.org/downloads/macos/) if the system Python is too old.
+  On Debian/Ubuntu, install the distribution's `python3`, `python3-venv` and `git`
+  packages, and check that its Python meets the version requirement.
+- Obtain an existing API-client YAML from your Velociraptor administrator.
+  Store it outside the checkout, for example `~/.config/vraptor/live-api.yaml`,
+  with permissions `chmod 600 ~/.config/vraptor/live-api.yaml`. The YAML contains
+  the API endpoint and credentials; a web GUI URL or password is not a substitute.
+  Connect your VPN if the server requires it. Setup does not generate API users.
+- Supply `OPENAI_API_KEY` from your secret manager/process environment, or create
+  a credential file in your editor outside the checkout, such as
+  `~/.config/vraptor/credentials.env`, containing `OPENAI_API_KEY=your-key`.
+  Before creating it, run `umask 077` and `mkdir -p ~/.config/vraptor`; restrict
+  the saved file with `chmod 600 ~/.config/vraptor/credentials.env`, then select
+  it in the wizard.
+  Use your own key from the [OpenAI API quickstart](https://developers.openai.com/api/docs/quickstart).
+  The OpenAI route uses API credentials, not a Codex/ChatGPT application login.
+
 | Stage | Command | Result |
 | --- | --- | --- |
-| Install | `python -m pip install ...` | Installs the `vraptor` / `dfir` commands and selected dependencies |
+| Install | `./utils/install.sh` | Installs vraptor + OpenAI/Anthropic/Claude SDKs and opens configuration in a terminal |
 | Configure | `vraptor setup configure` | Saves operational settings and offers the AI wizard |
 | Inspect | `vraptor config`, `vraptor ai config`, `vraptor ai doctor` | Checks local configuration without inference |
 | Test AI (optional) | `vraptor ai test` | Sends one small synthetic model request |
@@ -35,25 +59,39 @@ git clone https://github.com/ig-labs/velociraptor-skills.git
 cd velociraptor-skills
 ```
 
-From this repository root, create or reuse a virtual environment.
-This command installs vraptor with all supported AI provider extras:
+From the repository root, run this in a terminal:
 
 ```sh
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install '.[ai,azure,anthropic,claude]'
-vraptor --help
-vraptor setup configure --help
+./utils/install.sh
 ```
 
-For an editable public-checkout installation with the `ai` extra,
-`./utils/install.sh` creates/reuses `.venv` and installs the dependencies.
-It prints the configuration command but does not run the wizard. Skill/agent
-linking remains a separate, optional step in the [repository instructions](../README.md#install).
+The installer checks Python 3.11+, creates/reuses `.venv`, installs editable
+vraptor with `.[ai,anthropic,claude]`, and opens `setup configure` automatically.
+OpenAI remains the default provider; both direct Anthropic API and Claude-managed
+login routes have their SDK dependencies available when selected. Each route
+still needs its own credentials/login. Azure Entra remains an optional `azure` extra.
+Continue with step 2 when the wizard opens. For dependency-only installation or
+upgrades, use `./utils/install.sh --no-configure`; runs without a terminal also
+skip the wizard. `--configure` requires a terminal and explicitly requests it.
+Set `PYTHON_BIN=/path/to/python3.12` when `python3` selects an older interpreter.
+An outdated existing `.venv` must be replaced separately after preserving anything
+needed; the installer does not silently delete it.
+Skill/agent linking remains optional in the [repository instructions](../README.md#install).
 
-If `.venv` already exists, activate and reuse it. In the upstream `ai_skills`
-checkout, use `./packages/vraptor[ai,azure,anthropic,claude]` as the pip target.
-Install a supplied wheel by its local path.
+Commands below use bare `vraptor`. Activate the environment in each new terminal:
+
+```sh
+source .venv/bin/activate
+vraptor --help
+```
+
+Alternatively, use `./vraptor` from the checkout or its absolute path from anywhere.
+Neither the checkout launcher nor the installer edits your shell startup files.
+
+For an equivalent manual install, create a venv and run
+`python -m pip install '.[ai,anthropic,claude]'`.
+In the upstream `ai_skills` checkout use `./packages/vraptor[ai,anthropic,claude]`
+as the pip target. Install a supplied wheel by its local path with the same extras.
 These instructions do not assume a package published on PyPI.
 
 For a smaller installation, select only the extras you need:
@@ -93,9 +131,12 @@ saved settings, so inspect effective sources after configuration.
 If a saved credential file has moved, the wizard can repair its path; operational
 commands still fail when their selected credential file is missing.
 
-At the saved-server-name prompt, enter a name such as `lab` for a remote
-connection. Use the same name to edit it later. Leave the name blank for shared
-connection defaults or local-only work.
+On a fresh machine, Enter accepts the saved-server name `live`. Enter the path
+to the existing API-client YAML when asked. Later, a single saved server is
+suggested automatically; type a different name to add another server. Enter `-`
+for shared connection defaults or local-only work. With several saved servers,
+choose the one to edit explicitly. Use `--server live` on operational commands
+(or substitute your chosen name).
 
 | Wizard section | Configure it for |
 | --- | --- |
@@ -116,12 +157,12 @@ Named connections inherit shared `[connection_defaults]` unless overridden.
 An existing API YAML's embedded server address is used for API connections;
 the optional server address in setup is for SSH acquisition.
 
-To configure both operational and AI settings in this run, answer:
+To configure both operational and AI settings, accept the default with Enter:
 
 ```text
 AI analyst configuration
 ────────────────────────
-Configure AI analyst settings [y/N]: y
+Configure AI analyst settings [Y/n]:
 ```
 
 Operational settings are saved first, then the same `vraptor ai setup` wizard
@@ -192,6 +233,12 @@ New direct OpenAI/Azure profiles suggest a model and reasoning effort. Check the
 against your account or deployment before accepting them. The wizard does not
 query your account for available models: the displayed examples are offline
 guidance, also shown by `ai setup --help`.
+For a new installation, Enter selects `openai`, profile name `openai`, and the
+existing suggested model `gpt-5.6-luna`. Its supported API identifier is documented
+in the [OpenAI model reference](https://developers.openai.com/api/docs/models/gpt-5.6-luna).
+Advanced API endpoint/authentication changes are unnecessary for the standard
+OpenAI route. The key is read from `OPENAI_API_KEY`; it is never copied into TOML.
+An existing default profile keeps its provider and saved model settings.
 The **Analysis token budgets** section asks for output first, then calculates and
 displays the available input. Enter `max` or `auto` to use a field's displayed
 maximum. Automatic budgets are enabled by default for known models: output uses
@@ -285,10 +332,10 @@ Full transport and authentication details are in
 ## 4. Inspect the configuration offline
 
 Inspect operational settings first. For remote work, select the server profile
-you configured; for local-only work, omit `--server-profile lab`:
+you configured; for local-only work, omit `--server-profile live`:
 
 ```sh
-vraptor config --server-profile lab
+vraptor config --server-profile live
 ```
 
 Check paths, API username, organization and value sources. This command reads
@@ -324,6 +371,19 @@ remain authoritative. `--settings-file` selects operational settings; AI
 `--config-file` selects analyst settings. Detailed precedence is in [CONFIG.md](../CONFIG.md).
 
 ## 5. Test AI if needed
+
+To check the live server separately, explicitly run this read-only query after
+connecting to the required network/VPN:
+
+```sh
+vraptor query --server live --vql 'SELECT 1 AS Ready FROM scope()'
+```
+
+Expect a row containing `Ready: 1`. This verifies the selected API connection;
+it does not collect endpoint artifacts or create hunts. Configuration and
+installation do not run it automatically.
+
+To test OpenAI inference separately:
 
 ```sh
 vraptor ai test
@@ -369,6 +429,17 @@ simple response contract. It does not validate forensic accuracy, structured
 outputs, large context budgets or concurrent workloads. Use a sanitised analysis
 sample and review its evidence references before adopting the profile for cases.
 
+### Common installation problems
+
+| Symptom | Action |
+| --- | --- |
+| Python is too old | Select a Python 3.11+ executable with `PYTHON_BIN=/path/to/python3.12 ./utils/install.sh`. An existing old `.venv` needs separate replacement. |
+| `venv` / `ensurepip` is unavailable | Install the selected interpreter's venv support, such as `python3-venv` on Debian/Ubuntu, and rerun the installer. |
+| `vraptor` is not on `PATH` | Use `./vraptor` from the checkout or activate `.venv` in this terminal. |
+| AI doctor reports a missing key | Add `OPENAI_API_KEY` to the selected credential file or process environment, then inspect `vraptor ai config` and rerun doctor. |
+| API connection fails | Check `vraptor config --server-profile live`, the API-client YAML path, its server address, VPN/firewall access, and the credential's permissions with your administrator. |
+| OpenAI reports model access or quota failure | Check the API account/project and model availability; select an accessible model with `vraptor ai setup`. Offline doctor cannot verify account access or quota. |
+
 ## 6. Start the first investigation
 
 Choose one workflow after configuration. Replace example paths, profile names,
@@ -383,13 +454,13 @@ configuration checks.
 | Local evidence with a managed local server | `local-deaddisk` | Native binary and evidence; setup manages local server credentials |
 
 ```sh
-# Live remote: the lab profile already references the existing API-client YAML.
-vraptor setup start --mode live-remote --id live01 --server-profile lab \
+# Live remote: the live profile already references the existing API-client YAML.
+vraptor setup start --mode live-remote --id live01 --server-profile live \
   --hostname host01
 
 # Map local evidence to a remote server; use its matching endpoint config.
-vraptor setup start --mode remote-deaddisk --id disk01 --server-profile lab \
-  --client-config /configs/lab_client.config.yaml --evidence-path /evidence/disk.E01
+vraptor setup start --mode remote-deaddisk --id disk01 --server-profile live \
+  --client-config /configs/live_client.config.yaml --evidence-path /evidence/disk.E01
 
 # Map local evidence to a case-owned local server.
 vraptor setup start --mode local-deaddisk --id local01 \

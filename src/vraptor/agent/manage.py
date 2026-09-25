@@ -658,10 +658,10 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
             choice = (
                 input(
                     "Connection (codex, claude_code, openai, azure_openai, anthropic)"
-                    f" [{current_type or 'codex'}] (Enter to keep): "
+                    f" [{current_type or 'openai'}] (Enter to keep): "
                 ).strip()
                 or current_type
-                or "codex"
+                or "openai"
             )
         elif not choice:
             raise RuntimeError(

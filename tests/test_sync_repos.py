@@ -57,6 +57,68 @@ def initialize_pair(tmp_path: Path) -> tuple[Path, Path, Path]:
     return public, ai, public / "utils" / "sync-repos.py"
 
 
+@pytest.mark.parametrize("direction", ["from-ai", "to-ai"])
+@pytest.mark.parametrize("mode", ["--check", "--apply"])
+def test_working_source_rejects_symlinked_parent(tmp_path, direction, mode):
+    public, ai, script = initialize_pair(tmp_path)
+    run(["python3", str(script), "from-ai", "--source", str(ai), "--apply"], public)
+    commit_all(public, "initial import")
+    baseline = (public / ".sync-state.json").read_bytes()
+    source_dir = ai / "shared" if direction == "from-ai" else public / "managed"
+    target_file = public / "managed/file.txt" if direction == "from-ai" else ai / "shared/file.txt"
+    target_before = target_file.read_bytes()
+    external = tmp_path / "outside"
+    external.mkdir()
+    (external / "file.txt").write_text("outside repository\n")
+    shutil.rmtree(source_dir)
+    source_dir.symlink_to(external, target_is_directory=True)
+    result = run(
+        ["python3", str(script), direction, "--source" if direction == "from-ai" else "--target",
+         str(ai), "--working-tree", mode], public, expected=2,
+    )
+    assert "symlink" in result.stderr
+    assert target_file.read_bytes() == target_before
+    assert (public / ".sync-state.json").read_bytes() == baseline
+
+
+@pytest.mark.parametrize("overlap", ["ai", "public"])
+def test_overlapping_mappings_are_rejected_before_writing(tmp_path, overlap):
+    public, ai, script = initialize_pair(tmp_path)
+    (ai / "other").mkdir()
+    (ai / "other/file.txt").write_text("other content\n")
+    commit_all(ai, "add second source")
+    extra = ("shared/file.txt\tother/file.txt\tfile\n" if overlap == "ai"
+             else "other/file.txt\tmanaged/file.txt\tfile\n")
+    (public / "config/sync-manifest.tsv").write_text("shared\tmanaged\ttree\n" + extra)
+    result = run(
+        ["python3", str(script), "from-ai", "--source", str(ai), "--apply"], public, expected=2,
+    )
+    assert "overlapping manifest" in result.stderr
+    assert not (public / "managed").exists()
+    assert not (public / "other").exists()
+    assert not (public / ".sync-state.json").exists()
+
+
+@pytest.mark.parametrize("state", [
+    [], {"schema_version": 1, "files": []},
+    {"schema_version": 1, "files": {"bad": "not a record"}},
+    {"schema_version": 1, "files": {"bad": {"ai_path": [], "public_path": "x"}}},
+    {"schema_version": 1, "files": {"bad": {"ai_path": "shared/file.txt", "public_path": "managed/file.txt", "fingerprint": None}}},
+])
+def test_malformed_state_fails_cleanly_without_writes(tmp_path, state):
+    public, ai, script = initialize_pair(tmp_path)
+    baseline = public / ".sync-state.json"
+    baseline.write_text(json.dumps(state))
+    before = baseline.read_bytes()
+    result = run(
+        ["python3", str(script), "from-ai", "--source", str(ai), "--apply"], public, expected=2,
+    )
+    assert "sync state" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert baseline.read_bytes() == before
+    assert not (public / "managed").exists()
+
+
 def test_directional_sync_is_idempotent_and_reversible(tmp_path: Path) -> None:
     public, ai, script = initialize_pair(tmp_path)
     run(["python3", str(script), "from-ai", "--source", str(ai), "--apply"], public)
@@ -75,6 +137,28 @@ def test_directional_sync_is_idempotent_and_reversible(tmp_path: Path) -> None:
     assert "update" in preview.stdout
     run(["python3", str(script), "to-ai", "--target", str(ai), "--apply"], public)
     assert (ai / "shared" / "file.txt").read_text() == "public update\n"
+
+
+@pytest.mark.parametrize("direction", ["from-ai", "to-ai"])
+def test_source_deletion_requires_reviewed_opt_in(tmp_path, direction):
+    public, ai, script = initialize_pair(tmp_path)
+    run(["python3", str(script), "from-ai", "--source", str(ai), "--apply"], public)
+    commit_all(public, "initial import")
+    source = ai / "shared/file.txt" if direction == "from-ai" else public / "managed/file.txt"
+    target = public / "managed/file.txt" if direction == "from-ai" else ai / "shared/file.txt"
+    source.unlink()
+    commit_all(ai if direction == "from-ai" else public, "delete source")
+    args = ["python3", str(script), direction,
+            "--source" if direction == "from-ai" else "--target", str(ai)]
+    baseline = public / ".sync-state.json"
+    before = baseline.read_bytes(), target.read_bytes()
+    rejected = run([*args, "--apply"], public, expected=2)
+    assert "without --allow-delete" in rejected.stderr
+    assert (baseline.read_bytes(), target.read_bytes()) == before
+    preview = run([*args, "--check", "--allow-delete"], public, expected=1)
+    run([*args, "--apply", "--allow-delete", "--require-plan-hash", preview_hash(preview)], public)
+    assert not target.exists()
+    assert json.loads(baseline.read_text())["files"] == {}
 
 
 def test_retired_mapping_does_not_reimport_file_from_old_baseline(tmp_path: Path) -> None:

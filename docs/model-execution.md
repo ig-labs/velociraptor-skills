@@ -14,9 +14,9 @@ operational settings. Use `vraptor ai setup` directly to change AI profiles late
 From this repository use `./vraptor ai ...`; installed users use
 `vraptor ai ...`. `./dfir ai config` remains the existing compatibility route.
 
-Run bare `vraptor setup configure` in a terminal and answer Yes to
-`Configure AI analyst settings [y/N]:` to open the AI wizard after operational
-settings are saved. Enter skips AI setup. Setting flags select targeted,
+Run bare `vraptor setup configure` in a terminal and accept
+`Configure AI analyst settings [Y/n]:` to open the AI wizard after operational
+settings are saved. Enter starts AI setup; No skips it. Setting flags select targeted,
 non-interactive configuration and do not open the AI wizard. Python dependencies
 must already be installed. No repository `.env` is required; select a credential
 file or use process credentials when the chosen provider needs them.
@@ -28,7 +28,7 @@ file or use process credentials when the chosen provider needs them.
 ```
 
 Setup reads the saved TOML before prompting. When no type is supplied, the
-selected profile's connection type is the prompt default (or `codex` for a new
+selected profile's connection type is the prompt default (or `openai` for a new
 configuration). Accepting it edits that profile, even when several profiles share
 the type. In a terminal, setup then
 offers a profile name, followed by the harness configuration file for Codex/Claude:

@@ -1,1 +1,1 @@
--e .[ai]
+-e .[ai,anthropic,claude]

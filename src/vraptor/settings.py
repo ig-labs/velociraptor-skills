@@ -367,10 +367,12 @@ def _configure_interactively(args, snapshot):
     def heading(title, description):
         print(f"\n{title}\n{'─' * len(title)}\n{description}\n", file=sys.stderr)
 
-    def ask(label):
+    def ask(label, *, default=False):
         while True:
-            answer = input(f"{label} [y/N]: ").strip().lower()
-            if answer in {"", "n", "no"}:
+            answer = input(f"{label} [{'Y/n' if default else 'y/N'}]: ").strip().lower()
+            if not answer:
+                return default
+            if answer in {"n", "no"}:
                 return False
             if answer in {"y", "yes"}:
                 return True
@@ -397,10 +399,14 @@ def _configure_interactively(args, snapshot):
     heading("Workstation", "Shared local paths for live and mapped investigations. Saved in [workstation].")
     prompt("case_root", "Investigation parent", save_default=True)
     prompt("velociraptor_bin", "Preferred local Velociraptor binary path", save_default=True)
-    heading("Remote connection", "Choose a named server, or leave the name blank to edit shared connection defaults.")
+    heading("Remote connection", "Use an existing live server's API-client YAML. Fresh setups suggest the name live; enter - to edit shared connection defaults.")
     if not args.server_profile:
+        saved_servers = [name for name in snapshot.connections if name]
+        default_server = (saved_servers[0] if len(saved_servers) == 1 else
+                          "live" if not snapshot.config_file.exists() else "")
         while True:
-            profile = input("Optional saved server name (blank for shared connection defaults): ").strip()
+            profile = input(f"Optional saved server name [{default_server or 'shared defaults'}] (Enter to keep, - for shared defaults): ").strip()
+            profile = "" if profile == "-" else profile or default_server
             try:
                 if profile:
                     validate({"schema_version": 1, "connections": {profile: {}}})
@@ -465,8 +471,8 @@ def _configure_interactively(args, snapshot):
             prompt(name, label)
     heading("Credentials", "Optional .env file reference in [credentials]. Keep secret values in that file; environment overrides remain active.")
     prompt("env_file", "Optional credential .env path")
-    heading("AI analyst configuration", "Optionally open vraptor ai setup after saving operational settings. Preview mode never launches the AI wizard.")
-    return ask("Configure AI analyst settings")
+    heading("AI analyst configuration", "Open vraptor ai setup after saving operational settings (recommended). New AI profiles default to OpenAI; saved selections are retained. Preview mode never launches the AI wizard.")
+    return ask("Configure AI analyst settings", default=True)
 
 
 def main(argv=None):

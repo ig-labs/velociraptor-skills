@@ -21,6 +21,32 @@ def arguments(path, *flags):
     return manage.parser_for("setup").parse_args(["--config-file", str(path), *flags])
 
 
+def test_fresh_interactive_connection_defaults_to_openai(tmp_path):
+    path = tmp_path / "agents.toml"
+    with mock.patch("os.isatty", return_value=True), mock.patch("builtins.input", return_value=""):
+        report = manage.setup(arguments(path))
+    data = sources.read_config(path)
+    assert report["default_profile"] == "openai"
+    assert data["profiles"]["openai"]["provider"] == "openai"
+    assert data["profiles"]["openai"]["api_key_env"] == "OPENAI_API_KEY"
+
+
+@pytest.mark.parametrize("provider", ["azure_openai", "anthropic"])
+def test_accepting_connection_preserves_existing_provider_and_model(tmp_path, provider):
+    path = tmp_path / "agents.toml"
+    extra = ["--base-url", "https://azure.test"] if provider == "azure_openai" else []
+    manage.setup(arguments(path, "--provider", provider, "--model", "saved-model",
+                           "--model-context-tokens", "200000", *extra))
+    before = sources.read_config(path)
+    with mock.patch("os.isatty", return_value=True), mock.patch("builtins.input", return_value=""):
+        report = manage.setup(arguments(path))
+    data = sources.read_config(path)
+    name = before["selection"]["default_profile"]
+    assert report["default_profile"] == name
+    assert data["profiles"][name]["provider"] == provider
+    assert data["profiles"][name]["model"] == "saved-model"
+
+
 @pytest.mark.parametrize(
     ("answers", "selected"),
     [

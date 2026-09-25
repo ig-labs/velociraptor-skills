@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-      - run: ./utils/install.sh
+      - run: ./utils/install.sh --no-configure
       - run: ./.venv/bin/python -m pip install -e '.[ai,azure,anthropic,claude,test]'
       - name: Install native Velociraptor for offline VQL tests
         env:
@@ -28,5 +28,5 @@ jobs:
           ./vraptor tools prep -t velociraptor
           "$VELO_BIN" version
           "$VELO_BIN" query 'SELECT 1 AS Ready FROM scope()' --format jsonl
-      - run: ./utils/validate-public-export.sh
+      - run: ./utils/validate-public-export.py
       - run: ./.venv/bin/python -m pytest tests

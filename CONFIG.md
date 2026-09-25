@@ -12,9 +12,15 @@ Native API YAML and SSH keys remain protected files referenced by path.
 ```
 
 Run the bare configure command in a terminal to reach every section, including
-the optional AI handoff. Setting flags such as `--case-root` perform targeted
+the AI handoff, selected by default. Fresh setups suggest server name `live`
+and AI connection `openai`; existing selections are retained. Enter `-` at the
+server-name prompt for shared defaults/local-only configuration, or No at the
+AI prompt to skip it. Setting flags such as `--case-root` perform targeted
 configuration and skip the interactive wizard. Package installation is separate:
-`utils/install.sh` creates/reuses `.venv` and installs dependencies only.
+`utils/install.sh` creates/reuses `.venv`, installs OpenAI, Anthropic and Claude
+Agent SDK dependencies, then
+opens this wizard in a terminal. `--no-configure` and non-interactive runs install
+dependencies only.
 
 A repository `.env` is not required. Keep provider secrets in a selected
 credential file or process environment, and use TOML for reusable preferences.

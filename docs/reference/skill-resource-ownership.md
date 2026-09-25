@@ -10,5 +10,5 @@ commands and installed packages. Set `VRAPTOR_COLLECTION_POLICY` to an explicit
 file when a site needs different collection rules.
 
 `config/sync-manifest.tsv` records the public export allowlist. Run
-`./utils/validate-public-export.sh` after changes. Historical export mapping
+`./utils/validate-public-export.py` after changes. Historical export mapping
 metadata may retain old source names without requiring the old package.

@@ -93,7 +93,7 @@ Do not rebuild GoldenDB as part of copying code or update it from live evidence.
 5. Set `PUBLIC_CHECKOUT` to the public staging checkout and run its existing sync command:
 
    ```sh
-   "$PUBLIC_CHECKOUT/utils/sync-repos.sh" from-ai --source /path/to/ai_skills \
+   "$PUBLIC_CHECKOUT/utils/sync-repos.py" from-ai --source /path/to/ai_skills \
      --rev REVIEWED_REVISION --check
    # Or replace --rev REVIEWED_REVISION with --working-tree for indexed review.
    ```
@@ -107,7 +107,7 @@ Do not rebuild GoldenDB as part of copying code or update it from live evidence.
    that preview:
 
    ```sh
-   "$PUBLIC_CHECKOUT/utils/sync-repos.sh" from-ai --source /path/to/ai_skills \
+   "$PUBLIC_CHECKOUT/utils/sync-repos.py" from-ai --source /path/to/ai_skills \
      --rev REVIEWED_REVISION --apply --require-plan-hash REVIEWED_SYNC_HASH
    ```
 

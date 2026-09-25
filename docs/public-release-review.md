@@ -46,6 +46,6 @@ GoldenDB CSV and SQLite resources were preserved without regeneration.
 - Both source checkout inventories matched their pre-import SHA-256 snapshots.
 
 These are checks of the reviewed snapshot, not a guarantee that arbitrary future
-changes are safe. Run `./utils/validate-public-export.sh`, the tests and a secret
+changes are safe. Run `./utils/validate-public-export.py`, the tests and a secret
 scanner again before publishing. This preparation did not commit, push, change
 repository visibility or retire the previous repository.

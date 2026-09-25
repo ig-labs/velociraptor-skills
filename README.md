@@ -24,14 +24,39 @@ sanitization and validation results.
 
 ## Install
 
-Requirements are Python 3.11 or later, Git, and a POSIX shell.
+The default setup connects to an **existing live Velociraptor server** and uses
+the **OpenAI API** for analysis. On macOS or Linux, have Python 3.11+, Git,
+your server administrator's API-client YAML, and an OpenAI API key ready.
+See the [fresh-machine guide](docs/vraptor-installation.md) for prerequisites
+and storing credentials outside the checkout.
 
 ```sh
 git clone https://github.com/ig-labs/velociraptor-skills.git
 cd velociraptor-skills
 ./utils/install.sh
-./vraptor setup configure
-./vraptor config
+./vraptor config --server-profile live
+./vraptor ai config
+./vraptor ai doctor
+```
+
+In a terminal, installation opens the setup wizard automatically. Accept the
+server name `live`, enter your existing API-client YAML path, select your
+credential file if needed, and press Enter at **Configure AI analyst settings
+[Y/n]** and the **Connection** prompt to select `openai`. Keep the displayed model
+or choose one available to your account. Optional SSH, local-server and
+mapped-evidence sections can be skipped. Saved server/provider settings are
+retained on later runs.
+
+Use `./utils/install.sh --no-configure` for dependency-only installation or
+upgrades; non-interactive runs also skip configuration. Run bare
+`./vraptor setup configure` later to reopen the wizard.
+Remote API access needs no local Velociraptor binary, SSH connection or Codex login.
+The offline checks above do not prove live authentication; explicit connection
+and AI tests are in the guide.
+
+To make the skills available in Codex, link them separately:
+
+```sh
 ./utils/link-codex-skills.sh --dry-run
 ./utils/link-codex-skills.sh
 ```
@@ -62,7 +87,7 @@ Install the optional custom-agent templates with:
 Start a new Codex task after changing installed links. Run the bare
 `./vraptor setup configure` command in a terminal for the complete wizard:
 workstation paths, connections, SSH settings, credential-file references and
-optional AI configuration. It saves operational settings in
+AI configuration (selected by default). It saves operational settings in
 `~/.config/vraptor/config.toml`; the AI wizard saves
 `~/.config/vraptor/analyst-agents.toml`. Both follow `$XDG_CONFIG_HOME`.
 
@@ -72,11 +97,17 @@ overrides. Existing environment/dotenv overrides take precedence over saved TOML
 inspect `./vraptor config` and `./vraptor ai config` to see effective sources.
 Never commit credentials or Velociraptor API-client YAML.
 
-`utils/install.sh` only bootstraps Python dependencies, including the `ai` extra;
-it does not run the configuration wizard or install native tools. For an API-only environment,
+`utils/install.sh` installs the OpenAI, Anthropic and Claude Agent SDKs
+(`.[ai,anthropic,claude]`) and opens interactive configuration. OpenAI remains the
+default provider; selecting Claude still requires its API key or native login.
+Native tools remain separate. For an environment without AI,
 install the package with `python -m pip install -e .`; add `.[ai]`,
 `.[azure]`, `.[anthropic]`, or `.[claude]` for the selected provider.
 See [configuration](CONFIG.md) and the [installation and AI setup guide](docs/vraptor-installation.md).
+
+The `./vraptor` launcher works from the checkout without activating `.venv`.
+To use bare `vraptor` from another directory, run `source .venv/bin/activate`
+from the checkout in each new terminal, or use the launcher's absolute path.
 
 ## vraptor CLI
 
@@ -161,19 +192,22 @@ content hash at the last successful synchronization.
 Preview and import a committed revision from a sibling `ai_skills` checkout:
 
 ```sh
-./utils/sync-repos.sh from-ai --source ../ai_skills --check
-./utils/sync-repos.sh from-ai --source ../ai_skills --apply --require-plan-hash SHA256_FROM_PREVIEW
+./utils/sync-repos.py from-ai --source ../ai_skills --check
+./utils/sync-repos.py from-ai --source ../ai_skills --apply --require-plan-hash SHA256_FROM_PREVIEW
 ```
 
 Preview and propagate committed public changes back to `ai_skills`:
 
 ```sh
-./utils/sync-repos.sh to-ai --target ../ai_skills --check
-./utils/sync-repos.sh to-ai --target ../ai_skills --apply --require-plan-hash SHA256_FROM_PREVIEW
+./utils/sync-repos.py to-ai --target ../ai_skills --check
+./utils/sync-repos.py to-ai --target ../ai_skills --apply --require-plan-hash SHA256_FROM_PREVIEW
 ```
 
 Committed revisions are used by default. `--working-tree` deliberately uses
 tracked and non-ignored untracked working-tree content. Source deletions require `--allow-delete`.
+Both source and destination working-tree paths reject symlinked files or parent
+directories. Manifest paths must be canonical, relative and non-overlapping on
+either side. Malformed baseline records stop synchronization before any writes.
 Conflicting changes on both sides are never merged automatically. Use
 `--allow-reverse-pending` only to apply independent source changes while
 leaving destination-only changes untouched for a later reverse sync.
@@ -183,8 +217,8 @@ applying to reject changes since review before writing files or sync state.
 For example, to import uncommitted upstream work while retaining public changes:
 
 ```sh
-./utils/sync-repos.sh from-ai --source ../ai_skills --working-tree --allow-reverse-pending --check
-./utils/sync-repos.sh from-ai --source ../ai_skills --working-tree --allow-reverse-pending --apply --require-plan-hash SHA256_FROM_PREVIEW
+./utils/sync-repos.py from-ai --source ../ai_skills --working-tree --allow-reverse-pending --check
+./utils/sync-repos.py from-ai --source ../ai_skills --working-tree --allow-reverse-pending --apply --require-plan-hash SHA256_FROM_PREVIEW
 ```
 
 Use the same options in both commands, except `--check`/`--apply`, `--diff`, and
@@ -193,6 +227,9 @@ identity, file bytes and executable modes on both sides, baselines, manifest,
 deny rules, accepted resolutions, and allow flags. If any of these change,
 preview and review again. Git inventories are loaded once per repository, and
 committed content is fetched in one batch containing only managed blobs.
+Preview exits with `0` for unchanged/converged content, `1` for drift or policy
+findings, and `2` for an invalid request or failed safety check. It changes no
+managed files or baseline; it appends local audit metadata.
 
 Add `--diff` to a preview for destination-to-source text comparisons and binary
 size summaries. Comparisons include conflicts and public-only differences, so
@@ -228,7 +265,7 @@ before changing installer, launcher or sync ownership.
 ## Validation
 
 ```sh
-./utils/validate-public-export.sh
+./utils/validate-public-export.py
 ./.venv/bin/python -m pip install -e '.[ai,azure,anthropic,claude,test]'
 VELO_LOCAL_VERSION_TAG=v0.77.2 ./vraptor tools prep -t velociraptor
 ./.venv/bin/python -m pytest tests

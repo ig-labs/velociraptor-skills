@@ -2,8 +2,8 @@
 
 This is the original retention snapshot. The later
 [setup configuration audit](setup-configuration-audit.md) supersedes its utility
-retention recommendations: two wrappers were retired, launcher dotenv loading
-was removed, and the remaining utility defects were corrected.
+retention recommendations and records utility consolidation, launcher dotenv
+cleanup, and corrections to the remaining utilities.
 
 Reviewed 2026-09-25. Scope: folder and utility ownership, references, packaging,
 generated files, synchronization safeguards, and public-data validation. This is
@@ -117,10 +117,8 @@ to manually remove baseline records.
 | `link-codex-agents.sh` | Links optional role TOMLs, removes only specific retired links owned by this source. | Keep while roles supported. |
 | `link-claude-skills.sh` | Claude skill linking with conflict handling and regression tests. | Keep while Claude supported. |
 | `configure-velociraptor-ssh.sh` | Loads a selected key into SSH agent/macOS Keychain. No in-tree runtime caller found; referenced by sync metadata. | Optional removal candidate, not automatically obsolete. Do not execute as part of audit. |
-| `sync-repos.sh` | Shell entrypoint forwarding arguments to Python sync. | Keep as documented command. |
 | `sync-repos.py` | Manifest inventory, fingerprint comparison, policy scanning, reviewed plan hashing and guarded apply. | Essential for paired-repository workflow. |
-| `validate-public-export.sh` | Runs static gate, shell syntax, Python compilation, CLI/profile and safe installer checks. | Essential release check. |
-| `validate-public-export.py` | Scans Git-visible release files and validates metadata/resources. | Essential release check. |
+| `validate-public-export.py` | Scans Git-visible release files, validates metadata/resources, then runs syntax, CLI/profile and installer checks. | Essential release check; now owns the former shell checks. |
 | `check-vraptor-install.py` | Builds/installs a wheel in a temporary environment and checks core operation without AI SDKs using local fixtures/mocked API. | Keep. Temporary directory is not automatically removed; potential maintenance cleanup outside this repository. Not rerun in this audit. |
 | `review_evtx_csv.py` | Bounded literal/regex review of CSV rows with snippets and manifest; linked from extracted-evidence hunting guide. | Keep optional offline workflow. |
 | `validate_collection_analysis_forward.py` | Replays an exact saved request via `analyze.forward`; documented by collection/host guides. Can run analysis and write output. | Keep maintenance harness; not a harmless generic static check. Not executed here. |
@@ -219,7 +217,7 @@ ignored. Force-added local audit files are rejected by the export validator.
 Run the existing release command to generate a record:
 
 ```sh
-./utils/validate-public-export.sh
+./utils/validate-public-export.py
 git check-ignore -v .local/public-checks.jsonl
 ```
 

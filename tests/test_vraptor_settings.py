@@ -22,6 +22,15 @@ def workstation(tmp_path, monkeypatch):
     paths.load_repo_env.cache_clear()
 
 
+def optional_answer(prompt):
+    """These tests exercise operational settings and explicitly skip AI."""
+    if prompt.startswith("Configure AI analyst settings"):
+        return "no"
+    if prompt.startswith("Optional saved server name"):
+        return "-"
+    return ""
+
+
 def config(home, text):
     path = home / ".config/vraptor/config.toml"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -43,6 +52,48 @@ def test_default_xdg_paths_and_environment_unchanged(workstation):
     snapshot = settings.resolve(repo_root=repo, process_environment={"HOME": str(home), "XDG_CONFIG_HOME": str(home / "config"), "XDG_STATE_HOME": str(home / "state")})
     assert snapshot.config_file == home / "config/vraptor/config.toml"
     assert "runtime_root" not in snapshot.values
+
+
+def test_fresh_interactive_setup_defaults_to_live_server_and_openai(workstation, monkeypatch, capsys):
+    from vraptor import cli
+    from vraptor.agent import manage, sources
+    from vraptor.agent.config import resolve_agent_execution
+
+    home, repo = workstation
+    api = home / "live-api.yaml"
+    api.write_text("api_connection_string: localhost:8001\n")
+    credentials = home / "credentials.env"
+    credentials.write_text("OPENAI_API_KEY=synthetic-install-key\n")
+    monkeypatch.setattr(settings.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(os, "isatty", lambda _: True)
+    monkeypatch.setattr(manage, "REPO_ROOT", repo)
+    prompts = []
+
+    def answer(prompt):
+        prompts.append(prompt)
+        if prompt.startswith("Existing local API-client YAML path"):
+            return str(api)
+        if prompt.startswith("Optional credential .env path"):
+            return str(credentials)
+        return ""
+
+    monkeypatch.setattr("builtins.input", answer)
+    assert cli.main(["setup", "configure"]) == 0
+    output = capsys.readouterr()
+    snapshot = settings.resolve("live", repo_root=repo)
+    assert snapshot.values["api_client"] == str(api)
+    assert snapshot.values["env_file"] == str(credentials)
+    ai_path = home / ".config/vraptor/analyst-agents.toml"
+    assert sources.read_config(ai_path)["selection"]["default_profile"] == "openai"
+    with settings.activate(snapshot):
+        execution = resolve_agent_execution(repo_root=repo)
+    assert execution.provider == "openai"
+    assert execution.model == "gpt-5.6-luna"
+    assert execution.inputs.api_key == "synthetic-install-key"
+    assert "synthetic-install-key" not in output.out + output.err + ai_path.read_text() + snapshot.config_file.read_text()
+    assert any("[live]" in prompt for prompt in prompts)
+    assert "Configure AI analyst settings [Y/n]: " in prompts
+    assert not (home / "velociraptor").exists()
 
 
 def test_precedence_and_credentials_are_hidden(workstation):
@@ -296,7 +347,7 @@ def test_configure_normalizes_prompted_paths(workstation, monkeypatch, capsys):
     answers = {"Investigation parent": "./cases", "Preferred local Velociraptor binary path": "./velociraptor",
                "Optional saved server name": "lab", "Existing local API-client YAML path": "./lab.yaml",
                "Optional credential .env path": "./credentials.env"}
-    monkeypatch.setattr("builtins.input", lambda prompt: next((answer for label, answer in answers.items() if prompt.startswith(label)), ""))
+    monkeypatch.setattr("builtins.input", lambda prompt: next((answer for label, answer in answers.items() if prompt.startswith(label)), optional_answer(prompt)))
     settings.main(["configure"])
     capsys.readouterr()
     monkeypatch.chdir(home)
@@ -315,7 +366,7 @@ def test_interactive_configure_repairs_missing_credential_reference(workstation,
     replacement.write_text("API_SECRET=fixture-secret\n")
     monkeypatch.setattr(settings.sys.stdin, "isatty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda prompt:
-                        str(replacement) if prompt.startswith("Optional credential .env path") else "")
+                        str(replacement) if prompt.startswith("Optional credential .env path") else optional_answer(prompt))
     assert cli.main(["setup", "configure"]) == 0
     output = capsys.readouterr()
     assert "fixture-secret" not in output.out + output.err + path.read_text()
@@ -352,7 +403,7 @@ def test_interactive_remote_settings_are_saved_in_selected_scope(workstation, mo
     prompts = []
     def answer(prompt):
         prompts.append(prompt)
-        return next((value for label, value in answers.items() if prompt.startswith(label)), "")
+        return next((value for label, value in answers.items() if prompt.startswith(label)), optional_answer(prompt))
     monkeypatch.setattr("builtins.input", answer)
     assert cli.main(["setup", "configure", *(["--server-profile", profile] if profile else [])]) == 0
     output = capsys.readouterr()
@@ -400,7 +451,7 @@ def test_interactive_local_and_mapped_settings_validate_and_preview(workstation,
     def answer(prompt):
         if prompt.startswith("Local server frontend port"):
             return next(ports)
-        return next((value for label, value in answers.items() if prompt.startswith(label)), "")
+        return next((value for label, value in answers.items() if prompt.startswith(label)), optional_answer(prompt))
     monkeypatch.setattr("builtins.input", answer)
     assert cli.main(["setup", "configure", "--server-profile", "lab", "--preview"]) == 0
     output = capsys.readouterr()
@@ -425,7 +476,7 @@ def test_interactive_blank_remote_fields_preserve_saved_paths_and_other_profiles
     path = config(home, '[connection_defaults]\nssh_user="operator"\n[connections.lab]\napi_user="vraptor_operator"\napi_client="~/api.yaml"\nserver_config="/srv/server.yaml"\n[connections.other]\nserver_ip="192.0.2.20"\n')
     original = settings.read(path)
     monkeypatch.setattr(settings.sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda prompt: "yes" if prompt.startswith("Configure remote SSH") else "")
+    monkeypatch.setattr("builtins.input", lambda prompt: "yes" if prompt.startswith("Configure remote SSH") else optional_answer(prompt))
     assert cli.main(["setup", "configure", "--server-profile", "lab"]) == 0
     capsys.readouterr()
     saved = settings.read(path)
@@ -450,7 +501,7 @@ def test_configure_preserves_saved_api_user(workstation, monkeypatch, capsys, se
     prompts = []
     def answer(prompt):
         prompts.append(prompt)
-        return "lab" if prompt.startswith("Optional saved server name") else ""
+        return "lab" if prompt.startswith("Optional saved server name") else optional_answer(prompt)
     monkeypatch.setattr("builtins.input", answer)
     flags = [] if interactive else ["--server-profile", "lab"]
     assert cli.main(["setup", "configure", *flags]) == 0
@@ -471,7 +522,7 @@ def test_configure_writes_default_remote_identity(workstation, monkeypatch, caps
     prompts = []
     def answer(prompt):
         prompts.append(prompt)
-        return ""
+        return optional_answer(prompt)
     monkeypatch.setattr("builtins.input", answer)
     assert cli.main(["setup", "configure"]) == 0
     result = json.loads(capsys.readouterr().out)

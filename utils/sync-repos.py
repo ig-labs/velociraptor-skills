@@ -81,8 +81,10 @@ def run_git(
 
 
 def validate_relative_path(raw: str, label: str) -> str:
+    if not isinstance(raw, str) or not raw:
+        raise SyncError(f"invalid {label} path")
     path = PurePosixPath(raw)
-    if not raw or path.is_absolute() or ".." in path.parts or raw.startswith("./"):
+    if path.is_absolute() or not path.parts or ".." in path.parts or path.as_posix() != raw:
         raise SyncError(f"invalid {label} path: {raw!r}")
     return path.as_posix()
 
@@ -105,6 +107,10 @@ def load_manifest(path: Path) -> list[Mapping]:
             raise SyncError(f"{path}:{line_number}: kind must be file or tree")
         if ai_path in seen_ai or public_path in seen_public:
             raise SyncError(f"{path}:{line_number}: duplicate manifest path")
+        for previous in mappings:
+            for current, prior in ((ai_path, previous.ai_path), (public_path, previous.public_path)):
+                if current.startswith(prior + "/") or prior.startswith(current + "/"):
+                    raise SyncError(f"{path}:{line_number}: overlapping manifest paths")
         seen_ai.add(ai_path)
         seen_public.add(public_path)
         mappings.append(Mapping(ai_path, public_path, kind))
@@ -216,6 +222,12 @@ class WorkingReader(Reader):
         self.repo = repo
         self._paths: list[str] | None = None
 
+    def managed_path(self, path: str) -> Path:
+        relative = PurePosixPath(validate_relative_path(path, "managed"))
+        if any((self.repo / part).is_symlink() for part in (relative, *relative.parents)):
+            raise SyncError(f"symlink is not permitted in managed content: {path}")
+        return self.repo / relative
+
     def list_files(self, base: str, kind: str) -> dict[str, str]:
         if self._paths is None:
             output = run_git(self.repo, ["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
@@ -224,18 +236,14 @@ class WorkingReader(Reader):
         for path in self._paths:
             if path != base and (kind == "file" or not path.startswith(base.rstrip("/") + "/")):
                 continue
-            full = self.repo / path
-            if full.is_symlink():
-                raise SyncError(f"symlink is not permitted in managed content: {path}")
+            full = self.managed_path(path)
             if not full.is_file():
                 continue
             result[path] = file_mode(full)
         return result
 
     def read(self, path: str, mode: str) -> FileValue:
-        full = self.repo / path
-        if full.is_symlink():
-            raise SyncError(f"symlink is not permitted in managed content: {path}")
+        full = self.managed_path(path)
         return FileValue(data=full.read_bytes(), mode=file_mode(full))
 
 
@@ -267,8 +275,18 @@ def load_state(path: Path) -> dict:
     if not path.exists():
         return {"schema_version": SCHEMA_VERSION, "files": {}}
     state = json.loads(path.read_text(encoding="utf-8"))
-    if state.get("schema_version") != SCHEMA_VERSION or not isinstance(state.get("files"), dict):
+    if (not isinstance(state, dict) or state.get("schema_version") != SCHEMA_VERSION
+            or not isinstance(state.get("files"), dict)):
         raise SyncError(f"unsupported or malformed sync state: {path}")
+    for key, record in state["files"].items():
+        if not isinstance(record, dict):
+            raise SyncError(f"malformed sync state record: {path}")
+        ai_path = validate_relative_path(record.get("ai_path"), "sync state ai_skills")
+        public_path = validate_relative_path(record.get("public_path"), "sync state public")
+        fingerprint = record.get("fingerprint")
+        if (key != pair_key(ai_path, public_path) or not isinstance(fingerprint, str)
+                or not re.fullmatch(r"sha256:[0-9a-f]{64};mode:100(?:644|755)", fingerprint)):
+            raise SyncError(f"malformed sync state key or fingerprint: {path}")
     return state
 
 
@@ -533,10 +551,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--working-tree",
         action="store_true",
-        help="read tracked source files from the working tree instead of --rev",
+        help="read Git-visible tracked and untracked source files instead of --rev",
     )
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--check", action="store_true", help="report drift without writing")
+    mode.add_argument("--check", action="store_true", help="report drift without changing managed files or the baseline; append local audit metadata")
     mode.add_argument("--apply", action="store_true", help="apply a conflict-free plan")
     parser.add_argument("--diff", action="store_true", help="show destination-to-source comparisons (may contain sensitive text)")
     parser.add_argument(
@@ -564,7 +582,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv or sys.argv[1:])
+    args = parse_args(sys.argv[1:] if argv is None else argv)
     public_repo = ensure_repo(Path(__file__).resolve().parents[1])
     default_ai = public_repo.parent / "ai_skills"
     if args.direction == "from-ai":

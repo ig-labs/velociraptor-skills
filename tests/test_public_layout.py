@@ -43,9 +43,7 @@ def test_public_entrypoints_are_executable() -> None:
         ROOT / "dfir",
         ROOT / "vraptor",
         ROOT / "utils" / "install.sh",
-        ROOT / "utils" / "sync-repos.sh",
         ROOT / "utils" / "sync-repos.py",
-        ROOT / "utils" / "validate-public-export.sh",
         ROOT / "utils" / "validate-public-export.py",
     ]
     for path in paths:
