@@ -1,0 +1,1102 @@
+{
+  "schema_version": 1,
+  "scenarios": {
+    "encoded-powershell-execution": {
+      "title": "Encoded or download-oriented PowerShell execution",
+      "objective": "Identify PowerShell commands or event evidence consistent with encoded execution, payload retrieval, in-memory execution, or command obfuscation.",
+      "selection_guidance": "Use when PowerShell, encoded command lines, script-block fragments, download cradles, or suspicious PSReadLine history are present.",
+      "tactics": [
+        "execution",
+        "command-and-control"
+      ],
+      "tags": [
+        "powershell",
+        "encoded-command",
+        "download-cradle"
+      ],
+      "question_shapes": [
+        "single-host",
+        "cross-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "DetectRaptor.Windows.Detection.Powershell.PSReadline",
+          "role": "primary",
+          "required_fields": [
+            "Command"
+          ],
+          "optional_fields": [
+            "Path",
+            "User",
+            "ClientId",
+            "Fqdn",
+            "Timestamp"
+          ],
+          "stack_ids": [
+            "rule"
+          ],
+          "recommended_filters": [
+            "encodedcommand",
+            "frombase64string",
+            "downloadstring",
+            "invoke-expression",
+            "iex"
+          ],
+          "collection_parameters": {},
+          "notes": "PSReadLine may be absent, disabled, cleared, or incomplete."
+        },
+        {
+          "artifact": "DetectRaptor.Windows.Detection.Evtx",
+          "role": "supporting",
+          "required_fields": [
+            "Detection",
+            "EventTime"
+          ],
+          "optional_fields": [
+            "Message",
+            "EventData",
+            "UserData",
+            "Computer",
+            "OSPath"
+          ],
+          "stack_ids": [
+            "detection"
+          ],
+          "recommended_filters": [
+            "PowerShell",
+            "ScriptBlock",
+            "encodedcommand"
+          ],
+          "collection_parameters": {},
+          "notes": "Retain full event payloads in raw evidence."
+        },
+        {
+          "artifact": "Windows.EventLogs.EvtxHunter",
+          "role": "supporting",
+          "required_fields": [
+            "EventTime",
+            "Provider",
+            "EventID"
+          ],
+          "optional_fields": [
+            "Username",
+            "UserSID",
+            "EventData",
+            "UserData",
+            "EventRecordID"
+          ],
+          "stack_ids": [],
+          "recommended_filters": [
+            "IocRegex",
+            "EvtxGlob",
+            "DateAfter",
+            "DateBefore"
+          ],
+          "collection_parameters": {},
+          "notes": "Use bounded PowerShell and Security log families instead of broad EVTX collection."
+        }
+      ],
+      "expected_signals": [
+        "EncodedCommand or base64 decoding primitives",
+        "DownloadString, WebClient, Invoke-WebRequest, or BITS retrieval",
+        "Invoke-Expression or reflection-based execution",
+        "PowerShell activity adjacent to suspicious file creation or process execution"
+      ],
+      "benign_explanations": [
+        "Administrative automation",
+        "Software deployment or endpoint-management scripts",
+        "Security tooling and incident-response collection"
+      ],
+      "caveats": [
+        "PSReadLine is user- and configuration-dependent.",
+        "Encoded PowerShell is not inherently malicious.",
+        "Event payload fields can be large and require bounded snippets for review."
+      ],
+      "follow_up_artifacts": [
+        "Windows.NTFS.MFT",
+        "Windows.Detection.BinaryHunter",
+        "Windows.Forensics.Prefetch",
+        "Windows.Detection.Amcache"
+      ],
+      "scope_expansion_triggers": [
+        "Same normalized command, URL, domain, hash, or payload path appears on another host.",
+        "PowerShell activity is followed by remote service, task, or account activity."
+      ],
+      "enabled": true
+    },
+    "suspicious-service-creation": {
+      "title": "Suspicious service creation or modification",
+      "objective": "Identify service installation, executable-path drift, service DLL abuse, or service-based remote execution.",
+      "selection_guidance": "Use for Event ID 7045-style evidence, unusual service binaries, service DLL changes, remote administration, or lateral-movement leads.",
+      "tactics": [
+        "persistence",
+        "privilege-escalation",
+        "lateral-movement",
+        "execution"
+      ],
+      "tags": [
+        "services",
+        "service-dll",
+        "remote-service"
+      ],
+      "question_shapes": [
+        "single-host",
+        "cross-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "Windows.EventLogs.ServiceCreationComspec",
+          "role": "primary",
+          "required_fields": [
+            "ServiceName",
+            "ImagePath"
+          ],
+          "optional_fields": [
+            "AccountName",
+            "Message",
+            "ClientId",
+            "Fqdn",
+            "Timestamp"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "service name",
+            "image path",
+            "command shell",
+            "temporary directory"
+          ],
+          "collection_parameters": {},
+          "notes": "Separate executable path from arguments in derived review output."
+        },
+        {
+          "artifact": "Windows.System.Services",
+          "role": "supporting",
+          "required_fields": [
+            "Name",
+            "StartMode",
+            "UserAccount"
+          ],
+          "optional_fields": [
+            "DisplayName",
+            "AbsoluteExePath",
+            "ServiceDll",
+            "FailureCommand",
+            "HashServiceExe",
+            "HashServiceDll",
+            "CertinfoServiceExe",
+            "CertinfoServiceDll"
+          ],
+          "stack_ids": [
+            "service_name",
+            "executable_path",
+            "service_dll",
+            "service_account",
+            "executable_hash",
+            "dll_hash",
+            "failure_command",
+            "name_path"
+          ],
+          "recommended_filters": [
+            "uncommon path",
+            "unsigned binary",
+            "user-writable directory",
+            "name-path drift"
+          ],
+          "collection_parameters": {
+            "Calculate_hashes": "Y"
+          },
+          "notes": "Some service fields can be sparse on mapped dead-disk clients."
+        }
+      ],
+      "expected_signals": [
+        "Service executable in a user-writable or temporary path",
+        "Service name mapped to an uncommon executable or DLL",
+        "Command shell, script interpreter, or encoded arguments in ImagePath",
+        "Unsigned or rare service binary",
+        "Service creation adjacent to remote logon activity"
+      ],
+      "benign_explanations": [
+        "Legitimate software installation or upgrade",
+        "Endpoint-management and remote-support tooling",
+        "Security-agent installation or repair"
+      ],
+      "caveats": [
+        "A rare service is not automatically malicious.",
+        "Mapped dead-disk service collection may be incomplete.",
+        "Hash and certificate fields require Calculate_hashes=Y."
+      ],
+      "follow_up_artifacts": [
+        "Windows.Detection.BinaryHunter",
+        "Windows.Forensics.Prefetch",
+        "Windows.Detection.Amcache",
+        "Windows.EventLogs.RDPAuth",
+        "Windows.EventLogs.ExplicitLogon"
+      ],
+      "scope_expansion_triggers": [
+        "Same service name, executable path, DLL, hash, or account appears on multiple hosts.",
+        "Service creation follows a remote logon or explicit credential use."
+      ],
+      "enabled": true
+    },
+    "scheduled-task-persistence": {
+      "title": "Scheduled-task persistence or execution",
+      "objective": "Identify malicious scheduled tasks, hidden TaskCache entries, or task actions that launch suspicious commands or binaries.",
+      "selection_guidance": "Use when task names, Task Scheduler events, registry TaskCache anomalies, or recurring execution are present.",
+      "tactics": [
+        "persistence",
+        "execution",
+        "privilege-escalation"
+      ],
+      "tags": [
+        "scheduled-task",
+        "taskcache",
+        "hidden-task"
+      ],
+      "question_shapes": [
+        "single-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "Windows.System.TaskScheduler",
+          "role": "primary",
+          "required_fields": [],
+          "optional_fields": [
+            "task name",
+            "task path",
+            "principal",
+            "action command",
+            "arguments",
+            "triggers",
+            "enabled",
+            "hidden"
+          ],
+          "stack_ids": [],
+          "recommended_filters": [
+            "script interpreter",
+            "user-writable path",
+            "hidden task",
+            "unexpected principal"
+          ],
+          "collection_parameters": {},
+          "notes": "Field names remain unprofiled and require validation against live output."
+        },
+        {
+          "artifact": "Windows.Registry.TaskCache.HiddenTasks",
+          "role": "supporting",
+          "required_fields": [],
+          "optional_fields": [
+            "task path",
+            "task GUID",
+            "SD status",
+            "registry key",
+            "command",
+            "user SID"
+          ],
+          "stack_ids": [],
+          "recommended_filters": [
+            "missing SD",
+            "orphaned task GUID",
+            "hidden task"
+          ],
+          "collection_parameters": {},
+          "notes": "Field names remain unprofiled and require validation against live output."
+        }
+      ],
+      "expected_signals": [
+        "Task action launches a script interpreter or binary from a user-writable path",
+        "Hidden task or missing security descriptor",
+        "Unexpected privileged principal",
+        "Task registration near suspicious file creation or account activity"
+      ],
+      "benign_explanations": [
+        "Enterprise software update tasks",
+        "Backup, monitoring, or management agents",
+        "Administrator-created maintenance tasks"
+      ],
+      "caveats": [
+        "Task Scheduler artifact schemas vary by result component and version.",
+        "Task names alone are weak evidence.",
+        "Registry TaskCache findings require correlation with task XML and execution evidence."
+      ],
+      "follow_up_artifacts": [
+        "Windows.EventLogs.EvtxHunter",
+        "Windows.NTFS.MFT",
+        "Windows.Detection.BinaryHunter",
+        "Windows.Forensics.Prefetch"
+      ],
+      "scope_expansion_triggers": [
+        "Same task name, action command, binary path, or hash appears on another host."
+      ],
+      "enabled": true
+    },
+    "wmi-persistence": {
+      "title": "Permanent WMI event persistence",
+      "objective": "Identify suspicious WMI event filters, consumers, bindings, queries, or command lines used for persistence and execution.",
+      "selection_guidance": "Use when WMI consumers, event filters, suspicious namespaces, or WMI-launched commands are observed.",
+      "tactics": [
+        "persistence",
+        "execution"
+      ],
+      "tags": [
+        "wmi",
+        "event-consumer",
+        "permanent-event"
+      ],
+      "question_shapes": [
+        "single-host"
+      ],
+      "artifacts": [
+        {
+          "artifact": "Windows.Persistence.PermanentWMIEvents",
+          "role": "primary",
+          "required_fields": [
+            "ConsumerDetails",
+            "FilterDetails"
+          ],
+          "optional_fields": [
+            "Consumer",
+            "Filter",
+            "CommandLine",
+            "User",
+            "Query",
+            "Namespace",
+            "EventNamespace"
+          ],
+          "stack_ids": [],
+          "recommended_filters": [
+            "command consumer",
+            "script consumer",
+            "unusual namespace",
+            "encoded command"
+          ],
+          "collection_parameters": {},
+          "notes": "Zero rows on mapped dead-disk clients are not a clearing condition."
+        }
+      ],
+      "expected_signals": [
+        "CommandLineEventConsumer launches script interpreters or suspicious paths",
+        "Filter and consumer names do not match installed enterprise software",
+        "Queries trigger on logon, process creation, or short recurring intervals",
+        "Consumer command correlates with suspicious binary or script evidence"
+      ],
+      "benign_explanations": [
+        "Monitoring, inventory, and systems-management software",
+        "Security agents",
+        "Vendor-specific update or health-check tooling"
+      ],
+      "caveats": [
+        "Live WMI artifacts can be weak or unavailable on mapped dead-disk clients.",
+        "Consumer names and namespaces require environment context."
+      ],
+      "follow_up_artifacts": [
+        "Windows.NTFS.MFT",
+        "Windows.Detection.BinaryHunter",
+        "Windows.EventLogs.EvtxHunter",
+        "Windows.Forensics.Prefetch"
+      ],
+      "scope_expansion_triggers": [
+        "Same consumer, filter, command, script path, or binary hash appears elsewhere."
+      ],
+      "enabled": true
+    },
+    "rdp-or-explicit-logon-lateral-movement": {
+      "title": "RDP or explicit-credential lateral movement",
+      "objective": "Identify remote interactive access or explicit credential use that moves between systems or launches remote administration.",
+      "selection_guidance": "Use when source IPs, target accounts, RDP events, explicit logons, or remote-service activity are present.",
+      "tactics": [
+        "credential-access",
+        "lateral-movement"
+      ],
+      "tags": [
+        "rdp",
+        "explicit-logon",
+        "remote-access"
+      ],
+      "question_shapes": [
+        "single-host",
+        "cross-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "Windows.EventLogs.RDPAuth",
+          "role": "primary",
+          "required_fields": [
+            "EventTime",
+            "UserName",
+            "SourceIP",
+            "EventID"
+          ],
+          "optional_fields": [
+            "DomainName",
+            "LogonType",
+            "Channel",
+            "Description",
+            "EventRecordID"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "source IP",
+            "target user",
+            "success and failure sequence"
+          ],
+          "collection_parameters": {},
+          "notes": "Normalize DomainName and UserName but retain source fields."
+        },
+        {
+          "artifact": "Windows.EventLogs.ExplicitLogon",
+          "role": "supporting",
+          "required_fields": [
+            "EventTime",
+            "SubjectUserName",
+            "TargetUserName",
+            "TargetServerName",
+            "ProcessName"
+          ],
+          "optional_fields": [
+            "SubjectDomainName",
+            "TargetDomainName",
+            "EventID",
+            "EventRecordID",
+            "EventData",
+            "Message"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "target server",
+            "process name",
+            "subject account",
+            "target account"
+          ],
+          "collection_parameters": {},
+          "notes": "Correlate subject, target, process, and server; no one field is sufficient."
+        },
+        {
+          "artifact": "Windows.EventLogs.ServiceCreationComspec",
+          "role": "context",
+          "required_fields": [
+            "ServiceName",
+            "ImagePath"
+          ],
+          "optional_fields": [
+            "AccountName",
+            "Timestamp",
+            "Message"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "remote service",
+            "command shell"
+          ],
+          "collection_parameters": {},
+          "notes": "Use as evidence of service-based movement adjacent to authentication."
+        }
+      ],
+      "expected_signals": [
+        "New or unusual source IP authenticates to a target host",
+        "Explicit credential use targets another server",
+        "Remote logon followed by service creation, task execution, or PowerShell",
+        "Same account moves through several hosts in a short interval"
+      ],
+      "benign_explanations": [
+        "Help-desk or administrator activity",
+        "Jump hosts and privileged access workstations",
+        "Backup, deployment, and management systems"
+      ],
+      "caveats": [
+        "Source IP may represent NAT, VPN, jump-host, or proxy infrastructure.",
+        "Explicit logon events require process and target-server context.",
+        "Administrator activity can resemble lateral movement."
+      ],
+      "follow_up_artifacts": [
+        "Windows.EventLogs.EvtxHunter",
+        "Windows.System.Services",
+        "Windows.System.TaskScheduler",
+        "DetectRaptor.Windows.Detection.Powershell.PSReadline"
+      ],
+      "scope_expansion_triggers": [
+        "Same source IP or account authenticates to additional hosts.",
+        "Authentication is followed by service, task, WMI, or PowerShell execution."
+      ],
+      "enabled": true
+    },
+    "suspicious-binary-execution": {
+      "title": "Suspicious binary presence and execution",
+      "objective": "Correlate file identity, execution-adjacent artifacts, signer metadata, and repeated host presence for a suspicious binary.",
+      "selection_guidance": "Use after a filename, path, hash, signer anomaly, or execution lead is identified.",
+      "tactics": [
+        "execution"
+      ],
+      "tags": [
+        "binary",
+        "hash",
+        "execution"
+      ],
+      "question_shapes": [
+        "single-host",
+        "cross-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "Windows.Detection.Amcache",
+          "role": "primary",
+          "required_fields": [
+            "FullPath",
+            "SHA1"
+          ],
+          "optional_fields": [
+            "ProgramID",
+            "FileDescription",
+            "FileVersion",
+            "Publisher",
+            "CompileTime",
+            "LastModified",
+            "LastRunTime"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "exact path",
+            "SHA1",
+            "publisher"
+          ],
+          "collection_parameters": {},
+          "notes": "Treat Amcache as presence and metadata evidence, not universal proof of execution."
+        },
+        {
+          "artifact": "Windows.Forensics.Prefetch",
+          "role": "primary",
+          "required_fields": [
+            "Binary"
+          ],
+          "optional_fields": [
+            "CreationTime",
+            "LastRunTimes",
+            "RunCount",
+            "Hash"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "binary name",
+            "prefetch hash"
+          ],
+          "collection_parameters": {},
+          "notes": "Prefetch may be disabled, aged out, or absent."
+        },
+        {
+          "artifact": "Windows.Forensics.Bam",
+          "role": "supporting",
+          "required_fields": [
+            "Binary"
+          ],
+          "optional_fields": [
+            "User",
+            "LastExecution",
+            "KeyLastWriteTimestamp",
+            "FullPath"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "exact path",
+            "user"
+          ],
+          "collection_parameters": {},
+          "notes": "BAM availability and retention depend on Windows version and state."
+        },
+        {
+          "artifact": "Windows.Search.FileFinder",
+          "role": "context",
+          "required_fields": [
+            "OSPath",
+            "Name"
+          ],
+          "optional_fields": [
+            "Size",
+            "Mtime",
+            "Btime",
+            "Hash",
+            "ClientId",
+            "Fqdn"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "exact path",
+            "filename",
+            "hash"
+          ],
+          "collection_parameters": {},
+          "notes": "Use only after a bounded file lead exists."
+        }
+      ],
+      "expected_signals": [
+        "Same path or hash appears across execution artifacts",
+        "Unsigned or unexpectedly signed executable",
+        "Binary runs from user-writable, temporary, or staging locations",
+        "Compile time, version metadata, imports, or PDB path conflict with claimed software"
+      ],
+      "benign_explanations": [
+        "Portable administration tools",
+        "Software installers and updaters",
+        "Internally developed or unsigned utilities"
+      ],
+      "caveats": [
+        "Presence and execution are distinct claims.",
+        "Timestamp semantics differ by artifact.",
+        "File identity should be confirmed with BinaryHunter or equivalent exact-path collection."
+      ],
+      "follow_up_artifacts": [
+        "Windows.Detection.BinaryHunter",
+        "Windows.NTFS.MFT",
+        "DetectRaptor.Generic.Detection.YaraFile",
+        "Windows.EventLogs.EvtxHunter"
+      ],
+      "scope_expansion_triggers": [
+        "Same hash, normalized path, signer anomaly, or PDB path appears on another host."
+      ],
+      "enabled": true
+    },
+    "downloaded-payload-execution": {
+      "title": "Downloaded payload followed by execution",
+      "objective": "Correlate Mark-of-the-Web or download metadata with file creation and subsequent execution evidence.",
+      "selection_guidance": "Use when Zone.Identifier, browser download, suspicious URL, or newly created executable evidence exists.",
+      "tactics": [
+        "initial-access",
+        "execution"
+      ],
+      "tags": [
+        "motw",
+        "download",
+        "payload"
+      ],
+      "question_shapes": [
+        "single-host",
+        "cross-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "DetectRaptor.Windows.Detection.ZoneIdentifier",
+          "role": "primary",
+          "required_fields": [
+            "DownloadedFilePath",
+            "HostUrl"
+          ],
+          "optional_fields": [
+            "ReferrerUrl",
+            "FileHash",
+            "ClientId",
+            "Fqdn",
+            "Timestamp"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "domain",
+            "downloaded path",
+            "file hash"
+          ],
+          "collection_parameters": {},
+          "notes": "Zone.Identifier can be absent or removed."
+        },
+        {
+          "artifact": "DetectRaptor.Windows.Detection.MFT",
+          "role": "supporting",
+          "required_fields": [
+            "Name",
+            "Path"
+          ],
+          "optional_fields": [
+            "Extension",
+            "Size",
+            "Hash",
+            "ClientId",
+            "Fqdn",
+            "Timestamp"
+          ],
+          "stack_ids": [
+            "criticality_detection"
+          ],
+          "recommended_filters": [
+            "download path",
+            "filename",
+            "extension"
+          ],
+          "collection_parameters": {},
+          "notes": "Use raw MFT for exact timestamp and path confirmation."
+        },
+        {
+          "artifact": "DetectRaptor.Windows.Detection.Applications",
+          "role": "context",
+          "required_fields": [
+            "Name",
+            "Path"
+          ],
+          "optional_fields": [
+            "Detection",
+            "Hash",
+            "Publisher",
+            "ClientId",
+            "Fqdn"
+          ],
+          "stack_ids": [
+            "application"
+          ],
+          "recommended_filters": [
+            "downloaded filename",
+            "normalized path",
+            "hash"
+          ],
+          "collection_parameters": {},
+          "notes": "Use as application or execution-style context, not sole proof."
+        }
+      ],
+      "expected_signals": [
+        "Untrusted or uncommon download domain",
+        "Executable or script downloaded into a user-writable location",
+        "Downloaded file is followed by Prefetch, BAM, Amcache, or PowerShell activity",
+        "Same payload hash or URL appears on multiple hosts"
+      ],
+      "benign_explanations": [
+        "Legitimate software downloads",
+        "User-downloaded utilities",
+        "Enterprise software distribution"
+      ],
+      "caveats": [
+        "Mark-of-the-Web can be missing, stripped, or propagated inconsistently.",
+        "A downloaded file is not necessarily executed.",
+        "URLs may contain sensitive tokens and should be handled carefully."
+      ],
+      "follow_up_artifacts": [
+        "Windows.Forensics.Prefetch",
+        "Windows.Detection.Amcache",
+        "Windows.Forensics.Bam",
+        "Windows.Detection.BinaryHunter",
+        "Windows.NTFS.MFT"
+      ],
+      "scope_expansion_triggers": [
+        "Same URL, domain, filename, path, or hash appears elsewhere."
+      ],
+      "enabled": true
+    },
+    "archive-staging-or-exfiltration": {
+      "title": "Archive staging or endpoint-visible exfiltration",
+      "objective": "Identify archive creation, staging directories, unusual outbound application usage, removable or shared destinations, and transfer-related activity.",
+      "selection_guidance": "Use when archive utilities, large staged files, cloud-storage paths, unusual network usage, or transfer tooling are observed.",
+      "tactics": [
+        "collection",
+        "exfiltration"
+      ],
+      "tags": [
+        "archive",
+        "staging",
+        "cloud-storage",
+        "network-transfer"
+      ],
+      "question_shapes": [
+        "single-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "Windows.NTFS.MFT",
+          "role": "primary",
+          "required_fields": [
+            "OSPath",
+            "FileSize",
+            "Created0x10",
+            "LastModified0x10"
+          ],
+          "optional_fields": [
+            "EntryNumber",
+            "ParentEntryNumber",
+            "LastRecordChange0x10",
+            "Created0x30",
+            "LastModified0x30"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "archive extension",
+            "staging directory",
+            "minimum file size",
+            "DateAfter",
+            "DateBefore"
+          ],
+          "collection_parameters": {},
+          "notes": "Use bounded path, extension, size, and time filters."
+        },
+        {
+          "artifact": "Windows.Forensics.SRUM",
+          "role": "supporting",
+          "required_fields": [
+            "Timestamp",
+            "AppId"
+          ],
+          "optional_fields": [
+            "User",
+            "BytesSent",
+            "BytesReceived",
+            "Interface"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "application",
+            "network usage",
+            "time window"
+          ],
+          "collection_parameters": {},
+          "notes": "Review component-specific SRUM exports; fields vary by component."
+        }
+      ],
+      "expected_signals": [
+        "Large archive created shortly before transfer-related activity",
+        "Archive or staging path under temporary, public, profile, or cloud-sync directories",
+        "Unusual application network usage near staging activity",
+        "Cloud-storage, browser, removable-media, or network-share context"
+      ],
+      "benign_explanations": [
+        "Backup and archival activity",
+        "Software packaging and deployment",
+        "Legitimate cloud synchronization",
+        "User file transfer and collaboration"
+      ],
+      "caveats": [
+        "SRUM provides usage context rather than packet-level proof of exfiltration.",
+        "Large archives and cloud synchronization are common business activity.",
+        "File size and timestamp evidence must be correlated with user and process context."
+      ],
+      "follow_up_artifacts": [
+        "Windows.EventLogs.EvtxHunter",
+        "Windows.Forensics.Prefetch",
+        "Windows.Registry.MountPoints2",
+        "Windows.Search.FileFinder"
+      ],
+      "scope_expansion_triggers": [
+        "Same archive name, staging path, cloud destination, transfer tool, or account appears on another host."
+      ],
+      "enabled": true
+    },
+    "removable-media-or-network-share-use": {
+      "title": "Removable media or network-share usage",
+      "objective": "Identify user and host interaction with removable volumes, mounted shares, or external storage relevant to ingress, staging, or exfiltration.",
+      "selection_guidance": "Use when drive letters, volume identifiers, UNC paths, MountPoints2 data, or device-history evidence is relevant.",
+      "tactics": [
+        "initial-access",
+        "collection",
+        "exfiltration"
+      ],
+      "tags": [
+        "usb",
+        "mountpoints2",
+        "network-share",
+        "external-storage"
+      ],
+      "question_shapes": [
+        "single-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "Windows.Registry.MountPoints2",
+          "role": "primary",
+          "required_fields": [],
+          "optional_fields": [
+            "user SID",
+            "mounted target",
+            "drive",
+            "share",
+            "volume identifier",
+            "registry key",
+            "modification time"
+          ],
+          "stack_ids": [],
+          "recommended_filters": [
+            "UNC path",
+            "volume GUID",
+            "user SID"
+          ],
+          "collection_parameters": {},
+          "notes": "Field names remain unprofiled and require validation against live output."
+        },
+        {
+          "artifact": "Windows.NTFS.MFT",
+          "role": "context",
+          "required_fields": [
+            "OSPath"
+          ],
+          "optional_fields": [
+            "FileSize",
+            "Created0x10",
+            "LastModified0x10",
+            "LastRecordChange0x10"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "staging path",
+            "copied filename",
+            "time window"
+          ],
+          "collection_parameters": {},
+          "notes": "Use for adjacent file activity on the local system."
+        }
+      ],
+      "expected_signals": [
+        "Previously unseen removable volume or share",
+        "Mount activity near suspicious file creation or execution",
+        "Sensitive files staged before removable-media or share interaction",
+        "Same share, volume, or user appears across multiple hosts"
+      ],
+      "benign_explanations": [
+        "Approved removable storage",
+        "Mapped business shares",
+        "Backup devices",
+        "Administrative file transfer"
+      ],
+      "caveats": [
+        "Registry mount evidence does not prove a specific file transfer.",
+        "Shared infrastructure requires user and time correlation.",
+        "Dead-disk evidence may not establish current device state."
+      ],
+      "follow_up_artifacts": [
+        "Windows.EventLogs.EvtxHunter",
+        "Windows.Search.FileFinder",
+        "Windows.Forensics.SRUM"
+      ],
+      "scope_expansion_triggers": [
+        "Same share, removable volume, filename, or user activity appears on another host."
+      ],
+      "enabled": true
+    },
+    "account-creation-or-privilege-change": {
+      "title": "Account creation or privilege change",
+      "objective": "Identify new accounts, group membership changes, privilege assignments, or suspicious use of newly modified identities.",
+      "selection_guidance": "Use when account-management events, new local users, administrator-group changes, or unusual privileged identities are observed.",
+      "tactics": [
+        "persistence",
+        "privilege-escalation"
+      ],
+      "tags": [
+        "account",
+        "group-membership",
+        "privilege"
+      ],
+      "question_shapes": [
+        "single-host",
+        "cross-host",
+        "bounded-time-window"
+      ],
+      "artifacts": [
+        {
+          "artifact": "Windows.EventLogs.EvtxHunter",
+          "role": "primary",
+          "required_fields": [
+            "EventTime",
+            "EventID"
+          ],
+          "optional_fields": [
+            "Username",
+            "UserSID",
+            "Provider",
+            "EventData",
+            "UserData",
+            "EventRecordID"
+          ],
+          "stack_ids": [],
+          "recommended_filters": [
+            "4720",
+            "4722",
+            "4724",
+            "4728",
+            "4732",
+            "4756",
+            "Security log",
+            "DateAfter",
+            "DateBefore"
+          ],
+          "collection_parameters": {},
+          "notes": "Use explicit event-id and time bounds."
+        },
+        {
+          "artifact": "Windows.EventLogs.ExplicitLogon",
+          "role": "context",
+          "required_fields": [
+            "EventTime",
+            "SubjectUserName",
+            "TargetUserName"
+          ],
+          "optional_fields": [
+            "SubjectDomainName",
+            "TargetDomainName",
+            "TargetServerName",
+            "ProcessName",
+            "EventID",
+            "Message"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "new account",
+            "target server",
+            "process name"
+          ],
+          "collection_parameters": {},
+          "notes": "Use to determine whether a new or changed account was subsequently used."
+        }
+      ],
+      "expected_signals": [
+        "New account followed by logon or explicit credential use",
+        "Unexpected addition to local or domain privileged groups",
+        "Password reset or account enablement by an unusual actor",
+        "Same newly created account appears on multiple systems"
+      ],
+      "benign_explanations": [
+        "Approved onboarding and access changes",
+        "Service-account provisioning",
+        "Help-desk password resets",
+        "Automated identity-management workflows"
+      ],
+      "caveats": [
+        "Account events require actor, target, host, and approval context.",
+        "Domain and local account semantics differ.",
+        "Registry account state does not provide complete domain history."
+      ],
+      "follow_up_artifacts": [
+        "Windows.EventLogs.RDPAuth",
+        "DetectRaptor.Windows.Detection.Powershell.PSReadline",
+        "Windows.System.Services",
+        "Windows.System.TaskScheduler"
+      ],
+      "scope_expansion_triggers": [
+        "New or modified identity authenticates to additional hosts.",
+        "Privilege change is followed by persistence or remote execution."
+      ],
+      "enabled": true
+    }
+  }
+}

@@ -1,0 +1,10 @@
+LET FlowTimeoutSeconds <= int(int=FlowTimeoutSeconds)
+
+SELECT
+  collect_client(
+    client_id=ClientId,
+    artifacts=parse_json_array(data=Artifacts),
+    spec=parse_json(data=Spec),
+    timeout=FlowTimeoutSeconds
+  ).flow_id AS flow_id
+FROM scope()

@@ -1,0 +1,122 @@
+{
+  "schema_version": 4,
+  "profiles": {
+    "DetectRaptor.Windows.Detection.Evtx": {
+      "review": {
+        "stacks": {
+          "detection": {
+            "max_groups": 5000
+          }
+        },
+        "recommended_filters": [
+          "DateAfter",
+          "DateBefore",
+          "ChannelRegex",
+          "ProviderRegex",
+          "IdRegex"
+        ]
+      }
+    },
+    "Custom.Windows.SiteArtifact": {
+      "signal_type": "site-custom",
+      "row_volume_risk": "medium",
+      "time_bound_support": "depends",
+      "selection": {
+        "preferred_use_case": "Site-owned custom artifact review.",
+        "question_shapes": [
+          "single-host"
+        ],
+        "windows_skills": [
+          "velociraptor-host-analysis"
+        ],
+        "fallback_artifacts": []
+      },
+      "review": {
+        "strategy": "site_custom_stack",
+        "normalizers": [
+          {
+            "output": "NormalizedPath",
+            "kind": "windows_path",
+            "source_fields": [
+              "Path"
+            ],
+            "mode": "first_non_empty"
+          }
+        ],
+        "sample_fields": [
+          "Name",
+          "Path",
+          "Hash"
+        ],
+        "context_fields": [
+          "Hash",
+          "Hostname",
+          "Timestamp"
+        ],
+        "avoid_stack_fields": [
+          "Hostname",
+          "Timestamp"
+        ],
+        "recommended_filters": [
+          "Name",
+          "Path"
+        ],
+        "host_fields": [
+          "Hostname",
+          "ClientId"
+        ],
+        "timestamp_fields": [
+          "Timestamp"
+        ],
+        "saved_hunt_projection": {
+          "summary_fields": [
+            "Name",
+            "Path",
+            "Hash"
+          ]
+        },
+        "stacks": {
+          "name_path": {
+            "purpose": "Identify uncommon name and normalized path combinations.",
+            "dimensions": [
+              "Name",
+              "NormalizedPath"
+            ],
+            "server_dimensions": [
+              "Name",
+              "Path"
+            ],
+            "metrics": [
+              "count",
+              "distinct_hosts"
+            ],
+            "max_groups": 10000,
+            "priority": 10,
+            "analysis_route": "high-volume"
+          },
+          "hash": {
+            "purpose": "Correlate identical content across renamed site artifacts.",
+            "dimensions": [
+              "Hash"
+            ],
+            "server_dimensions": [
+              "Hash"
+            ],
+            "metrics": [
+              "count",
+              "distinct_hosts"
+            ],
+            "max_groups": 10000,
+            "priority": 20,
+            "analysis_route": "high-volume"
+          }
+        },
+        "default_stack": "name_path"
+      },
+      "analysis_routes": {
+        "chunk_review": "high-volume",
+        "ambiguous": "reasoning"
+      }
+    }
+  }
+}

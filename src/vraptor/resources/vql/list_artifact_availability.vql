@@ -1,0 +1,5 @@
+LET RequestedArtifacts <= parse_json_array(data=Artifacts)
+
+SELECT name
+FROM artifact_definitions()
+WHERE name IN RequestedArtifacts

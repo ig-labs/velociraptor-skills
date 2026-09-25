@@ -1,0 +1,8 @@
+SELECT Category
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.Registry.Hunter/Results'
+)
+GROUP BY Category
+ORDER BY Category

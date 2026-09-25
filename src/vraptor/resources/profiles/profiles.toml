@@ -1,0 +1,33 @@
+# Analysis intent and response depth; no case dispatcher.
+
+[response_depths.rapid]
+description = "Time-constrained review that retains only high-confidence or high-impact results and the context required to act on them."
+output_contract = "Lead with the answer. Return only the highest-signal findings, essential identity and causal context, exact evidence references, material coverage gaps, and the immediate next action. Mark the result provisional when review is incomplete."
+
+[response_depths.standard]
+description = "Normal evidence-backed review with findings, relevant chronology, context, limitations, and bounded follow-up."
+output_contract = "Return a direct answer, prioritized findings, relevant chronology, finding-linked identity and causal context, exact provenance, coverage, limitations, and bounded next actions."
+
+[response_depths.deep]
+description = "Full forensic review for a bounded host, hypothesis, or incident slice."
+output_contract = "Return a UTC chronological timeline, supported findings, alternate or benign explanations, finding-linked user/session/process/network context, exact provenance, confidence, collection and review coverage, limitations, and bounded follow-up."
+
+[profiles.incident_response]
+description = "Evidence-backed incident analysis across declared hosts and hunts."
+output_contract = "Return a direct incident assessment, prioritized findings, a relevant UTC chronology, finding-linked user/session/process/network context, exact evidence pointers, explicit coverage gaps, and next bounded actions."
+default_depth = "standard"
+
+[profiles.targeted_hunt]
+description = "Exact chat-first cross-host hunt for one declared IOC, behavior, identity, or hypothesis."
+output_contract = "Return the exact question and scope, hunt or query identifiers, filters, affected hosts and users, prevalence, finding-linked context, hits and non-hits, target-execution and result-review coverage, caveats, and the next bounded action."
+default_depth = "standard"
+
+[profiles.host_forensics]
+description = "Forensic single-host deep dive with exact-flow reuse, chronological reconstruction, and finding-linked identity and causal context."
+output_contract = "Return a direct host assessment followed by a UTC timeline of material activity. For every finding include exact artifact paths, flow IDs and evidence references plus available username/account/SID, session/logon, parent-child process, file/hash/signer, and network context. Separate fact from assessment and state confidence, coverage, caveats, and the next bounded host action."
+default_depth = "deep"
+
+[profiles.compromise_assessment]
+description = "Discovery-led compromise assessment that can learn the environment, establish prevalence, and progressively narrow anomalies into exact leads."
+output_contract = "Return the assessed environment and coverage first, then prevalence and baseline observations, rare or anomalous activity, candidate leads with finding-linked host/user/process/network context, explicit unknowns, and the next narrowing actions. Do not imply compromise from rarity alone."
+default_depth = "standard"

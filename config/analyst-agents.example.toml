@@ -1,0 +1,73 @@
+# Copy to ~/.config/vraptor/analyst-agents.toml, or select CONFIG_FILE explicitly.
+# Keep the profiles you need; replace model/deployment names and verify limits.
+# Credentials stay in environment variables or the harness-managed login store.
+schema_version = 2
+
+[selection]
+default_profile = "azure"
+
+# Check these token budgets against your deployed model's context/output limits.
+# Legacy/shared fallback. Profile input/output pairs override these two budgets
+# and derive context and evidence limits. Environment overrides take precedence.
+[analysis_defaults]
+validation_correction_attempts = 2 # Extra attempts after a rejected chunk response (0-5).
+synthesis_correction_attempts = 2 # Extra attempts after rejected synthesis/final review (0-5).
+context_window_tokens = 360000
+max_input_tokens = 272000
+token_encoding = "o200k_base"
+max_analysis_item_tokens = 200000
+max_output_tokens = 64000
+
+# Direct OpenAI API
+[profiles.openai]
+provider = "openai"
+transport = "api"
+model = "gpt-5.6-luna"
+reasoning_effort = "high"
+timeout_seconds = 600
+max_concurrency = 20
+api_key_env = "OPENAI_API_KEY"
+max_input_tokens = 272000
+max_output_tokens = 128000
+
+# Direct Azure API
+[profiles.azure]
+provider = "azure_openai"
+transport = "api"
+base_url = "https://your-resource.openai.azure.com/openai/v1/"
+model = "gpt-5.6-luna"  # Must match your Azure deployment name
+reasoning_effort = "high"
+timeout_seconds = 600
+max_concurrency = 20
+api_key_env = "AZURE_OPENAI_API_KEY"
+max_input_tokens = 272000
+max_output_tokens = 128000
+# For Entra: set auth_mode = "entra", remove api_key_env, install vraptor[azure].
+# Explicit deployment context/output limits are recommended for OpenAI/Azure too.
+
+# Direct Anthropic API (vraptor ai setup --provider anthropic --model MODEL_ID).
+# Uses the shared analysis_defaults token budgets; credentials stay in the environment.
+[profiles.claude_api]
+provider = "anthropic"
+transport = "api"
+model = "your-claude-model-id"
+api_key_env = "ANTHROPIC_API_KEY"
+
+# Import Codex settings and select the compatible transport.
+# An imported Azure connection still uses API execution.
+[profiles.from_codex]
+source = { kind = "codex", path = "~/.codex/config.toml" }
+transport = "auto"
+
+# Import Claude settings and use its managed login.
+# Uses the shared analysis_defaults token budgets unless a profile pair is added.
+# Select a model/account that supports those budgets in Claude Code.
+# Discovery: ~/Library/Application Support/Claude/settings.json, then ~/.claude/settings.json.
+# Add path = "/path/to/settings.json" to source to pin an explicit file.
+# If no settings file exists, set model = "your-claude-model-id" in this profile.
+# Desktop config.json login tokens are not imported.
+[profiles.claude_login]
+source = { kind = "claude_code" }
+transport = "claude_agent_sdk"
+# Optional model_context_tokens/model_max_output_tokens can tighten these budgets.
+# SDK output ceilings are enforced locally; native generation limits also apply.

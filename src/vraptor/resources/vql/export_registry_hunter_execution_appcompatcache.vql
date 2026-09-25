@@ -1,0 +1,21 @@
+/*
+# Category Program Execution - AppCompatCache
+*/
+
+LET AppCompatCache = SELECT Description, Category, OSPath, Mtime, Details
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.Registry.Hunter/Results'
+)
+WHERE Category = 'Program Execution' AND Description =~ 'AppCompatCache'
+GROUP BY Details
+
+SELECT filename, LastMod, Execution, Stat,
+  get(member='Hashes') AS Hashes,
+  get(member='Magic') AS Magic,
+  get(member='Signatures') AS Signatures
+FROM foreach(row=AppCompatCache, query={
+  SELECT * FROM foreach(row=Details)
+})
+GROUP BY filename, LastMod, Execution

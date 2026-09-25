@@ -1,0 +1,11 @@
+/*
+# Category Microsoft Exchange
+*/
+
+SELECT Description, OSPath AS Key, Mtime, Details
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.Registry.Hunter/Results'
+)
+WHERE Category = 'Microsoft Exchange' AND Description =~ '.'

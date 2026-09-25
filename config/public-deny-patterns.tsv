@@ -1,0 +1,17 @@
+# label	Python regular expression
+private-key	-----BEGIN (?:(?:RSA|OPENSSH|EC|DSA|ENCRYPTED) )?PRIVATE KEY-----
+github-token	gh[pousr]_[A-Za-z0-9_]{20,}
+slack-token	xox[baprs]-[A-Za-z0-9-]{10,}
+aws-access-key	AKIA[0-9A-Z]{16}
+google-api-key	AIza[0-9A-Za-z_-]{35}
+internal-azure-host	dfir-ai-resour[c]e\.(?:openai\.azure\.com|services\.ai\.azure\.com)
+internal-vpn-address	10\.10\.(?:3\.9|4\.5)
+private-organization	Info[G]uard
+private-tool-name	sky[n]et
+private-repository	Info[G]uardAG/ai_skills
+private-ssh-default	\.ssh/info[g]uard
+github-fine-grained-token	github_pat_[A-Za-z0-9_]{50,}
+openai-api-key	sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{32,}
+anthropic-api-key	sk-ant-[A-Za-z0-9_-]{20,}
+private-site-profile	\bs[i]7\b
+private-operator-identity	\b(?:vraptor_|sky[n]et_)?ma[g]re\b

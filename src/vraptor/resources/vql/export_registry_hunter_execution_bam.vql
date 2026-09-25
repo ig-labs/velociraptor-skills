@@ -1,0 +1,19 @@
+/*
+# Category Program Execution - BAM
+*/
+
+LET BAM = SELECT Description, OSPath AS Key, Mtime, Details
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.Registry.Hunter/Results'
+)
+WHERE Category = 'Program Execution'
+  AND NOT Description =~ 'RADAR|UserAssist'
+  AND Description =~ 'BAM'
+
+SELECT *
+FROM foreach(row=BAM, query={
+  SELECT *
+  FROM foreach(row=Details.Programs)
+})

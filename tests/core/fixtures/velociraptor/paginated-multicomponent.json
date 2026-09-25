@@ -1,0 +1,80 @@
+{
+  "client_id": "C.fixture",
+  "hostname": "fixture-host",
+  "investigation_id": "FIXTURE",
+  "request_id": "fixture-request",
+  "artifacts": [
+    {
+      "artifact": "Artifact.Multi",
+      "flow_id": "F.multi",
+      "components": [
+        {
+          "name": "Artifact.Multi/Events",
+          "rows": [
+            {
+              "When": "2026-08-01T00:00:00Z",
+              "Command": "powershell.exe -NoProfile",
+              "User": "SYSTEM"
+            },
+            {
+              "When": "2026-08-01T00:01:00Z",
+              "Command": "$l = $p.Read($b, 0, 8); if ($l -gt 0) {\n  Invoke-Expression $t\n}",
+              "User": "SYSTEM"
+            },
+            {
+              "When": "2026-08-01T00:02:00Z",
+              "Command": "{\"nested\":\"a=b;c\",\"unicode\":\"✓\"}",
+              "User": "fixture-user"
+            },
+            {
+              "When": "2026-08-01T00:03:00Z",
+              "Command": "cmd.exe /c whoami",
+              "User": "fixture-user"
+            }
+          ]
+        },
+        {
+          "name": "Artifact.Multi/Network",
+          "rows": [
+            {
+              "When": "2026-08-01T00:04:00Z",
+              "Command": "connect 192.0.2.10:443",
+              "User": "SYSTEM"
+            },
+            {
+              "When": "2026-08-01T00:05:00Z",
+              "Command": "listen 0.0.0.0:5985",
+              "User": "SYSTEM"
+            },
+            {
+              "When": "2026-08-01T00:06:00Z",
+              "Command": "connect 198.51.100.20:445",
+              "User": "SYSTEM"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "artifact": "Artifact.Second",
+      "flow_id": "F.second",
+      "components": [
+        {
+          "name": "Artifact.Second",
+          "rows": [
+            {
+              "When": "2026-08-01T01:00:00Z",
+              "Command": "service.exe start",
+              "User": "SYSTEM"
+            },
+            {
+              "When": "2026-08-01T01:01:00Z",
+              "Command": "task.exe run",
+              "User": "SYSTEM"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

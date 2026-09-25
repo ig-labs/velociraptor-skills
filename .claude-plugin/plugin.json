@@ -1,0 +1,8 @@
+{
+  "name": "velociraptor-skills",
+  "version": "0.1.0",
+  "description": "Velociraptor DFIR skills: engagement setup, artifact selection, one-host collection, host analysis, cross-host hunting, live API client, mapped offline-evidence clients, and DFIR toolchain prep.",
+  "author": { "name": "Matt Green" },
+  "repository": "https://github.com/ig-labs/velociraptor-skills",
+  "keywords": ["velociraptor", "dfir", "forensics", "incident-response", "threat-hunting"]
+}

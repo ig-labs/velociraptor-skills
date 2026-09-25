@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "contract_name": "velociraptor-windows-review-artifact-schemas",
+  "description": "Minimum connected-server output semantics required by the Windows artifact review workflows. Each semantic alias group is satisfied when at least one listed field is present.",
+  "artifacts": {
+    "Windows.EventLogs.RDPAuth": {
+      "description": "RDP authentication and session event review.",
+      "semantic_alias_groups": [
+        {
+          "semantic": "event_time",
+          "aliases": [
+            "EventTime",
+            "Timestamp"
+          ]
+        },
+        {
+          "semantic": "user",
+          "aliases": [
+            "UserName",
+            "User",
+            "AccountName",
+            "TargetUserName"
+          ]
+        },
+        {
+          "semantic": "source_ip",
+          "aliases": [
+            "SourceIP",
+            "SourceAddress",
+            "IpAddress",
+            "IPAddress"
+          ]
+        },
+        {
+          "semantic": "event_id",
+          "aliases": [
+            "EventID",
+            "EventId"
+          ]
+        }
+      ]
+    },
+    "Windows.EventLogs.ExplicitLogon": {
+      "description": "Explicit credential-use event review.",
+      "semantic_alias_groups": [
+        {
+          "semantic": "event_time",
+          "aliases": [
+            "EventTime",
+            "Timestamp"
+          ]
+        },
+        {
+          "semantic": "target_account",
+          "aliases": [
+            "TargetUserName",
+            "AccountName",
+            "UserName",
+            "User"
+          ]
+        },
+        {
+          "semantic": "target_server",
+          "aliases": [
+            "TargetServerName",
+            "TargetServer",
+            "ServerName"
+          ]
+        },
+        {
+          "semantic": "process",
+          "aliases": [
+            "ProcessName",
+            "Process"
+          ]
+        },
+        {
+          "semantic": "event_id",
+          "aliases": [
+            "EventID",
+            "EventId"
+          ]
+        }
+      ]
+    },
+    "Windows.Forensics.Amcache": {
+      "description": "Native Amcache parser output across File and InventoryApplicationFile source variants.",
+      "semantic_alias_groups": [
+        {
+          "semantic": "file_path",
+          "aliases": [
+            "FullPath",
+            "LowerCaseLongPath",
+            "Path"
+          ]
+        },
+        {
+          "semantic": "file_hash",
+          "aliases": [
+            "SHA1",
+            "FileId"
+          ]
+        },
+        {
+          "semantic": "timestamp",
+          "aliases": [
+            "Timestamp",
+            "ModificationTime",
+            "CreationTime",
+            "LastModifiedKey",
+            "InstallDate"
+          ]
+        }
+      ]
+    },
+    "Windows.Forensics.Bam": {
+      "description": "Native Background Activity Moderator execution output.",
+      "semantic_alias_groups": [
+        {
+          "semantic": "binary_path",
+          "aliases": [
+            "Binary",
+            "FullPath",
+            "Path"
+          ]
+        },
+        {
+          "semantic": "user",
+          "aliases": [
+            "UserName",
+            "User",
+            "SID"
+          ]
+        },
+        {
+          "semantic": "execution_time",
+          "aliases": [
+            "Bam_time",
+            "LastExecution",
+            "ExecutionTime",
+            "Timestamp"
+          ]
+        }
+      ]
+    },
+    "Windows.Persistence.PermanentWMIEvents": {
+      "description": "Permanent WMI binding results with linked consumer and filter details.",
+      "semantic_alias_groups": [
+        {
+          "semantic": "consumer",
+          "aliases": [
+            "ConsumerDetails",
+            "Consumer"
+          ]
+        },
+        {
+          "semantic": "filter",
+          "aliases": [
+            "FilterDetails",
+            "Filter"
+          ]
+        },
+        {
+          "semantic": "namespace",
+          "aliases": [
+            "Namespace",
+            "EventNamespace"
+          ]
+        }
+      ]
+    }
+  }
+}

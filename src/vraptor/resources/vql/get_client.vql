@@ -1,0 +1,9 @@
+SELECT
+  client_id,
+  os_info.hostname AS Hostname,
+  timestamp(epoch=last_seen_at) AS LastSeen
+FROM clients()
+WHERE
+  os_info.hostname =~ hostname_regex OR
+  os_info.fqdn =~ hostname_regex
+ORDER BY last_seen_at DESC

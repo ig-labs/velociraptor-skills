@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "kind": "detached-evidence-handoff",
+  "workflows": [
+    "dfir-data-stacking",
+    "dfir-log-chunker"
+  ],
+  "source_authorities": [
+    "detached-file",
+    "stdin"
+  ],
+  "coverage_states": [
+    "exhaustive",
+    "filtered",
+    "sampled",
+    "token-limited",
+    "group-truncated",
+    "provisional"
+  ],
+  "required_top_level_keys": [
+    "schema_version",
+    "kind",
+    "handoff_id",
+    "workflow",
+    "question",
+    "source",
+    "scope",
+    "reduction",
+    "coverage",
+    "outputs",
+    "handoff",
+    "policy"
+  ],
+  "required_source_keys": [
+    "authority",
+    "path",
+    "sha256",
+    "size_bytes",
+    "format",
+    "system",
+    "acquisition_context"
+  ],
+  "required_coverage_keys": [
+    "state",
+    "source_record_count",
+    "processed_record_count",
+    "omitted_record_count",
+    "duplicate_reference_count",
+    "closure_eligible",
+    "limitations"
+  ],
+  "required_output_keys": [
+    "role",
+    "path",
+    "sha256",
+    "size_bytes",
+    "record_count"
+  ],
+  "required_handoff_keys": [
+    "source_references",
+    "unresolved",
+    "next_pivot"
+  ],
+  "required_policy": {
+    "rarity_is_malicious": false,
+    "reduced_output_is_raw_evidence_copy": false
+  }
+}

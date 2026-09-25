@@ -1,0 +1,13 @@
+SELECT
+  session_id,
+  state,
+  total_collected_rows,
+  artifacts_with_results,
+  request.timeout AS RequestTimeoutSeconds,
+  request.artifacts AS RequestedArtifacts,
+  serialize(format='json', item=request.specs) AS RequestSpecsJson,
+  serialize(format='json', item=request.compiled_collector_args) AS CompiledCollectorArgsJson,
+  timestamp(epoch=create_time) AS Created,
+  timestamp(epoch=active_time) AS LastActive
+FROM flows(client_id=client_id)
+ORDER BY create_time DESC

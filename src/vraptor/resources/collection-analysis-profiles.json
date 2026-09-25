@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "default_profile": "generic",
+  "collection_profiles": {
+    "triage": "detectraptor-host",
+    "detectraptor": "detectraptor-host",
+    "evtx": "detectraptor-host",
+    "mft": "detectraptor-host",
+    "network": "generic",
+    "execution": "generic",
+    "persistence": "generic",
+    "persistence-expanded": "generic",
+    "lateral-movement": "generic",
+    "exfiltration": "generic",
+    "timeline": "timeline",
+    "registry": "generic",
+    "signal-triage": "detectraptor-host",
+    "volatile-state": "volatile-state",
+    "execution-history": "execution-history",
+    "identity-state": "identity-state",
+    "persistence-state": "persistence-state",
+    "authentication-lateral": "authentication-lateral",
+    "script-execution": "script-execution",
+    "defense-evasion": "defense-evasion",
+    "ir-standard-live": "ir-standard-host",
+    "ir-standard-disk": "ir-standard-host"
+  },
+  "artifact_strategies": {
+    "IG.Windows.Sysinternals.Autoruns": "autoruns-goldendb",
+    "Windows.Sysinternals.Autoruns": "autoruns-goldendb"
+  },
+  "profiles": {
+    "generic": {
+      "reference": "windows-artifact-analysis.md",
+      "purpose": "Artifact-aware one-host evidence review",
+      "objectives": [
+        "Answer the exact investigation question from the assigned artifact rows.",
+        "Preserve only populated source components needed to support returned claims.",
+        "Distinguish observed presence, execution, persistence, authentication, and network activity."
+      ]
+    },
+    "detectraptor-host": {
+      "reference": "detectraptor-host-analysis.md",
+      "purpose": "Priority-ordered one-host DetectRaptor review and correlation",
+      "objectives": [
+        "Answer the exact question using priority-ordered DetectRaptor signals.",
+        "Retain management, scanner, and software context only when requested or needed to interpret a finding.",
+        "Preserve the smallest evidence components needed for surviving detections and residual risk."
+      ]
+    },
+    "timeline": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "Bounded chronological MFT and EVTX correlation",
+      "objectives": [
+        "Build a bounded chronology around the investigation question.",
+        "Separate direct correlation from general activity in the surrounding window.",
+        "Identify the smallest evidence-backed next pivot."
+      ]
+    },
+    "ir-standard-host": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "Capability-aware standard IR review across independent evidence lanes",
+      "objectives": [
+        "Answer the exact investigation question by correlating the available execution, identity, persistence, authentication, script, defense-evasion, triage, and volatile-state lanes.",
+        "Treat unavailable recommended sources and target-inapplicable sources as explicit coverage conditions, not clean evidence.",
+        "Separate observed artifact presence from execution, persistence, authentication, network use, compromise, and attribution."
+      ]
+    },
+    "volatile-state": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "Live process, connection, DNS, and user-session review",
+      "objectives": [
+        "Correlate processes, network endpoints, DNS cache entries, and logged-in users at collection time.",
+        "Distinguish a transient live-state observation from historical execution or successful authentication.",
+        "Preserve process identifiers, user context, network tuples, and timestamps when present."
+      ]
+    },
+    "execution-history": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "Corroborated Windows execution-history review",
+      "objectives": [
+        "Correlate independent execution traces before claiming likely execution.",
+        "Apply source-specific applicability and retention caveats, especially for empty Prefetch and legacy artifacts.",
+        "Preserve paths, filenames, hashes, users, and source-qualified timestamps."
+      ]
+    },
+    "identity-state": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "Local identity and privilege-state review",
+      "objectives": [
+        "Identify local accounts, hidden-account indicators, administrator membership, and active user sessions.",
+        "Do not infer successful account creation or group modification from script intent alone.",
+        "Preserve account names, SIDs, membership, enabled state, and exact source references."
+      ]
+    },
+    "persistence-state": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "Multi-source persistence-state review",
+      "objectives": [
+        "Correlate services, tasks, startup entries, WMI subscriptions, and Autoruns rather than relying on one inventory.",
+        "Separate configured persistence from execution and distinguish unavailable or inapplicable sources from absence.",
+        "Preserve names, command lines, paths, accounts, timestamps, hashes, and source references when present."
+      ]
+    },
+    "authentication-lateral": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "Authentication and lateral-movement evidence review",
+      "objectives": [
+        "Correlate RDP, explicit logons, remote mounts, service-mediated execution, and available authentication summaries.",
+        "Separate authentication events from successful remote execution or compromise.",
+        "Preserve source and destination systems, accounts, logon identifiers, addresses, event identifiers, and UTC timestamps."
+      ]
+    },
+    "script-execution": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "PowerShell and command-history review",
+      "objectives": [
+        "Correlate PSReadLine, script-block, and module evidence around the exact question.",
+        "Distinguish recorded command or script content from successful completion and downstream effects.",
+        "Preserve users, hosts, script identifiers, commands, and timestamps with source qualification."
+      ]
+    },
+    "defense-evasion": {
+      "reference": "windows-host-analysis.md",
+      "purpose": "Defense-evasion and tampering review",
+      "objectives": [
+        "Review event-log clearing or modification, boot changes, driver risk, and library-search manipulation as separate signal families.",
+        "Require corroboration before treating vulnerable software or configuration as malicious activity.",
+        "Preserve affected objects, actor context, paths, hashes, event identifiers, and timestamps when present."
+      ]
+    }
+  }
+}

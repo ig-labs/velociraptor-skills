@@ -1,0 +1,4587 @@
+{
+  "executables": [
+    "aa_v*.exe",
+    "aa_v3.exe",
+    "aadg.exe",
+    "accessserver*.exe",
+    "accessserver.exe",
+    "acroniscyberprotectconnectagent.exe",
+    "acroniscyberprotectconnectquickassist*.exe",
+    "action1_connector.exe",
+    "aemagent.exe",
+    "aeroadmin.exe",
+    "agent-installer-any.exe",
+    "agent.exe",
+    "agent.ps1",
+    "agent32.exe",
+    "agent64.exe",
+    "agent_*_rw.exe",
+    "agent_setup_5.exe",
+    "agentlessrc.exe",
+    "agentmon.exe",
+    "agentpackagenetworkdiscovery.exe",
+    "agentpackagetaskscheduler.exe",
+    "agentsetup-*.exe",
+    "agentu.exe",
+    "alitask.exe",
+    "alpemix.exe",
+    "alpemixservice.exe",
+    "ammyy_admin.exe",
+    "amon.exe",
+    "anydesk.exe",
+    "anyviewer.exe",
+    "apc_host.exe",
+    "appcore.exe",
+    "arcui.exe",
+    "aspia_client.exe",
+    "atera_agent.exe",
+    "ateraagent.exe",
+    "auvik.agent.exe",
+    "auvik.engine.exe",
+    "aweray_remote*.exe",
+    "awesun.exe",
+    "awhost32.exe",
+    "awrem32.exe",
+    "baseclient.exe",
+    "basupapp.exe",
+    "basupappelev.exe",
+    "basupappsrvc.exe",
+    "basupsrvc.exe",
+    "basupsrvccnfg.exe",
+    "basupsrvcupdate.exe",
+    "basupsysinf.exe",
+    "basuptshelper.exe",
+    "bbl.exe",
+    "beamyourscreen-host.exe",
+    "beamyourscreen.exe",
+    "beinsync*.exe",
+    "bluetrait msp agent.exe",
+    "bma.exe",
+    "bomgar-pac-*.exe",
+    "bomgar-pac.exe",
+    "bomgar-rdp.exe",
+    "bomgar-scc-*.exe",
+    "bomgar-scc.exe",
+    "bvsshclient-inst.exe",
+    "bvsshserver-inst.exe",
+    "cagservice.exe",
+    "cbb.exe",
+    "cbbackupplan.exe",
+    "cis.vbs",
+    "clboot32.exe",
+    "client32.exe",
+    "clientmrinit.exe",
+    "cloud.backup.rm.service.exe",
+    "cloud.backup.scheduler.exe",
+    "cloudflared.exe",
+    "cloudracmd.exe",
+    "cloudrasd.exe",
+    "cloudraservice.exe",
+    "cloudrautilities.exe",
+    "cloudwksinstall.exe",
+    "comodoremotecontrol.exe",
+    "connect.backdrop.cloud*.exe",
+    "connect.exe",
+    "connectappsetup*.exe",
+    "connectdetector.exe",
+    "connectshellsetup*.exe",
+    "connectwise*.exe",
+    "connectwisechat-customer.exe",
+    "connectwisecontrol*.exe",
+    "connectwisecontrol.client.exe",
+    "coreagentservice.exe",
+    "crossloopconnect.exe",
+    "crossloopservice.exe",
+    "csexec.exe",
+    "ctes.exe",
+    "cteshostsvc.exe",
+    "ctespersitence.exe",
+    "ctiserv.exe",
+    "dameware mini remote control*.exe",
+    "dameware remote support.exe",
+    "dashboard-windows-amd64.exe",
+    "dcagentregister.exe",
+    "dcagentservice.exe",
+    "dd.exe",
+    "ddsystem.exe",
+    "defender-exclude.ps1",
+    "dephlp.exe",
+    "deskroll.exe",
+    "deskrollua.exe",
+    "desktopnow.exe",
+    "dfc.exe",
+    "dfinst.exe",
+    "dfserv.exe",
+    "dfservex.exe",
+    "dfstd.exe",
+    "dfstdinstall.exe",
+    "dfwks.exe",
+    "distant-desktop.exe",
+    "dntus*.exe",
+    "docconnect.agent.exe",
+    "domotz pro desktop app setup*.exe",
+    "domotz pro desktop app.exe",
+    "domotz*.exe",
+    "domotz-windows*.exe",
+    "domotz.exe",
+    "domotz_bash.exe",
+    "dragondisk.exe",
+    "dsguest.exe",
+    "duet.exe",
+    "duetdisp.exe",
+    "duetsetup.exe",
+    "duplicati.server.exe",
+    "dwagent.exe",
+    "dwaglnc.exe",
+    "dwagsvc.exe",
+    "dwrcs.exe",
+    "dwrcst.exe",
+    "echoserver*.exe",
+    "edocument-*.msi",
+    "ehorus standalone.exe",
+    "ehorus_agent.exe",
+    "ehorus_cmd.exe",
+    "ehorus_launcher.exe",
+    "ehorus_uit.exe",
+    "einstaller.exe",
+    "era.exe",
+    "eraagent.exe",
+    "eratool.exe",
+    "ericomconnectremotehost*.exe",
+    "ericomconnnectconfigurationtool.exe",
+    "extraputty-0.30-2016-01-28-installer.exe",
+    "ezhelp*.exe",
+    "ezhelpclient.exe",
+    "ezhelpclientmanager.exe",
+    "ezhelpmanager.exe",
+    "faronicscoreagent.exe",
+    "faronicsdeployagent.exe",
+    "faronicssa.exe",
+    "fastclient.exe",
+    "fastmaster.exe",
+    "fastviewer.exe",
+    "fcaforstartupmonitor.msi",
+    "fistudentagent.exe",
+    "fistudentsvc.exe",
+    "fistudentui.exe",
+    "fixmeit client.exe",
+    "fixmeit expert setup.exe",
+    "fixmeit unattended access setup.exe",
+    "fixmeitclient*.exe",
+    "fixmeitclient.exe",
+    "fleetdeck-agent.exe",
+    "fleetdeck-agent.msi",
+    "fleetdeck_agent.exe",
+    "fleetdeck_agent_svc.exe",
+    "fleetdeck_commander_launcher.exe",
+    "fleetdeck_commander_svc.exe",
+    "fleetdeck_installer.exe",
+    "frcserver.exe",
+    "freshservice.discoveryprobe.scanservice.exe",
+    "freshservice.discoveryprobe.window.exe",
+    "fs-probe-*.msi",
+    "fs-windows-agent-*.msi",
+    "fsagent.msi",
+    "fsagentautoupdate.exe",
+    "fsagentservice.exe",
+    "fssinstaller.exe",
+    "fswmiscanner.exe",
+    "fwa_ui_agent.exe",
+    "fwaservice.exe",
+    "fwawebinstaller_*.exe",
+    "g2a*.exe",
+    "g2ax_comm_customer.exe",
+    "g2m.exe",
+    "g2mcomm.exe",
+    "g2mupdate.com",
+    "g2rdesktopconsole-x64.msi",
+    "getscreen-x86.exe",
+    "getscreen.exe",
+    "getscreen.upd.exe",
+    "googlemeet.msi",
+    "gorelo.rmm.setup.exe",
+    "goto assist opener.exe",
+    "goto opener.exe",
+    "gotoassist.exe",
+    "gotohttp*.exe",
+    "gotohttp.exe",
+    "gotohttp_x64.exe",
+    "gotoresolveexternalmodulehandler.exe",
+    "gotoresolvefilemanager.exe",
+    "gotoresolveloggerprocess.exe",
+    "gotoresolvenetworkchecker.exe",
+    "gotoresolveprocesschecker.exe",
+    "gotoresolvequickview.exe",
+    "gotoresolveregistryeditor.exe",
+    "gotoresolveremotecontrol.exe",
+    "gotoresolveservice.exe",
+    "gotoresolveservicemanager.exe",
+    "gotoresolveterminal.exe",
+    "gotoresolvetools32.exe",
+    "gotoresolvetools64.exe",
+    "gotoresolveui.exe",
+    "gotoresolveunattended.exe",
+    "gotoresolveunattendedremover.exe",
+    "gotoresolveunattendedui.exe",
+    "govagentinstallhelper.exe",
+    "govagentx64.exe",
+    "goverrmc.exe",
+    "govreachclient.exe",
+    "govsrv*.exe",
+    "govsrv.exe",
+    "gp3.exe",
+    "gp4.exe",
+    "gp5.exe",
+    "grabbertt*.msi",
+    "guacd.exe",
+    "hbrm-updater-x64.exe",
+    "hbrm-x64.exe",
+    "helpbeam*.exe",
+    "helpu_install.exe",
+    "helpumanager.exe",
+    "helpuupdater.exe",
+    "helpwire quick.exe",
+    "helpwire.exe",
+    "hoptodesk-standalone.exe",
+    "hoptodesk.exe",
+    "hsloader.exe",
+    "iadmin.exe",
+    "id_tray.exe",
+    "idriveeclassic.exe",
+    "idrivewinsetup.exe",
+    "ihcserver.exe",
+    "iit.exe",
+    "ilias.exe",
+    "immyagent.exe",
+    "immybot.agent.ephemeral.exe",
+    "immybot.msi",
+    "immyupdater.exe",
+    "imperoclientsvc.exe",
+    "imperoinit.exe",
+    "insightinstaller.exe",
+    "insightinstallerstudent.exe",
+    "insightinstallerteacher.exe",
+    "insightsetup.msi",
+    "install.cmd",
+    "install.ps1",
+    "installcore.exe",
+    "installer.exe",
+    "installshield setup.exe",
+    "instanthousecall.exe",
+    "insync.exe",
+    "intelliadmin.exe",
+    "intouch.exe",
+    "invgate-ed.exe",
+    "invgateassetsrd.exe",
+    "invgaterd.exe",
+    "iperius.exe",
+    "iperiusremote.exe",
+    "ir_agent.exe",
+    "islalwaysonmonitor.exe",
+    "isllight.exe",
+    "isllightclient.exe",
+    "isllightservice.exe",
+    "issuser.exe",
+    "itarianremoteaccesssetup.exe",
+    "itsmagent.exe",
+    "itsmrsp.exe",
+    "itsmservice.exe",
+    "ivantiremotecontrol.exe",
+    "jumpclient.exe",
+    "jumpcloud*.exe",
+    "jumpconnect.exe",
+    "jumpdesktop.exe",
+    "jumpservice.exe",
+    "jumpupdater.exe",
+    "kabuto.app.runner.exe",
+    "kabuto.installer.exe",
+    "kabuto.service.runner.exe",
+    "kabutosetup.exe",
+    "khelpdesk.exe",
+    "kitty.exe",
+    "komari.exe",
+    "konea.exe",
+    "landeskagentbootstrap.exe",
+    "landeskportalmanager.exe",
+    "laplink-everywhere-setup*.exe",
+    "laplink.exe",
+    "laplinkeverywhere.exe",
+    "ldinv32.exe",
+    "ldsensors.exe",
+    "level-remote-control-ffmpeg.exe",
+    "level-windows-amd64.exe",
+    "level.exe",
+    "llrcservice.exe",
+    "lmi_rescue.exe",
+    "lmi_rescue_srv.exe",
+    "lmiguardiansvc.exe",
+    "lmnoipserver.exe",
+    "loclx.exe",
+    "ltsvc.exe",
+    "ltsvcmon.exe",
+    "lttray.exe",
+    "lunixar.exe",
+    "lunixarremote.exe",
+    "lunixarrmm*.msi",
+    "lunixarupdater.exe",
+    "m intouch go installer.exe",
+    "manageengine_remote_access_plus.exe",
+    "manageengine_servicedesk_plus.exe",
+    "manuallauncher.exe",
+    "meagenthelper.exe",
+    "megasyncsetup64.exe",
+    "megaupdater.exe",
+    "meshagent*.exe",
+    "meshagent.exe",
+    "meshcentral*.exe",
+    "mgntsvc.exe",
+    "migrationhelper_32.exe",
+    "migrationhelper_64.exe",
+    "mikogo-screen-service.exe",
+    "mikogo-service.exe",
+    "mikogo-starter.exe",
+    "mikogo.exe",
+    "mikogolauncher.exe",
+    "mionet.exe",
+    "mionetmanager.exe",
+    "mobaxterm_installer_*.msi",
+    "mobaxterm_installer_12.1.msi",
+    "modulesupgrademgr.exe",
+    "moniticinstaller.exe",
+    "monitoringagent.exe",
+    "mousewithoutborders.exe",
+    "mremoteng-installer-*.msi",
+    "mremoteng.exe",
+    "mstsc.exe",
+    "mwcliun.exe",
+    "mygreenpc.exe",
+    "myivomanager.exe",
+    "myivomgr.exe",
+    "nateon*.exe",
+    "nateon.exe",
+    "nateonmain.exe",
+    "netbird-ui.exe",
+    "netbird.exe",
+    "netbird.msi",
+    "netlock_rmm_agent_installer.exe",
+    "netlock_rmm_user_process.exe",
+    "netlock_rmm_user_uac.exe",
+    "netop ondemand.exe",
+    "neturo*.exe",
+    "neturo.exe",
+    "netviewer*.exe",
+    "netviewer.exe",
+    "nezha-agent.exe",
+    "ngrok.exe",
+    "ngstw32.exe",
+    "nhostsvc.exe",
+    "nhstw32.exe",
+    "ninite.exe",
+    "niniteagent.exe",
+    "niniteone.exe",
+    "ninitepro.exe",
+    "ninjarmm-cli.exe",
+    "ninjarmmagent.exe",
+    "ninjarmmagentpatcher.exe",
+    "nldrw32.exe",
+    "nmep_agtconfig.exe",
+    "nmep_ctrlagent.exe",
+    "nmep_ctrlagentsvc.exe",
+    "nomachine*.exe",
+    "notificationhelper.exe",
+    "ntrntservice.exe",
+    "ntrsupportpro_en.exe",
+    "nvclient.exe",
+    "nvconsole.exe",
+    "nvda.exe",
+    "nvda_*.exe",
+    "nvda_service.exe",
+    "nxd.exe",
+    "nxplayer.exe",
+    "ocsinventory.exe",
+    "ocsservice.exe",
+    "onionshare*.exe",
+    "onionshare-win*.msi",
+    "online backup.exe",
+    "oolocker.exe",
+    "oosysagent.exe",
+    "oosyspectr.exe",
+    "openssh.msi",
+    "orayremoteservice.exe",
+    "orayremoteshell.exe",
+    "otpowershell.exe",
+    "otservice.exe",
+    "p9agent*.exe",
+    "paexec-*.exe",
+    "paexec.exe",
+    "parallelsaccess-*.exe",
+    "parsecd.exe",
+    "pcaquickconnect.exe",
+    "pchelpware_viewer.exe",
+    "pcicfgui.exe",
+    "pcictlui.exe",
+    "pcivideo.exe",
+    "pcmonitormanager.exe",
+    "pcmonitorsrv.exe",
+    "pcnmgr.exe",
+    "pcstarter.exe",
+    "pcvisit-easysupport.exe",
+    "pcvisit.exe",
+    "pcvisit_client.exe",
+    "pcvisit_service_client.exe",
+    "pdq-connect*.exe",
+    "pdqconnectupdater-*.msi",
+    "pilixo_installer*.exe",
+    "plink.exe",
+    "pocketcloud*.exe",
+    "pocketcloudservice.exe",
+    "pocketcontroller.exe",
+    "prl_deskctl_agent.exe",
+    "prl_deskctl_wizard.exe",
+    "prl_pm_service.exe",
+    "pservice.exe",
+    "psexec.exe",
+    "psexec64.exe",
+    "psexecsvc.exe",
+    "pstlaunch.exe",
+    "ptdskclient.exe",
+    "ptdskhost.exe",
+    "putty.exe",
+    "puttytray.exe",
+    "qq.exe",
+    "qqpcmgr.exe",
+    "qqprotect.exe",
+    "quickassist.exe",
+    "raautoup.exe",
+    "raccess.exe",
+    "radmin.exe",
+    "rapid7_agent_core.exe",
+    "rapid7_endpoint_broker.exe",
+    "rcengmgru.exe",
+    "rcmgrsvc.exe",
+    "rcstartsupport.exe",
+    "rd.exe",
+    "rdclient.exe",
+    "rdclientinstaller.exe",
+    "rdcman-x86.exe",
+    "rdcman.exe",
+    "rdconsole.exe",
+    "rdesktop.exe",
+    "rdp.exe",
+    "rdpcheck.exe",
+    "rdpconf.exe",
+    "rdpwinst.exe",
+    "remcmdstub.exe",
+    "remcom.exe",
+    "remcomsvc.exe",
+    "remcos*.exe",
+    "remmon.exe",
+    "remobo.exe",
+    "remobo_client.exe",
+    "remobo_tracker.exe",
+    "remote access.exe",
+    "remote desktop.exe",
+    "remote workforce client.exe",
+    "remote-it-installer.exe",
+    "remote.it.exe",
+    "remote_host.exe",
+    "remoteconsole.exe",
+    "remotedesktopmanager.exe",
+    "remoteit.exe",
+    "remotely_agent.exe",
+    "remotely_desktop.exe",
+    "remotepass-access.exe",
+    "remotepc.exe",
+    "remotepchost.exe",
+    "remotepcservice.exe",
+    "remoteripple.exe",
+    "remotesupportplayeru.exe",
+    "remoteview.exe",
+    "remoting_host.exe",
+    "remsupp.exe",
+    "remsupp_setup_x64.exe",
+    "rfusclient.exe",
+    "rhost.exe",
+    "rmm.agent.exe",
+    "rmmservice.exe",
+    "rmserverconsolemediator.exe",
+    "rocketremotedesktop_setup.exe",
+    "rodexagent.exe",
+    "romfusclient.exe",
+    "romserver.exe",
+    "romviewer.exe",
+    "routernt.exe",
+    "royalserver.exe",
+    "royalts.exe",
+    "rpaccess.exe",
+    "rpcld.exe",
+    "rpcnet.exe",
+    "rpcsuite.exe",
+    "rport.exe",
+    "rpwhostscr.exe",
+    "rserver3.exe",
+    "rudesktop*.exe",
+    "rustdesk*.exe",
+    "rustdesk.exe",
+    "rutserv.exe",
+    "rutview.exe",
+    "rv.exe",
+    "rvagent.exe",
+    "rvagtray.exe",
+    "rviewer.exe",
+    "rxstartsupport.exe",
+    "s3browser*.exe",
+    "saazapsc.exe",
+    "screenconnect*.exe",
+    "screenconnect.clientservice.exe",
+    "screenconnect.windowsclient.exe",
+    "screenmeet.support.exe",
+    "screenmeetsupport.exe",
+    "securecrt.exe",
+    "seetrolcenter.exe",
+    "seetrolclient.exe",
+    "seetrolmyservice.exe",
+    "seetrolremote.exe",
+    "seetrolsetting.exe",
+    "sensoclient.exe",
+    "sensoservice.exe",
+    "servereye*.exe",
+    "serverproxyservice.exe",
+    "serviceproxylocalsys.exe",
+    "showmypc*.exe",
+    "showmypc.exe",
+    "si.exe",
+    "simplegatewayservice.exe",
+    "simplehelpcustomer.exe",
+    "simpleservice.exe",
+    "site24x7pluginagent.exe",
+    "site24x7windowsagenttrayicon.exe",
+    "smartty.exe",
+    "smpcsetup.exe",
+    "softmon.exe",
+    "solar-putty.exe",
+    "solarwinds-dameware-drs*.exe",
+    "solarwinds-dameware-mrc*.exe",
+    "sorillus launcher.exe",
+    "sorillus-launcher*.exe",
+    "splashtop_streamer_windows*.exe",
+    "splashtopsos.exe",
+    "spsrv.exe",
+    "sragent.exe",
+    "srmanager.exe",
+    "srserver.exe",
+    "srservice.exe",
+    "stahelper.exe",
+    "statementview.msi",
+    "strwinclt.exe",
+    "studentsvc.exe",
+    "sunlogin*.exe",
+    "superops.exe",
+    "superopsticket.exe",
+    "superputty.exe",
+    "support-logmeinrescue*.exe",
+    "support-logmeinrescue.exe",
+    "supporttool.exe",
+    "supremo.exe",
+    "supremohelper.exe",
+    "supremoservice.exe",
+    "supremosystem.exe",
+    "syncro.app.runner.exe",
+    "syncro.installer.exe",
+    "syncro.overmind.service.exe",
+    "syncro.service.exe",
+    "syncrolive.agent.exe",
+    "syncrolive.service.exe",
+    "syncrosetup.exe",
+    "syncthing.exe",
+    "sysdiag.exe",
+    "syspectr.exe",
+    "tacticalrmm.exe",
+    "tailscale-*.exe",
+    "tailscale-ipn.exe",
+    "tailscaled.exe",
+    "takecontrol.exe",
+    "taniumclient.exe",
+    "taniumcx.exe",
+    "taniumexecwrapper.exe",
+    "taniumfileinfo.exe",
+    "tdp2tcp.exe",
+    "teamtaskmanager.exe",
+    "teamviewer.exe",
+    "teamviewer_desktop.exe",
+    "teamviewer_service.exe",
+    "tiagent.exe",
+    "ticlientcore.exe",
+    "ticlienthelper*.exe",
+    "tiexpertcore.exe",
+    "tiexpertstandalone.exe",
+    "tigervnc*.exe",
+    "tightvncviewerportable*.exe",
+    "tiservice.exe",
+    "tiupdateservice.exe",
+    "tmagentsvc.exe",
+    "tmcsvc.exe",
+    "tniwinagent.exe",
+    "todesk.exe",
+    "todesk_service.exe",
+    "todesk_setup.exe",
+    "toolsiq.exe",
+    "tpowershell.exe",
+    "trustconnectagent.exe",
+    "tsclient.exe",
+    "tsdservice.exe",
+    "tsircusr.exe",
+    "turbomeeting.exe",
+    "turbomeetingstarter.exe",
+    "tvnserver.exe",
+    "tvnviewer.exe",
+    "ultimate_*.exe",
+    "ultraviewer.exe",
+    "ultraviewer_desktop.exe",
+    "ultraviewer_service.exe",
+    "ultravnc*.exe",
+    "uninstall remsupp.exe",
+    "usernotificationhelper.exe",
+    "uvnc_launch.exe",
+    "veyon-master.exe",
+    "veyon-server.exe",
+    "veyon-service.exe",
+    "veyon-wcli.exe",
+    "veyon-worker.exe",
+    "vhost.exe",
+    "vncserver.exe",
+    "vncserverui.exe",
+    "vncviewer.exe",
+    "webexpcnow.exe",
+    "webrdp.exe",
+    "wec_launcher_[a-z0-9]*_.exe",
+    "wecliboardlistener.exe",
+    "weezo setup*.exe",
+    "weezo.exe",
+    "weezohttpd.exe",
+    "weinstsvc.exe",
+    "wemonc.exe",
+    "weprtct.exe",
+    "wesvc.exe",
+    "win-installer-*.msi",
+    "winagent.exe",
+    "winaw32.exe",
+    "windowslauncher.exe",
+    "winpty-agent.exe",
+    "winpty-agent64.exe",
+    "winscp.exe",
+    "winvnc*.exe",
+    "winvnc.exe",
+    "winvnc4.exe",
+    "winvncsc.exe",
+    "winvncstub.exe",
+    "winwvc.exe",
+    "wisshell*.exe",
+    "wmc.exe",
+    "wmc_deployer.exe",
+    "wmcsvc.exe",
+    "wysebrowser.exe",
+    "xcmd.exe",
+    "xcmdsvc.exe",
+    "xeox-agent_*.exe",
+    "xeox-agent_x64.exe",
+    "xeox-agent_x86.exe",
+    "xeox_service_windows.exe",
+    "xpra-launcher.exe",
+    "xpra-x86_64_setup.exe",
+    "xshell.exe",
+    "xsightservice.exe",
+    "yandexdisk2.exe",
+    "za_access.exe",
+    "za_connect.exe",
+    "zabbix_agent*.exe",
+    "zaservice.exe",
+    "zero-powershell.exe",
+    "zerotier*.exe",
+    "zerotier*.msi",
+    "zmagent.exe",
+    "zoc.exe",
+    "zohomeeting.exe",
+    "zohotray.exe",
+    "zohours.exe",
+    "zohoursservice.exe"
+  ],
+  "installation_paths": [
+    "%appdata%\\gotomeeting\\g2m.exe",
+    "%appdata%\\jwrapper-simplesetup\\*",
+    "%appdata%\\loclx\\*",
+    "%programdata%\\tiflux\\*",
+    "%userprofile%\\\\appdata\\\\local\\\\temp\\\\supremoremotedesktop\\\\",
+    "*%\\mremoteng",
+    "*\\*\\duplicati.server.exe",
+    "*\\*\\screenconnect.clientservice.exe",
+    "*\\*\\screenconnect.windowsclient.exe",
+    "*\\\\supremoremotedesktop\\\\supremosystem.exe",
+    "*\\agentpackagenetworkdiscovery.exe",
+    "*\\agentpackagetaskscheduler.exe",
+    "*\\almageste\\dragondisk\\*",
+    "*\\ammyy_admin.exe",
+    "*\\aspia_client.exe",
+    "*\\atera networks\\ateraagent\\*",
+    "*\\ateraagent.exe",
+    "*\\bitvise ssh client\\*",
+    "*\\bitvise ssh server\\*",
+    "*\\bvsshclient-inst.exe",
+    "*\\bvsshserver-inst.exe",
+    "*\\danware data\\netop packn deploy\\*",
+    "*\\dcagentservice.exe",
+    "*\\desktopcentral_agent\\bin\\*",
+    "*\\dragondisk.exe",
+    "*\\dwrcs\\*",
+    "*\\dwrcst.exe",
+    "*\\extraputty-0.30-2016-01-28-installer.exe",
+    "*\\faronics\\deep freeze\\dfc.exe",
+    "*\\faronics\\deep freeze\\dfserv.exe",
+    "*\\faronics\\deep freeze\\dfservex.exe",
+    "*\\faronics\\deep freeze\\dfwks.exe",
+    "*\\faronics\\faronics core\\workstation agent\\coreagentservice.exe",
+    "*\\faronics\\faronics core\\workstation agent\\faronicscoreagent.exe",
+    "*\\faronics\\insight student\\fistudentagent.exe",
+    "*\\faronics\\insight student\\fistudentsvc.exe",
+    "*\\faronics\\insight student\\fistudentui.exe",
+    "*\\faronics\\insight student\\stahelper.exe",
+    "*\\faronics\\insight teacher\\stahelper.exe",
+    "*\\freshservice.discoveryprobe.scanservice.exe",
+    "*\\freshservice.discoveryprobe.window.exe",
+    "*\\fsagentautoupdate.exe",
+    "*\\fsagentservice.exe",
+    "*\\fswmiscanner.exe",
+    "*\\g2rdesktopconsole-x64.msi",
+    "*\\google\\chrome remote desktop\\*",
+    "*\\goto opener",
+    "*\\govsrv.exe",
+    "*\\heartbeatrm\\*",
+    "*\\ilias.exe",
+    "*\\immybot\\*",
+    "*\\insync.exe",
+    "*\\isl online\\isl light*",
+    "*\\isllight.exe",
+    "*\\issuser.exe",
+    "*\\kitty.exe",
+    "*\\landesk\\*",
+    "*\\litemanager pro \u2013 viewer\\*",
+    "*\\lmnoipserver.exe",
+    "*\\loclx.exe",
+    "*\\lunixar\\lunixar.agent.core.dll",
+    "*\\lunixar\\lunixar.dll",
+    "*\\lunixar\\lunixar.exe",
+    "*\\lunixar\\lunixarremote.dll",
+    "*\\lunixar\\lunixarremote.exe",
+    "*\\lunixar\\lunixarupdater.dll",
+    "*\\lunixar\\lunixarupdater.exe",
+    "*\\manageengine\\*",
+    "*\\megasyncsetup64.exe",
+    "*\\megaupdater.exe",
+    "*\\mikogo-screen-service.exe",
+    "*\\mikogo-service.exe",
+    "*\\miradore\\*",
+    "*\\mobatek\\mobaxterm\\*",
+    "*\\mobaxterm_installer_*.msi",
+    "*\\mremoteng.exe",
+    "*\\mremoteng\\*",
+    "*\\netop remote control\\*",
+    "*\\netsarang\\xshell\\*",
+    "*\\nezha-agent.exe",
+    "*\\ngrok*",
+    "*\\nxplayer.exe",
+    "*\\onionshare*.exe",
+    "*\\onionshare\\*",
+    "*\\pchelpware_viewer.exe",
+    "*\\pj technologies\\govsrv\\*",
+    "*\\putty.exe",
+    "*\\puttytray.exe",
+    "*\\rdcman-x86.exe",
+    "*\\rdcman.exe",
+    "*\\realvnc\\vnc server\\*",
+    "*\\realvnc\\vnc4\\*",
+    "*\\remote manipulator system - server\\*",
+    "*\\remote utilities\\*",
+    "*\\remotedesktopmanager.exe",
+    "*\\remotepc\\*",
+    "*\\remotepcservice.exe",
+    "*\\remoting_host.exe",
+    "*\\rutserv.exe",
+    "*\\s3 browser\\*",
+    "*\\s3browser*.exe",
+    "*\\screenconnect client*\\*",
+    "*\\screenconnect*client*\\*",
+    "*\\securecrt.exe",
+    "*\\sfshelltools.dll.mui",
+    "*\\smartftp client\\*",
+    "*\\smartty.exe",
+    "*\\softmon.exe",
+    "*\\solar-putty-v4\\*",
+    "*\\solar-putty.exe",
+    "*\\splashtop\\splashtop remote\\client for rmm\\*",
+    "*\\superputty.exe",
+    "*\\superputty\\*",
+    "*\\syncthing.exe",
+    "*\\sysaid\\*",
+    "*\\sysaidserver\\*",
+    "*\\sysprogs\\smartty\\*",
+    "*\\tightvnc\\*",
+    "*\\tmcsvc.exe",
+    "*\\tniwinagent.exe",
+    "*\\total software deployment\\*",
+    "*\\trustconnectagent.exe",
+    "*\\tsdservice.exe",
+    "*\\tvnserver.exe",
+    "*\\ultraviewer\\",
+    "*\\ultraviewer_desktop.exe",
+    "*\\uvnc bvba\\ultravnc\\*",
+    "*\\uvnc_launch.exe",
+    "*\\vandyke software\\clientpack\\*",
+    "*\\vncviewer.exe",
+    "*\\winscp*portable\\*",
+    "*\\winscp.exe",
+    "*\\winscp\\*",
+    "*\\winvnc.exe",
+    "*\\xpra-launcher.exe",
+    "*\\xpra-x86_64_setup.exe",
+    "*\\xpra\\*",
+    "*\\xshell.exe",
+    "*\\yandex\\*",
+    "*\\yandexdisk2.exe",
+    "*\\za_access.exe",
+    "*\\zoc.exe",
+    "*\\zoc?\\*",
+    "*downloads\\superputty\\*",
+    "*programdata\\megasync\\*",
+    "*programdata\\ninjarmmagent\\*",
+    "*users\\*\\appdata\\local\\google\\chrome\\user data\\default\\extensions\\iodihamcpbpeioajjeobimgagajmlibd*",
+    "*users\\*\\appdata\\local\\megasync\\*",
+    "*users\\*\\appdata\\roaming\\insync\\app\\insync.exe",
+    "*users\\*\\appdata\\roaming\\mikogo\\*",
+    "*users\\*\\appdata\\roaming\\synctrayzor\\*",
+    "*users\\*\\extraputty-0.30-2016-01-28-installer.exe",
+    "*windows\\system32\\mstsc.exe",
+    "c:\\*\\g2rdesktopconsole-x64.msi",
+    "c:\\*\\kitty.exe",
+    "c:\\*\\mobaxterm_installer_12.1.msi",
+    "c:\\*\\ngrok.zip",
+    "c:\\*\\nxplayer.exe",
+    "c:\\*\\puttytray.exe",
+    "c:\\*\\securecrt.exe",
+    "c:\\\\programdata\\\\ammyy\\\\*",
+    "c:\\\\programdata\\\\supremoremotedesktop\\\\",
+    "c:\\alpemixservice.exe",
+    "c:\\alpemixsrvc\\",
+    "c:\\bin\\cis.vbs",
+    "c:\\bin\\netbird.msi",
+    "c:\\bin\\openssh.msi",
+    "c:\\bin\\trm.zip",
+    "c:\\downloads\\superputty\\*",
+    "c:\\komari\\*",
+    "c:\\nezha\\*",
+    "c:\\program files (x86)%\\mremoteng",
+    "c:\\program files (x86)\\almageste\\dragondisk\\*",
+    "c:\\program files (x86)\\anydesk\\*",
+    "c:\\program files (x86)\\anyviewer\\*",
+    "c:\\program files (x86)\\aspia\\",
+    "c:\\program files (x86)\\atera networks",
+    "c:\\program files (x86)\\bitvise ssh client\\*",
+    "c:\\program files (x86)\\bluetrait agent\\*",
+    "c:\\program files (x86)\\bsag\\*",
+    "c:\\program files (x86)\\bsag\\bma\\*",
+    "c:\\program files (x86)\\desktopcentral_agent\\bin\\*",
+    "c:\\program files (x86)\\faronics\\deep freeze\\*",
+    "c:\\program files (x86)\\faronics\\deep freeze\\install c-0\\*",
+    "c:\\program files (x86)\\faronics\\deep freeze\\install c-1\\*",
+    "c:\\program files (x86)\\faronics\\faronics core\\*",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\*",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\faronicsdeployagent.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\faronicssa.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\frcserver.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\fssinstaller.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\fwa_ui_agent.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\fwaservice.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\migrationhelper_32.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\migrationhelper_64.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\modulesupgrademgr.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\notificationhelper.exe",
+    "c:\\program files (x86)\\faronics\\faronics deploy agent\\usernotificationhelper.exe",
+    "c:\\program files (x86)\\faronics\\insight student\\*",
+    "c:\\program files (x86)\\faronics\\insight teacher\\*",
+    "c:\\program files (x86)\\fleetdeck agent\\*\\fd_agent.dll",
+    "c:\\program files (x86)\\fleetdeck agent\\*\\fleetdeck_agent.exe",
+    "c:\\program files (x86)\\fleetdeck agent\\fleetdeck_agent_svc.exe",
+    "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\*",
+    "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\bin\\*",
+    "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\conf\\*",
+    "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\fsagentautoupdate.exe",
+    "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\fsagentservice.exe",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\*",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\bin\\*",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\bin\\freshservice.discoveryprobe.scanservice.exe",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\bin\\freshservice.discoveryprobe.window.exe",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\bin\\plink.exe",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\conf\\*",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\db\\*",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\nmap\\*",
+    "c:\\program files (x86)\\freshworks\\freshserviceprobe\\tools\\ssh\\*",
+    "c:\\program files (x86)\\google\\chrome remote desktop\\*",
+    "c:\\program files (x86)\\goto opener",
+    "c:\\program files (x86)\\goto resolve unattended\\*",
+    "c:\\program files (x86)\\gotomypc\\*",
+    "c:\\program files (x86)\\heartbeatrm\\*",
+    "c:\\program files (x86)\\hoptodesk\\hoptodesk.exe",
+    "c:\\program files (x86)\\idrive\\*",
+    "c:\\program files (x86)\\immybot\\immyagent.exe",
+    "c:\\program files (x86)\\immybot\\immyupdater.exe",
+    "c:\\program files (x86)\\inventec\\invgate.net client\\*",
+    "c:\\program files (x86)\\inventec\\invgate.net client\\dephlp.exe",
+    "c:\\program files (x86)\\inventec\\invgate.net client\\files\\invgateassetsrd.exe",
+    "c:\\program files (x86)\\inventec\\invgate.net client\\files\\invgaterd.exe",
+    "c:\\program files (x86)\\inventec\\invgate.net client\\files\\sas.dll",
+    "c:\\program files (x86)\\inventec\\invgate.net client\\invgate-ed.exe",
+    "c:\\program files (x86)\\inventec\\invgate.net client\\software matt.dll",
+    "c:\\program files (x86)\\isl online\\isl light*",
+    "c:\\program files (x86)\\kaseya\\",
+    "c:\\program files (x86)\\landesk\\*",
+    "c:\\program files (x86)\\manageengine\\servicedesk\\*",
+    "c:\\program files (x86)\\microsoft garage\\mouse without borders\\*",
+    "c:\\program files (x86)\\mremoteng\\*",
+    "c:\\program files (x86)\\net monitor for employees pro\\*",
+    "c:\\program files (x86)\\netsarang\\xshell\\*",
+    "c:\\program files (x86)\\nvda\\nvda.exe",
+    "c:\\program files (x86)\\onionshare\\*",
+    "c:\\program files (x86)\\pj technologies\\govsrv\\*",
+    "c:\\program files (x86)\\radmin viewer 3\\radmin.exe",
+    "c:\\program files (x86)\\rdclient\\*",
+    "c:\\program files (x86)\\remote ripple\\*",
+    "c:\\program files (x86)\\remotepc\\*",
+    "c:\\program files (x86)\\remotepulseagent\\agent.ps1",
+    "c:\\program files (x86)\\remotepulseagent\\defender-exclude.ps1",
+    "c:\\program files (x86)\\remotepulseagent\\install.cmd",
+    "c:\\program files (x86)\\remotepulseagent\\install.ps1",
+    "c:\\program files (x86)\\remotepulseagent\\installcore.exe",
+    "c:\\program files (x86)\\s3 browser\\*",
+    "c:\\program files (x86)\\screenconnect client (<string id>)\\*",
+    "c:\\program files (x86)\\screenconnect client (random)\\screenconnect.clientservice.exe",
+    "c:\\program files (x86)\\smartftp client\\en-us\\",
+    "c:\\program files (x86)\\splashtop\\*",
+    "c:\\program files (x86)\\sysprogs\\smartty\\*",
+    "c:\\program files (x86)\\tiflux\\*",
+    "c:\\program files (x86)\\tiflux\\dependencies\\*",
+    "c:\\program files (x86)\\tiflux\\dependencies\\7zip\\*",
+    "c:\\program files (x86)\\tiflux\\dependencies\\tar\\*",
+    "c:\\program files (x86)\\tiflux\\dependencies\\ultravnc\\*",
+    "c:\\program files (x86)\\tiflux\\desktop\\*",
+    "c:\\program files (x86)\\tiflux\\desktop\\tiagent.exe",
+    "c:\\program files (x86)\\tiflux\\si.exe",
+    "c:\\program files (x86)\\tiflux\\tiservice.exe",
+    "c:\\program files (x86)\\tiflux\\tiupdateservice.exe",
+    "c:\\program files (x86)\\ultraviewer\\ultraviewer_desktop.exe",
+    "c:\\program files (x86)\\vector\\asset management client\\*",
+    "c:\\program files (x86)\\veyon\\*",
+    "c:\\program files (x86)\\xpra\\*",
+    "c:\\program files (x86)\\yandex\\*",
+    "c:\\program files\\*\\duplicati.server.exe",
+    "c:\\program files\\0x101 cyber security\\netlock rmm\\useragent\\netlock_rmm_user_process.exe",
+    "c:\\program files\\0x101 cyber security\\netlock rmm\\useragent\\netlock_rmm_user_uac.exe",
+    "c:\\program files\\anydesk\\*",
+    "c:\\program files\\aspia\\",
+    "c:\\program files\\atera networks",
+    "c:\\program files\\atera networks\\ateraagent\\*",
+    "c:\\program files\\bitvise ssh server\\*",
+    "c:\\program files\\bsag\\*",
+    "c:\\program files\\bsag\\bma\\*",
+    "c:\\program files\\danware data\\netop packn deploy\\*",
+    "c:\\program files\\devolutions\\remote desktop manager",
+    "c:\\program files\\ehorus_agent\\*",
+    "c:\\program files\\faronics corporation\\deep freeze 7.00\\*",
+    "c:\\program files\\faronics\\core\\console\\*",
+    "c:\\program files\\faronics\\deep freeze\\*",
+    "c:\\program files\\faronics\\faronics core\\*",
+    "c:\\program files\\faronics\\faronics core\\workstation agent\\*",
+    "c:\\program files\\faronics\\insight student\\*",
+    "c:\\program files\\faronics\\insight teacher\\*",
+    "c:\\program files\\getscreen.me\\",
+    "c:\\program files\\glpi-agent\\*",
+    "c:\\program files\\glpi-agent\\etc\\*",
+    "c:\\program files\\glpi-agent\\logs\\*",
+    "c:\\program files\\glpi-agent\\perl\\bin\\*",
+    "c:\\program files\\glpi-agent\\var\\*",
+    "c:\\program files\\goto resolve unattended\\*",
+    "c:\\program files\\heartbeatrm\\*",
+    "c:\\program files\\idrive\\*",
+    "c:\\program files\\immybot\\immyagent.exe",
+    "c:\\program files\\immybot\\immyupdater.exe",
+    "c:\\program files\\komari\\*",
+    "c:\\program files\\level\\*",
+    "c:\\program files\\litemanager pro \u2013 viewer\\*",
+    "c:\\program files\\lunixar\\*",
+    "c:\\program files\\manageengine\\manageengine free tools\\launcher\\*",
+    "c:\\program files\\manageengine\\servicedesk\\*",
+    "c:\\program files\\miradore\\onlineclient\\bin\\*",
+    "c:\\program files\\monitic\\*",
+    "c:\\program files\\monitic\\agent.exe",
+    "c:\\program files\\monitic\\amon.exe",
+    "c:\\program files\\monitic\\conf.json",
+    "c:\\program files\\net monitor for employees pro\\*",
+    "c:\\program files\\netbird\\netbird-ui.exe",
+    "c:\\program files\\netbird\\netbird.exe",
+    "c:\\program files\\nezha\\*",
+    "c:\\program files\\nvda\\nvda.exe",
+    "c:\\program files\\parsec\\*",
+    "c:\\program files\\rdclient\\*",
+    "c:\\program files\\realvnc\\vnc server\\*",
+    "c:\\program files\\remote ripple\\*",
+    "c:\\program files\\remote utilities\\*",
+    "c:\\program files\\remotely\\connectioninfo.json",
+    "c:\\program files\\remotely\\desktop\\remotely_desktop.exe",
+    "c:\\program files\\remotely\\etag.txt",
+    "c:\\program files\\remotely\\remotely_agent.exe",
+    "c:\\program files\\rodex\\rodexagent.exe",
+    "c:\\program files\\rustdesk",
+    "c:\\program files\\solar-putty-v4\\*",
+    "c:\\program files\\solarwinds\\dameware mini remote control\\*",
+    "c:\\program files\\sysaidserver\\*",
+    "c:\\program files\\teamviewer\\",
+    "c:\\program files\\tightvnc\\*",
+    "c:\\program files\\trustconnect agent\\*",
+    "c:\\program files\\trustconnect agent\\trustconnectagent.exe",
+    "c:\\program files\\uvnc bvba\\ultravnc\\*",
+    "c:\\program files\\vector networks limited\\lanutil32 suite\\*",
+    "c:\\program files\\vector\\asset management client\\*",
+    "c:\\program files\\veyon\\*",
+    "c:\\program files\\zoc8\\*",
+    "c:\\programdata\\0x101 cyber security\\netlock rmm\\comm agent\\*",
+    "c:\\programdata\\faronics\\fcaforstartupmonitor.msi",
+    "c:\\programdata\\faronics\\storagespace\\fwa\\*",
+    "c:\\programdata\\getscreen.me\\",
+    "c:\\programdata\\idrive\\*",
+    "c:\\programdata\\jwrapper-remote access\\*",
+    "c:\\programdata\\kaseya\\",
+    "c:\\programdata\\netbird\\*",
+    "c:\\programdata\\package cache\\.unverified\\agent",
+    "c:\\programdata\\teramind agent\\*",
+    "c:\\programdata\\teramind agent\\<version>\\{6d99445f-f40f-45cb-b433-06302dae6c70}\\*",
+    "c:\\programdata\\teramind agent\\<version>\\{6d99445f-f40f-45cb-b433-06302dae6c70}\\tmagentsvc.exe",
+    "c:\\programdata\\teramind agent\\config",
+    "c:\\programdata\\total software deployment\\*",
+    "c:\\programdata\\trustconnect\\*",
+    "c:\\programdata\\{4cec2908-5ce4-48f0-a717-8fc833d8017a}\\*",
+    "c:\\programdata\\{4cec2908-5ce4-48f0-a717-8fc833d8017a}\\config",
+    "c:\\programdata\\{4cec2908-5ce4-48f0-a717-8fc833d8017a}\\updates\\*",
+    "c:\\programdata\\{e0e95c6c-f194-4846-928d-e5538022226d}\\",
+    "c:\\temper\\trm",
+    "c:\\users\\user\\appdata\\local\\getscreen.me\\",
+    "c:\\users\\user\\appdata\\local\\google\\chrome\\user data\\default\\extensions\\iodihamcpbpeioajjeobimgagajmlibd*",
+    "c:\\users\\user\\appdata\\local\\idrive\\*",
+    "c:\\users\\user\\appdata\\local\\logmein rescue applet\\lmir*.tmp\\lmi_rescue.exe",
+    "c:\\users\\user\\appdata\\local\\logmein rescue applet\\lmir*.tmp\\lmi_rescue_srv.exe",
+    "c:\\users\\user\\appdata\\local\\megasync\\*",
+    "c:\\users\\user\\appdata\\local\\programs\\loclx\\loclx.exe",
+    "c:\\users\\user\\appdata\\local\\programs\\remsupp\\remsupp.exe",
+    "c:\\users\\user\\appdata\\local\\programs\\remsupp\\uninstall remsupp.exe",
+    "c:\\users\\user\\appdata\\local\\remsupp-updater\\installer.exe",
+    "c:\\users\\user\\appdata\\local\\rustdesk\\*",
+    "c:\\users\\user\\appdata\\local\\rustdesk\\rustdesk.exe",
+    "c:\\users\\user\\appdata\\local\\temp\\nvda_*\\*",
+    "c:\\users\\user\\appdata\\roaming\\insync\\app\\insync.exe",
+    "c:\\users\\user\\appdata\\roaming\\mikogo\\*",
+    "c:\\users\\user\\appdata\\roaming\\nvda\\*",
+    "c:\\users\\user\\appdata\\roaming\\synctrayzor\\*",
+    "c:\\users\\user\\downloads\\ammyy_admin.exe",
+    "c:\\users\\user\\downloads\\getscreen-x86.exe",
+    "c:\\users\\user\\downloads\\getscreen.upd.exe",
+    "c:\\users\\user\\downloads\\idrivewinsetup.exe",
+    "c:\\users\\user\\downloads\\winscp-5.21.6-portable\\*",
+    "c:\\users\\user\\extraputty-0.30-2016-01-28-installer.exe",
+    "c:\\windows\\<random>.exe",
+    "c:\\windows\\action1\\*",
+    "c:\\windows\\dwrcs\\*",
+    "c:\\windows\\system32\\mstsc.exe",
+    "c:\\windows\\syswow64\\rserver30\\famitrf2",
+    "c:\\windows\\syswow64\\rserver30\\famitrfc",
+    "c:\\windows\\syswow64\\rserver30\\rserver3.exe",
+    "c:\\windows\\temp\\fleetdeck\\*",
+    "c:\\windows\\temp\\immybot\\*"
+  ],
+  "schema_version": 1,
+  "source": "https://lolrmm.io/api/rmm_tools.csv",
+  "source_license": "Apache-2.0",
+  "source_project": "https://github.com/magicsword-io/LOLRMM",
+  "tool_count": 317,
+  "tools": [
+    {
+      "category": "RMM",
+      "executables": [
+        "remote workforce client.exe"
+      ],
+      "installation_paths": [],
+      "name": "247ithelp.com (ConnectWise)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ctes.exe",
+        "cteshostsvc.exe",
+        "ctespersitence.exe",
+        "rpcld.exe",
+        "rpcnet.exe"
+      ],
+      "installation_paths": [],
+      "name": "Absolute (Computrace)"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [
+        "c:\\program files (x86)\\remotepc\\*"
+      ],
+      "name": "Access Remote PC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "acroniscyberprotectconnectagent.exe",
+        "acroniscyberprotectconnectquickassist*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Acronis Cyber Protect (Remotix)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "action1_connector.exe"
+      ],
+      "installation_paths": [
+        "c:\\windows\\action1\\*"
+      ],
+      "name": "Action1"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Addigy"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "connect.exe",
+        "connectappsetup*.exe",
+        "connectdetector.exe",
+        "connectshellsetup*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Adobe Connect"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "aeroadmin.exe"
+      ],
+      "installation_paths": [],
+      "name": "AeroAdmin"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "alitask.exe"
+      ],
+      "installation_paths": [],
+      "name": "AliWangWang-remote-control"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "alpemix.exe",
+        "alpemixservice.exe"
+      ],
+      "installation_paths": [
+        "c:\\alpemixservice.exe",
+        "c:\\alpemixsrvc\\"
+      ],
+      "name": "Alpemix"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "aa_v*.exe",
+        "aa_v3.exe",
+        "ammyy_admin.exe"
+      ],
+      "installation_paths": [
+        "*\\ammyy_admin.exe",
+        "c:\\\\programdata\\\\ammyy\\\\*",
+        "c:\\users\\user\\downloads\\ammyy_admin.exe"
+      ],
+      "name": "Ammyy Admin"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "manuallauncher.exe"
+      ],
+      "installation_paths": [],
+      "name": "Any Support"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "anydesk.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\anydesk\\*",
+        "c:\\program files\\anydesk\\*"
+      ],
+      "name": "AnyDesk"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "apc_host.exe"
+      ],
+      "installation_paths": [],
+      "name": "Anyplace Control"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "anyviewer.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\anyviewer\\*"
+      ],
+      "name": "AnyViewer"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Apple Remote Desktop"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "aspia_client.exe"
+      ],
+      "installation_paths": [
+        "*\\aspia_client.exe",
+        "c:\\program files (x86)\\aspia\\",
+        "c:\\program files\\aspia\\"
+      ],
+      "name": "Aspia"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agentpackagenetworkdiscovery.exe",
+        "agentpackagetaskscheduler.exe",
+        "atera_agent.exe",
+        "ateraagent.exe",
+        "syncrosetup.exe"
+      ],
+      "installation_paths": [
+        "*\\agentpackagenetworkdiscovery.exe",
+        "*\\agentpackagetaskscheduler.exe",
+        "*\\atera networks\\ateraagent\\*",
+        "*\\ateraagent.exe",
+        "c:\\program files (x86)\\atera networks",
+        "c:\\program files\\atera networks",
+        "c:\\program files\\atera networks\\ateraagent\\*"
+      ],
+      "name": "Atera"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "auvik.agent.exe",
+        "auvik.engine.exe"
+      ],
+      "installation_paths": [],
+      "name": "Auvik"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "aweray_remote*.exe",
+        "awesun.exe"
+      ],
+      "installation_paths": [],
+      "name": "AweRay"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "bma.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\bsag\\*",
+        "c:\\program files (x86)\\bsag\\bma\\*",
+        "c:\\program files\\bsag\\*",
+        "c:\\program files\\bsag\\bma\\*"
+      ],
+      "name": "baramundi Management Suite"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Barracuda"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Basecamp"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "beamyourscreen-host.exe",
+        "beamyourscreen.exe"
+      ],
+      "installation_paths": [],
+      "name": "BeamYourScreen"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "basupapp.exe",
+        "basupappelev.exe",
+        "basupappsrvc.exe",
+        "basupsrvc.exe",
+        "basupsrvcupdate.exe",
+        "basupsysinf.exe",
+        "basuptshelper.exe",
+        "takecontrol.exe"
+      ],
+      "installation_paths": [],
+      "name": "BeAnyWhere"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "beinsync*.exe"
+      ],
+      "installation_paths": [],
+      "name": "BeInSync"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "BeyondTrust"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "bomgar-pac-*.exe",
+        "bomgar-pac.exe",
+        "bomgar-rdp.exe",
+        "bomgar-scc-*.exe",
+        "bomgar-scc.exe"
+      ],
+      "installation_paths": [],
+      "name": "BeyondTrust (Bomgar)"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "bvsshclient-inst.exe"
+      ],
+      "installation_paths": [
+        "*\\bitvise ssh client\\*",
+        "*\\bvsshclient-inst.exe",
+        "c:\\program files (x86)\\bitvise ssh client\\*"
+      ],
+      "name": "Bitvise SSH Client"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "bvsshserver-inst.exe"
+      ],
+      "installation_paths": [
+        "*\\bitvise ssh server\\*",
+        "*\\bvsshserver-inst.exe",
+        "c:\\program files\\bitvise ssh server\\*"
+      ],
+      "name": "Bitvise SSH Server"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "bluetrait msp agent.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\bluetrait agent\\*"
+      ],
+      "name": "Bluetrait"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "aemagent.exe",
+        "cagservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "CentraStage (Now Datto)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ctiserv.exe"
+      ],
+      "installation_paths": [],
+      "name": "Centurion"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Chicken (of the VNC)"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "remote_host.exe",
+        "remoting_host.exe"
+      ],
+      "installation_paths": [
+        "*\\google\\chrome remote desktop\\*",
+        "*\\remoting_host.exe",
+        "c:\\program files (x86)\\google\\chrome remote desktop\\*"
+      ],
+      "name": "Chrome Remote Desktop"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [
+        "*users\\*\\appdata\\local\\google\\chrome\\user data\\default\\extensions\\iodihamcpbpeioajjeobimgagajmlibd*",
+        "c:\\users\\user\\appdata\\local\\google\\chrome\\user data\\default\\extensions\\iodihamcpbpeioajjeobimgagajmlibd*"
+      ],
+      "name": "Chrome SSH Extension"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "cloudflared.exe"
+      ],
+      "installation_paths": [],
+      "name": "CloudFlare Tunnel"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "itsmagent.exe",
+        "rviewer.exe"
+      ],
+      "installation_paths": [],
+      "name": "Comodo RMM"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [
+        "*\\screenconnect*client*\\*",
+        "c:\\program files (x86)\\screenconnect client (<string id>)\\*"
+      ],
+      "name": "ConnectWise"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ltsvc.exe",
+        "ltsvcmon.exe",
+        "lttray.exe"
+      ],
+      "installation_paths": [],
+      "name": "Connectwise Automate (LabTech)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "connectwisechat-customer.exe",
+        "connectwisecontrol.client.exe",
+        "screenconnect.windowsclient.exe"
+      ],
+      "installation_paths": [],
+      "name": "ConnectWise Control"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "bbl.exe",
+        "wec_launcher_[a-z0-9]*_.exe",
+        "wecliboardlistener.exe",
+        "weinstsvc.exe",
+        "wemonc.exe",
+        "weprtct.exe",
+        "wesvc.exe"
+      ],
+      "installation_paths": [
+        "c:\\programdata\\{e0e95c6c-f194-4846-928d-e5538022226d}\\"
+      ],
+      "name": "Controlio"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "crossloopconnect.exe",
+        "crossloopservice.exe",
+        "winvncstub.exe"
+      ],
+      "installation_paths": [],
+      "name": "CrossLoop"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pcivideo.exe",
+        "supporttool.exe"
+      ],
+      "installation_paths": [],
+      "name": "CrossTec Remote Control"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "CruzControl"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "dameware mini remote control*.exe",
+        "dameware remote support.exe",
+        "dntus*.exe",
+        "dwrcs.exe",
+        "dwrcst.exe",
+        "solarwinds-dameware-drs*.exe",
+        "solarwinds-dameware-mrc*.exe"
+      ],
+      "installation_paths": [
+        "*\\dwrcs\\*",
+        "*\\dwrcst.exe",
+        "c:\\program files\\solarwinds\\dameware mini remote control\\*",
+        "c:\\windows\\dwrcs\\*"
+      ],
+      "name": "DameWare"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Dataplicity"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ultimate_*.exe"
+      ],
+      "installation_paths": [],
+      "name": "DeskDay"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "DeskNets"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "dsguest.exe",
+        "teamtaskmanager.exe"
+      ],
+      "installation_paths": [],
+      "name": "DeskShare"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "desktopnow.exe"
+      ],
+      "installation_paths": [],
+      "name": "DesktopNow"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Dev Tunnels (aka Visual Studio Dev Tunnel)"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "remotedesktopmanager.exe"
+      ],
+      "installation_paths": [
+        "*\\remotedesktopmanager.exe",
+        "c:\\program files\\devolutions\\remote desktop manager"
+      ],
+      "name": "Devolutions Remote Desktop Manager"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "dd.exe",
+        "ddsystem.exe",
+        "distant-desktop.exe"
+      ],
+      "installation_paths": [],
+      "name": "Distant Desktop"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "domotz pro desktop app setup*.exe",
+        "domotz pro desktop app.exe",
+        "domotz*.exe",
+        "domotz-windows*.exe",
+        "domotz.exe",
+        "domotz_bash.exe"
+      ],
+      "installation_paths": [],
+      "name": "Domotz"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "dragondisk.exe"
+      ],
+      "installation_paths": [
+        "*\\almageste\\dragondisk\\*",
+        "*\\dragondisk.exe",
+        "c:\\program files (x86)\\almageste\\dragondisk\\*"
+      ],
+      "name": "DragonDisk"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "duet.exe",
+        "duetdisp.exe",
+        "duetsetup.exe"
+      ],
+      "installation_paths": [],
+      "name": "Duet Display"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "duplicati.server.exe"
+      ],
+      "installation_paths": [
+        "*\\*\\duplicati.server.exe",
+        "c:\\program files\\*\\duplicati.server.exe"
+      ],
+      "name": "Duplicati"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "dwagent.exe",
+        "dwaglnc.exe",
+        "dwagsvc.exe"
+      ],
+      "installation_paths": [],
+      "name": "DW Service"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "echoserver*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Echoware"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ehorus standalone.exe",
+        "ehorus_agent.exe",
+        "ehorus_cmd.exe",
+        "ehorus_launcher.exe",
+        "ehorus_uit.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\ehorus_agent\\*"
+      ],
+      "name": "eHorus"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Electric AI (Kaseya)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remoteconsole.exe"
+      ],
+      "installation_paths": [],
+      "name": "EMCO Remote Console"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Encapto"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "accessserver*.exe",
+        "accessserver.exe"
+      ],
+      "installation_paths": [],
+      "name": "Ericom AccessNow"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ericomconnectremotehost*.exe",
+        "ericomconnnectconfigurationtool.exe"
+      ],
+      "installation_paths": [],
+      "name": "Ericom Connect"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "einstaller.exe",
+        "era.exe",
+        "eraagent.exe",
+        "eratool.exe",
+        "ezhelp*.exe"
+      ],
+      "installation_paths": [],
+      "name": "ESET Remote Administrator"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "extraputty-0.30-2016-01-28-installer.exe"
+      ],
+      "installation_paths": [
+        "*\\extraputty-0.30-2016-01-28-installer.exe",
+        "*users\\*\\extraputty-0.30-2016-01-28-installer.exe",
+        "c:\\users\\user\\extraputty-0.30-2016-01-28-installer.exe"
+      ],
+      "name": "ExtraPuTTY"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ezhelpclient.exe",
+        "ezhelpclientmanager.exe",
+        "ezhelpmanager.exe"
+      ],
+      "installation_paths": [],
+      "name": "ezHelp"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "coreagentservice.exe",
+        "faronicscoreagent.exe",
+        "fcaforstartupmonitor.msi"
+      ],
+      "installation_paths": [
+        "*\\faronics\\faronics core\\workstation agent\\coreagentservice.exe",
+        "*\\faronics\\faronics core\\workstation agent\\faronicscoreagent.exe",
+        "c:\\program files (x86)\\faronics\\faronics core\\*",
+        "c:\\program files\\faronics\\core\\console\\*",
+        "c:\\program files\\faronics\\faronics core\\*",
+        "c:\\program files\\faronics\\faronics core\\workstation agent\\*",
+        "c:\\programdata\\faronics\\fcaforstartupmonitor.msi"
+      ],
+      "name": "Faronics Core"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "cloudwksinstall.exe",
+        "dfc.exe",
+        "dfinst.exe",
+        "dfserv.exe",
+        "dfservex.exe",
+        "dfstd.exe",
+        "dfstdinstall.exe",
+        "dfwks.exe"
+      ],
+      "installation_paths": [
+        "*\\faronics\\deep freeze\\dfc.exe",
+        "*\\faronics\\deep freeze\\dfserv.exe",
+        "*\\faronics\\deep freeze\\dfservex.exe",
+        "*\\faronics\\deep freeze\\dfwks.exe",
+        "c:\\program files (x86)\\faronics\\deep freeze\\*",
+        "c:\\program files (x86)\\faronics\\deep freeze\\install c-0\\*",
+        "c:\\program files (x86)\\faronics\\deep freeze\\install c-1\\*",
+        "c:\\program files\\faronics corporation\\deep freeze 7.00\\*",
+        "c:\\program files\\faronics\\deep freeze\\*"
+      ],
+      "name": "Faronics Deep Freeze"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "cloudwksinstall.exe",
+        "faronicsdeployagent.exe",
+        "faronicssa.exe",
+        "frcserver.exe",
+        "fssinstaller.exe",
+        "fwa_ui_agent.exe",
+        "fwaservice.exe",
+        "fwawebinstaller_*.exe",
+        "migrationhelper_32.exe",
+        "migrationhelper_64.exe",
+        "modulesupgrademgr.exe",
+        "notificationhelper.exe",
+        "usernotificationhelper.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\*",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\faronicsdeployagent.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\faronicssa.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\frcserver.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\fssinstaller.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\fwa_ui_agent.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\fwaservice.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\migrationhelper_32.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\migrationhelper_64.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\modulesupgrademgr.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\notificationhelper.exe",
+        "c:\\program files (x86)\\faronics\\faronics deploy agent\\usernotificationhelper.exe",
+        "c:\\programdata\\faronics\\storagespace\\fwa\\*"
+      ],
+      "name": "Faronics Deploy"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "fistudentagent.exe",
+        "fistudentsvc.exe",
+        "fistudentui.exe",
+        "insightinstaller.exe",
+        "insightinstallerstudent.exe",
+        "insightinstallerteacher.exe",
+        "insightsetup.msi",
+        "stahelper.exe",
+        "studentsvc.exe"
+      ],
+      "installation_paths": [
+        "*\\faronics\\insight student\\fistudentagent.exe",
+        "*\\faronics\\insight student\\fistudentsvc.exe",
+        "*\\faronics\\insight student\\fistudentui.exe",
+        "*\\faronics\\insight student\\stahelper.exe",
+        "*\\faronics\\insight teacher\\stahelper.exe",
+        "c:\\program files (x86)\\faronics\\insight student\\*",
+        "c:\\program files (x86)\\faronics\\insight teacher\\*",
+        "c:\\program files\\faronics\\insight student\\*",
+        "c:\\program files\\faronics\\insight teacher\\*"
+      ],
+      "name": "Faronics Insight"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "fastclient.exe",
+        "fastmaster.exe",
+        "fastviewer.exe"
+      ],
+      "installation_paths": [],
+      "name": "FastViewer"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "fixmeit client.exe",
+        "fixmeit expert setup.exe",
+        "fixmeit unattended access setup.exe",
+        "fixmeitclient*.exe",
+        "fixmeitclient.exe",
+        "ticlientcore.exe",
+        "ticlienthelper*.exe",
+        "tiexpertcore.exe",
+        "tiexpertstandalone.exe"
+      ],
+      "installation_paths": [],
+      "name": "FixMe.it"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "fleetdeck-agent.exe",
+        "fleetdeck-agent.msi",
+        "fleetdeck_agent.exe",
+        "fleetdeck_agent_svc.exe",
+        "fleetdeck_commander_launcher.exe",
+        "fleetdeck_commander_svc.exe",
+        "fleetdeck_installer.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\fleetdeck agent\\*\\fd_agent.dll",
+        "c:\\program files (x86)\\fleetdeck agent\\*\\fleetdeck_agent.exe",
+        "c:\\program files (x86)\\fleetdeck agent\\fleetdeck_agent_svc.exe",
+        "c:\\windows\\temp\\fleetdeck\\*"
+      ],
+      "name": "FleetDeck.io"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Fortra"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Free Ping Tool"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [
+        "*\\manageengine\\*",
+        "c:\\program files\\manageengine\\manageengine free tools\\launcher\\*"
+      ],
+      "name": "Free Tools Launcher"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "nxplayer.exe"
+      ],
+      "installation_paths": [
+        "*\\nxplayer.exe",
+        "c:\\*\\nxplayer.exe"
+      ],
+      "name": "FreeNX"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "FreeRDP"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "freshservice.discoveryprobe.scanservice.exe",
+        "freshservice.discoveryprobe.window.exe",
+        "fs-probe-*.msi",
+        "fs-windows-agent-*.msi",
+        "fsagent.msi",
+        "fsagentautoupdate.exe",
+        "fsagentservice.exe",
+        "fswmiscanner.exe",
+        "plink.exe",
+        "win-installer-*.msi"
+      ],
+      "installation_paths": [
+        "*\\freshservice.discoveryprobe.scanservice.exe",
+        "*\\freshservice.discoveryprobe.window.exe",
+        "*\\fsagentautoupdate.exe",
+        "*\\fsagentservice.exe",
+        "*\\fswmiscanner.exe",
+        "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\*",
+        "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\bin\\*",
+        "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\conf\\*",
+        "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\fsagentautoupdate.exe",
+        "c:\\program files (x86)\\freshdesk\\freshservice discovery agent\\fsagentservice.exe",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\*",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\bin\\*",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\bin\\freshservice.discoveryprobe.scanservice.exe",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\bin\\freshservice.discoveryprobe.window.exe",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\bin\\plink.exe",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\conf\\*",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\db\\*",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\nmap\\*",
+        "c:\\program files (x86)\\freshworks\\freshserviceprobe\\tools\\ssh\\*"
+      ],
+      "name": "Freshservice"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "gp3.exe",
+        "gp4.exe",
+        "gp5.exe"
+      ],
+      "installation_paths": [],
+      "name": "GatherPlace-desktop sharing"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "getscreen-x86.exe",
+        "getscreen.exe",
+        "getscreen.upd.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\getscreen.me\\",
+        "c:\\programdata\\getscreen.me\\",
+        "c:\\users\\user\\appdata\\local\\getscreen.me\\",
+        "c:\\users\\user\\downloads\\getscreen-x86.exe",
+        "c:\\users\\user\\downloads\\getscreen.upd.exe"
+      ],
+      "name": "GetScreen"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [
+        "c:\\program files\\glpi-agent\\*",
+        "c:\\program files\\glpi-agent\\etc\\*",
+        "c:\\program files\\glpi-agent\\logs\\*",
+        "c:\\program files\\glpi-agent\\perl\\bin\\*",
+        "c:\\program files\\glpi-agent\\var\\*"
+      ],
+      "name": "GLPI Agent"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "gorelo.rmm.setup.exe"
+      ],
+      "installation_paths": [],
+      "name": "Gorelo RMM"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [
+        "*\\goto opener",
+        "c:\\program files (x86)\\goto opener"
+      ],
+      "name": "GoTo Opener"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "g2a*.exe",
+        "g2ax_comm_customer.exe",
+        "g2mcomm.exe",
+        "g2mupdate.com",
+        "goto assist opener.exe",
+        "goto opener.exe",
+        "gotoassist.exe"
+      ],
+      "installation_paths": [],
+      "name": "GoToAssist"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "gotoresolveexternalmodulehandler.exe",
+        "gotoresolvefilemanager.exe",
+        "gotoresolveloggerprocess.exe",
+        "gotoresolvenetworkchecker.exe",
+        "gotoresolveprocesschecker.exe",
+        "gotoresolvequickview.exe",
+        "gotoresolveregistryeditor.exe",
+        "gotoresolveremotecontrol.exe",
+        "gotoresolveservice.exe",
+        "gotoresolveservicemanager.exe",
+        "gotoresolveterminal.exe",
+        "gotoresolvetools32.exe",
+        "gotoresolvetools64.exe",
+        "gotoresolveui.exe",
+        "gotoresolveunattended.exe",
+        "gotoresolveunattendedremover.exe",
+        "gotoresolveunattendedui.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\goto resolve unattended\\*",
+        "c:\\program files\\goto resolve unattended\\*"
+      ],
+      "name": "GoToAssist (GoTo Resolve)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "g2rdesktopconsole-x64.msi"
+      ],
+      "installation_paths": [
+        "*\\g2rdesktopconsole-x64.msi",
+        "c:\\*\\g2rdesktopconsole-x64.msi"
+      ],
+      "name": "GoToAssist Agent Desktop Console"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "gotohttp*.exe",
+        "gotohttp.exe",
+        "gotohttp_x64.exe"
+      ],
+      "installation_paths": [],
+      "name": "GotoHTTP"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "appcore.exe",
+        "g2m.exe"
+      ],
+      "installation_paths": [
+        "%appdata%\\gotomeeting\\g2m.exe",
+        "c:\\program files (x86)\\gotomypc\\*"
+      ],
+      "name": "GoToMyPC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "govagentinstallhelper.exe",
+        "govagentx64.exe",
+        "goverrmc.exe",
+        "govreachclient.exe",
+        "govsrv*.exe",
+        "govsrv.exe"
+      ],
+      "installation_paths": [
+        "*\\govsrv.exe",
+        "*\\pj technologies\\govsrv\\*",
+        "c:\\program files (x86)\\pj technologies\\govsrv\\*"
+      ],
+      "name": "Goverlan"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "guacd.exe"
+      ],
+      "installation_paths": [],
+      "name": "Guacamole"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agent-installer-any.exe",
+        "hbrm-updater-x64.exe",
+        "hbrm-x64.exe"
+      ],
+      "installation_paths": [
+        "*\\heartbeatrm\\*",
+        "c:\\program files (x86)\\heartbeatrm\\*",
+        "c:\\program files\\heartbeatrm\\*"
+      ],
+      "name": "HeartbeatRM"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "helpbeam*.exe"
+      ],
+      "installation_paths": [],
+      "name": "HelpBeam"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "helpu_install.exe",
+        "helpumanager.exe",
+        "helpuupdater.exe"
+      ],
+      "installation_paths": [],
+      "name": "HelpU"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "helpwire quick.exe",
+        "helpwire.exe"
+      ],
+      "installation_paths": [],
+      "name": "HelpWire"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "hoptodesk-standalone.exe",
+        "hoptodesk.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\hoptodesk\\hoptodesk.exe"
+      ],
+      "name": "HopToDesk"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "iit.exe",
+        "intouch.exe",
+        "m intouch go installer.exe"
+      ],
+      "installation_paths": [],
+      "name": "I'm InTouch"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "id_tray.exe",
+        "idriveeclassic.exe",
+        "idrivewinsetup.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\idrive\\*",
+        "c:\\program files\\idrive\\*",
+        "c:\\programdata\\idrive\\*",
+        "c:\\users\\user\\appdata\\local\\idrive\\*",
+        "c:\\users\\user\\downloads\\idrivewinsetup.exe"
+      ],
+      "name": "iDrive"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "immyagent.exe",
+        "immybot.agent.ephemeral.exe",
+        "immybot.msi",
+        "immyupdater.exe"
+      ],
+      "installation_paths": [
+        "*\\immybot\\*",
+        "c:\\program files (x86)\\immybot\\immyagent.exe",
+        "c:\\program files (x86)\\immybot\\immyupdater.exe",
+        "c:\\program files\\immybot\\immyagent.exe",
+        "c:\\program files\\immybot\\immyupdater.exe",
+        "c:\\windows\\temp\\immybot\\*"
+      ],
+      "name": "ImmyBot"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "imperoclientsvc.exe"
+      ],
+      "installation_paths": [],
+      "name": "Impero Connect"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "hsloader.exe",
+        "ihcserver.exe",
+        "instanthousecall.exe"
+      ],
+      "installation_paths": [],
+      "name": "Instant Housecall"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "hsloader.exe",
+        "ihcserver.exe",
+        "instanthousecall.exe"
+      ],
+      "installation_paths": [],
+      "name": "Instant Housecall"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "insync.exe"
+      ],
+      "installation_paths": [
+        "*\\insync.exe",
+        "*users\\*\\appdata\\roaming\\insync\\app\\insync.exe",
+        "c:\\users\\user\\appdata\\roaming\\insync\\app\\insync.exe"
+      ],
+      "name": "Insync"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agent32.exe",
+        "agent64.exe",
+        "agent_setup_5.exe",
+        "iadmin.exe",
+        "intelliadmin.exe"
+      ],
+      "installation_paths": [],
+      "name": "IntelliAdmin Remote Control"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "dephlp.exe",
+        "invgate-ed.exe",
+        "invgateassetsrd.exe",
+        "invgaterd.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\inventec\\invgate.net client\\*",
+        "c:\\program files (x86)\\inventec\\invgate.net client\\dephlp.exe",
+        "c:\\program files (x86)\\inventec\\invgate.net client\\files\\invgateassetsrd.exe",
+        "c:\\program files (x86)\\inventec\\invgate.net client\\files\\invgaterd.exe",
+        "c:\\program files (x86)\\inventec\\invgate.net client\\files\\sas.dll",
+        "c:\\program files (x86)\\inventec\\invgate.net client\\invgate-ed.exe",
+        "c:\\program files (x86)\\inventec\\invgate.net client\\software matt.dll"
+      ],
+      "name": "InvGate"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "iperius.exe",
+        "iperiusremote.exe"
+      ],
+      "installation_paths": [],
+      "name": "Iperius Remote"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "islalwaysonmonitor.exe",
+        "isllight.exe",
+        "isllightservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "ISL Light"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "islalwaysonmonitor.exe",
+        "isllight.exe",
+        "isllightclient.exe",
+        "isllightservice.exe"
+      ],
+      "installation_paths": [
+        "*\\isl online\\isl light*",
+        "*\\isllight.exe",
+        "c:\\program files (x86)\\isl online\\isl light*"
+      ],
+      "name": "ISL Online"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "islalwaysonmonitor.exe",
+        "isllight.exe",
+        "isllightclient.exe",
+        "isllightservice.exe"
+      ],
+      "installation_paths": [
+        "*\\isl online\\isl light*",
+        "*\\isllight.exe",
+        "c:\\program files (x86)\\isl online\\isl light*"
+      ],
+      "name": "ISL Online"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "comodoremotecontrol.exe",
+        "itarianremoteaccesssetup.exe",
+        "itsmagent.exe",
+        "itsmrsp.exe",
+        "itsmservice.exe",
+        "raccess.exe",
+        "rdesktop.exe",
+        "rhost.exe",
+        "rmmservice.exe",
+        "rviewer.exe"
+      ],
+      "installation_paths": [],
+      "name": "Itarian"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "saazapsc.exe"
+      ],
+      "installation_paths": [],
+      "name": "ITSupport247 (ConnectWise)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "saazapsc.exe"
+      ],
+      "installation_paths": [],
+      "name": "ITSupport247 (ConnectWise)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agentlessrc.exe",
+        "arcui.exe",
+        "ivantiremotecontrol.exe"
+      ],
+      "installation_paths": [],
+      "name": "Ivanti Remote Control"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "JollysFastVNC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "jumpcloud*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Jump Cloud"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "jumpclient.exe",
+        "jumpconnect.exe",
+        "jumpdesktop.exe",
+        "jumpservice.exe",
+        "jumpupdater.exe"
+      ],
+      "installation_paths": [],
+      "name": "Jump Desktop"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "kabuto.app.runner.exe"
+      ],
+      "installation_paths": [],
+      "name": "Kabuto"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agentmon.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\kaseya\\",
+        "c:\\programdata\\kaseya\\"
+      ],
+      "name": "Kaseya (VSA)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "khelpdesk.exe"
+      ],
+      "installation_paths": [],
+      "name": "KHelpDesk"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "grabbertt*.msi"
+      ],
+      "installation_paths": [],
+      "name": "KickIdler"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "kitty.exe"
+      ],
+      "installation_paths": [
+        "*\\kitty.exe",
+        "c:\\*\\kitty.exe"
+      ],
+      "name": "KiTTY"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "komari.exe"
+      ],
+      "installation_paths": [
+        "c:\\komari\\*",
+        "c:\\program files\\komari\\*"
+      ],
+      "name": "Komari"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Koofr"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ltsvc.exe"
+      ],
+      "installation_paths": [],
+      "name": "LabTeach (Connectwise Automate)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ltsvc.exe",
+        "ltsvcmon.exe",
+        "lttray.exe"
+      ],
+      "installation_paths": [],
+      "name": "LabTech RMM (Now ConnectWise Automate)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "issuser.exe",
+        "landeskagentbootstrap.exe",
+        "landeskportalmanager.exe",
+        "ldinv32.exe",
+        "ldsensors.exe",
+        "softmon.exe",
+        "tmcsvc.exe"
+      ],
+      "installation_paths": [
+        "*\\issuser.exe",
+        "*\\landesk\\*",
+        "*\\softmon.exe",
+        "*\\tmcsvc.exe",
+        "c:\\program files (x86)\\landesk\\*"
+      ],
+      "name": "LANDesk"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "laplink-everywhere-setup*.exe",
+        "laplink.exe",
+        "laplinkeverywhere.exe",
+        "llrcservice.exe",
+        "oosysagent.exe",
+        "serverproxyservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "Laplink Everywhere"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "laplink.exe",
+        "tsircusr.exe"
+      ],
+      "installation_paths": [],
+      "name": "Laplink Gold"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "level.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\level\\*"
+      ],
+      "name": "Level"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "level-remote-control-ffmpeg.exe",
+        "level-windows-amd64.exe",
+        "level.exe"
+      ],
+      "installation_paths": [],
+      "name": "Level.io"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "level-remote-control-ffmpeg.exe",
+        "level-windows-amd64.exe",
+        "level.exe"
+      ],
+      "installation_paths": [],
+      "name": "Level.io"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "lmnoipserver.exe"
+      ],
+      "installation_paths": [
+        "*\\litemanager pro \u2013 viewer\\*",
+        "*\\lmnoipserver.exe",
+        "c:\\program files\\litemanager pro \u2013 viewer\\*"
+      ],
+      "name": "Lite Manager"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "lmnoipserver.exe",
+        "romfusclient.exe",
+        "romserver.exe",
+        "romviewer.exe"
+      ],
+      "installation_paths": [],
+      "name": "LiteManager"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "loclx.exe"
+      ],
+      "installation_paths": [
+        "%appdata%\\loclx\\*",
+        "*\\loclx.exe",
+        "c:\\users\\user\\appdata\\local\\programs\\loclx\\loclx.exe"
+      ],
+      "name": "LocalXpose"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "lmiguardiansvc.exe"
+      ],
+      "installation_paths": [],
+      "name": "LogMeIn"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "lmi_rescue.exe",
+        "lmi_rescue_srv.exe",
+        "support-logmeinrescue*.exe",
+        "support-logmeinrescue.exe"
+      ],
+      "installation_paths": [
+        "c:\\users\\user\\appdata\\local\\logmein rescue applet\\lmir*.tmp\\lmi_rescue.exe",
+        "c:\\users\\user\\appdata\\local\\logmein rescue applet\\lmir*.tmp\\lmi_rescue_srv.exe"
+      ],
+      "name": "LogMeIn rescue"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "edocument-*.msi",
+        "googlemeet.msi",
+        "lunixar.exe",
+        "lunixarremote.exe",
+        "lunixarrmm*.msi",
+        "lunixarupdater.exe"
+      ],
+      "installation_paths": [
+        "*\\lunixar\\lunixar.agent.core.dll",
+        "*\\lunixar\\lunixar.dll",
+        "*\\lunixar\\lunixar.exe",
+        "*\\lunixar\\lunixarremote.dll",
+        "*\\lunixar\\lunixarremote.exe",
+        "*\\lunixar\\lunixarupdater.dll",
+        "*\\lunixar\\lunixarupdater.exe",
+        "c:\\program files\\lunixar\\*"
+      ],
+      "name": "Lunixar"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "dcagentregister.exe",
+        "dcagentservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "Manage Engine (Desktop Central)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "dcagentservice.exe",
+        "installshield setup.exe",
+        "manageengine_remote_access_plus.exe"
+      ],
+      "installation_paths": [
+        "*\\dcagentservice.exe",
+        "*\\desktopcentral_agent\\bin\\*",
+        "c:\\program files (x86)\\desktopcentral_agent\\bin\\*"
+      ],
+      "name": "ManageEngine"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "ManageEngine RMM Central"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "installshield setup.exe",
+        "manageengine_servicedesk_plus.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\manageengine\\servicedesk\\*",
+        "c:\\program files\\manageengine\\servicedesk\\*"
+      ],
+      "name": "ManageEngine ServiceDesk Plus"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "megasyncsetup64.exe",
+        "megaupdater.exe"
+      ],
+      "installation_paths": [
+        "*\\megasyncsetup64.exe",
+        "*\\megaupdater.exe",
+        "*programdata\\megasync\\*",
+        "*users\\*\\appdata\\local\\megasync\\*",
+        "c:\\users\\user\\appdata\\local\\megasync\\*"
+      ],
+      "name": "MEGAsync"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "meshagent*.exe",
+        "meshagent.exe",
+        "meshcentral*.exe"
+      ],
+      "installation_paths": [],
+      "name": "MeshCentral"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "quickassist.exe"
+      ],
+      "installation_paths": [],
+      "name": "Microsoft Quick Assist"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "mikogo-screen-service.exe",
+        "mikogo-service.exe",
+        "mikogo-starter.exe",
+        "mikogo.exe",
+        "mikogolauncher.exe"
+      ],
+      "installation_paths": [
+        "*\\mikogo-screen-service.exe",
+        "*\\mikogo-service.exe",
+        "*users\\*\\appdata\\roaming\\mikogo\\*",
+        "c:\\users\\user\\appdata\\roaming\\mikogo\\*"
+      ],
+      "name": "Mikogo"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "mionet.exe",
+        "mionetmanager.exe"
+      ],
+      "installation_paths": [],
+      "name": "MioNet (Also known as WD Anywhere Access)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "mionet.exe",
+        "mionetmanager.exe"
+      ],
+      "installation_paths": [],
+      "name": "MioNet (WD Anywhere Access)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "statementview.msi"
+      ],
+      "installation_paths": [
+        "*\\miradore\\*",
+        "c:\\program files\\miradore\\onlineclient\\bin\\*"
+      ],
+      "name": "Miradore"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "mobaxterm_installer_*.msi",
+        "mobaxterm_installer_12.1.msi"
+      ],
+      "installation_paths": [
+        "*\\mobatek\\mobaxterm\\*",
+        "*\\mobaxterm_installer_*.msi",
+        "c:\\*\\mobaxterm_installer_12.1.msi"
+      ],
+      "name": "MobaXterm"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [
+        "*\\realvnc\\vnc4\\*"
+      ],
+      "name": "Mocha VNC Lite"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agent.exe",
+        "amon.exe",
+        "moniticinstaller.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\monitic\\*",
+        "c:\\program files\\monitic\\agent.exe",
+        "c:\\program files\\monitic\\amon.exe",
+        "c:\\program files\\monitic\\conf.json"
+      ],
+      "name": "Monitic"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "mousewithoutborders.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\microsoft garage\\mouse without borders\\*"
+      ],
+      "name": "Mouse Without Borders"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "mremoteng-installer-*.msi",
+        "mremoteng.exe"
+      ],
+      "installation_paths": [
+        "*%\\mremoteng",
+        "*\\mremoteng.exe",
+        "*\\mremoteng\\*",
+        "c:\\program files (x86)%\\mremoteng",
+        "c:\\program files (x86)\\mremoteng\\*"
+      ],
+      "name": "mRemoteNG"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "cbb.exe",
+        "cbbackupplan.exe",
+        "cloud.backup.rm.service.exe",
+        "cloud.backup.scheduler.exe",
+        "cloudracmd.exe",
+        "cloudrasd.exe",
+        "cloudraservice.exe",
+        "cloudrautilities.exe",
+        "connect.exe",
+        "online backup.exe",
+        "remote desktop.exe",
+        "rmm.agent.exe"
+      ],
+      "installation_paths": [],
+      "name": "MSP360"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "mstsc.exe"
+      ],
+      "installation_paths": [
+        "*windows\\system32\\mstsc.exe",
+        "c:\\windows\\system32\\mstsc.exe"
+      ],
+      "name": "mstsc.exe (Microsoft Remote Desktop Connection)"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "MultCloud"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "mygreenpc.exe"
+      ],
+      "installation_paths": [],
+      "name": "MyGreenPC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "myivomanager.exe",
+        "myivomgr.exe"
+      ],
+      "installation_paths": [],
+      "name": "MyIVO"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agent_*_rw.exe",
+        "baseclient.exe",
+        "basupapp.exe",
+        "basupsrvc.exe",
+        "basupsrvccnfg.exe",
+        "basuptshelper.exe"
+      ],
+      "installation_paths": [],
+      "name": "N-Able Advanced Monitoring Agent"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agent_*_rw.exe",
+        "baseclient.exe",
+        "basupapp.exe",
+        "basupsrvc.exe",
+        "basupsrvccnfg.exe",
+        "basuptshelper.exe",
+        "winagent.exe"
+      ],
+      "installation_paths": [],
+      "name": "N-Able Advanced Monitoring Agent"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "N-ABLE Remote Access Software"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agentsetup-*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Naverisk"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "nmep_agtconfig.exe",
+        "nmep_ctrlagent.exe",
+        "nmep_ctrlagentsvc.exe",
+        "winpty-agent.exe",
+        "winpty-agent64.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\net monitor for employees pro\\*",
+        "c:\\program files\\net monitor for employees pro\\*"
+      ],
+      "name": "Net Monitor for Employees"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "cis.vbs",
+        "netbird-ui.exe",
+        "netbird.exe",
+        "netbird.msi",
+        "openssh.msi"
+      ],
+      "installation_paths": [
+        "c:\\bin\\cis.vbs",
+        "c:\\bin\\netbird.msi",
+        "c:\\bin\\openssh.msi",
+        "c:\\bin\\trm.zip",
+        "c:\\program files\\netbird\\netbird-ui.exe",
+        "c:\\program files\\netbird\\netbird.exe",
+        "c:\\programdata\\netbird\\*",
+        "c:\\temper\\trm"
+      ],
+      "name": "NetBird"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "netlock_rmm_agent_installer.exe",
+        "netlock_rmm_user_process.exe",
+        "netlock_rmm_user_uac.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\0x101 cyber security\\netlock rmm\\useragent\\netlock_rmm_user_process.exe",
+        "c:\\program files\\0x101 cyber security\\netlock rmm\\useragent\\netlock_rmm_user_uac.exe",
+        "c:\\programdata\\0x101 cyber security\\netlock rmm\\comm agent\\*"
+      ],
+      "name": "NetLock RMM"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [
+        "*\\danware data\\netop packn deploy\\*",
+        "*\\netop remote control\\*",
+        "c:\\program files\\danware data\\netop packn deploy\\*"
+      ],
+      "name": "Netop"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "nhostsvc.exe",
+        "nhstw32.exe",
+        "nldrw32.exe",
+        "rmserverconsolemediator.exe"
+      ],
+      "installation_paths": [],
+      "name": "Netop Remote Control (aka Impero Connect)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "connect.backdrop.cloud*.exe",
+        "imperoclientsvc.exe",
+        "imperoinit.exe",
+        "netop ondemand.exe",
+        "ngstw32.exe",
+        "nhostsvc.exe",
+        "nhstw32.exe",
+        "nldrw32.exe",
+        "rmserverconsolemediator.exe"
+      ],
+      "installation_paths": [],
+      "name": "Netop Remote Control (Impero Connect)"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Netreo"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "client32.exe",
+        "pcicfgui.exe",
+        "pcictlui.exe",
+        "remcmdstub.exe"
+      ],
+      "installation_paths": [],
+      "name": "NetSupport Manager"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "neturo*.exe",
+        "neturo.exe",
+        "ntrntservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "Neturo"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "netviewer*.exe",
+        "netviewer.exe"
+      ],
+      "installation_paths": [],
+      "name": "Netviewer"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "netviewer.exe",
+        "nvclient.exe",
+        "nvconsole.exe"
+      ],
+      "installation_paths": [],
+      "name": "Netviewer (GoToMeet)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "dashboard-windows-amd64.exe",
+        "nezha-agent.exe"
+      ],
+      "installation_paths": [
+        "*\\nezha-agent.exe",
+        "c:\\nezha\\*",
+        "c:\\program files\\nezha\\*"
+      ],
+      "name": "Nezha"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "ngrok.exe"
+      ],
+      "installation_paths": [
+        "*\\ngrok*",
+        "c:\\*\\ngrok.zip"
+      ],
+      "name": "ngrok"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ninite.exe",
+        "niniteagent.exe",
+        "niniteone.exe",
+        "ninitepro.exe"
+      ],
+      "installation_paths": [],
+      "name": "Ninite Pro (Ninite Agent)"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [
+        "*programdata\\ninjarmmagent\\*"
+      ],
+      "name": "NinjaOne (formerly NinjaRMM)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ninjarmm-cli.exe",
+        "ninjarmmagent.exe",
+        "ninjarmmagentpatcher.exe"
+      ],
+      "installation_paths": [],
+      "name": "NinjaRMM"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "nomachine*.exe",
+        "nxd.exe"
+      ],
+      "installation_paths": [],
+      "name": "NoMachine"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "NordLocker"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "nateon*.exe",
+        "nateon.exe",
+        "nateonmain.exe"
+      ],
+      "installation_paths": [],
+      "name": "NoteOn-desktop sharing"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ntrsupportpro_en.exe"
+      ],
+      "installation_paths": [],
+      "name": "NTR Remote"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "nvda.exe",
+        "nvda_*.exe",
+        "nvda_service.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\nvda\\nvda.exe",
+        "c:\\program files\\nvda\\nvda.exe",
+        "c:\\users\\user\\appdata\\local\\temp\\nvda_*\\*",
+        "c:\\users\\user\\appdata\\roaming\\nvda\\*"
+      ],
+      "name": "NVDA (Non-Visual Desktop Access)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ocsinventory.exe",
+        "ocsservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "OCS inventory"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "onionshare*.exe",
+        "onionshare-win*.msi"
+      ],
+      "installation_paths": [
+        "*\\onionshare*.exe",
+        "*\\onionshare\\*",
+        "c:\\program files (x86)\\onionshare\\*"
+      ],
+      "name": "Onionshare"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "otpowershell.exe",
+        "otservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "OptiTune"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ehorus standalone.exe",
+        "ehorus_agent.exe"
+      ],
+      "installation_paths": [],
+      "name": "Pandora RC (eHorus)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "p9agent*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Panorama9"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "parallelsaccess-*.exe",
+        "prl_deskctl_agent.exe",
+        "prl_deskctl_wizard.exe",
+        "prl_pm_service.exe",
+        "tsclient.exe"
+      ],
+      "installation_paths": [],
+      "name": "Parallels Access"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "parsecd.exe",
+        "pservice.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\parsec\\*"
+      ],
+      "name": "Parsec"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "awhost32.exe",
+        "awrem32.exe",
+        "pcaquickconnect.exe",
+        "winaw32.exe"
+      ],
+      "installation_paths": [],
+      "name": "pcAnywhere"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pchelpware_viewer.exe"
+      ],
+      "installation_paths": [
+        "*\\pchelpware_viewer.exe"
+      ],
+      "name": "PChelpware"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "mwcliun.exe",
+        "pcnmgr.exe",
+        "webexpcnow.exe"
+      ],
+      "installation_paths": [],
+      "name": "Pcnow"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pcvisit-easysupport.exe",
+        "pcvisit.exe",
+        "pcvisit_client.exe",
+        "pcvisit_service_client.exe"
+      ],
+      "installation_paths": [],
+      "name": "Pcvisit"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pdq-connect*.exe",
+        "pdqconnectupdater-*.msi"
+      ],
+      "installation_paths": [],
+      "name": "PDQ Connect"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pilixo_installer*.exe",
+        "rdp.exe"
+      ],
+      "installation_paths": [],
+      "name": "Pilixo"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "PiTunnel"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pocketcloud*.exe",
+        "pocketcloudservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "Pocket Cloud (Wyse)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pocketcloudservice.exe",
+        "pocketcontroller.exe",
+        "wysebrowser.exe"
+      ],
+      "installation_paths": [],
+      "name": "Pocket Controller"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pocketcontroller.exe",
+        "wysebrowser.exe",
+        "xsightservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "Pocket Controller (Soti Xsight)"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "psexec.exe",
+        "psexec64.exe",
+        "psexecsvc.exe"
+      ],
+      "installation_paths": [],
+      "name": "PSEXEC"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "csexec.exe",
+        "paexec-*.exe",
+        "paexec.exe",
+        "remcom.exe",
+        "remcomsvc.exe",
+        "xcmd.exe",
+        "xcmdsvc.exe"
+      ],
+      "installation_paths": [],
+      "name": "PSEXEC (Clone)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pcmonitormanager.exe",
+        "pcmonitorsrv.exe"
+      ],
+      "installation_paths": [],
+      "name": "Pulseway"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "putty.exe"
+      ],
+      "installation_paths": [
+        "*\\putty.exe"
+      ],
+      "name": "PuTTY"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "puttytray.exe"
+      ],
+      "installation_paths": [
+        "*\\puttytray.exe",
+        "c:\\*\\puttytray.exe"
+      ],
+      "name": "PuTTY Tray"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "qq.exe",
+        "qqpcmgr.exe",
+        "qqprotect.exe"
+      ],
+      "installation_paths": [],
+      "name": "QQ IM-remote assistance"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "konea.exe"
+      ],
+      "installation_paths": [],
+      "name": "Quest KACE Agent (formerly Dell KACE)"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "quickassist.exe"
+      ],
+      "installation_paths": [],
+      "name": "Quick Assist"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "radmin.exe",
+        "rserver3.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\radmin viewer 3\\radmin.exe",
+        "c:\\windows\\syswow64\\rserver30\\famitrf2",
+        "c:\\windows\\syswow64\\rserver30\\famitrfc",
+        "c:\\windows\\syswow64\\rserver30\\rserver3.exe"
+      ],
+      "name": "RAdmin"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ir_agent.exe",
+        "rapid7_agent_core.exe",
+        "rapid7_endpoint_broker.exe"
+      ],
+      "installation_paths": [],
+      "name": "Rapid7"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "rdclient.exe",
+        "rdclientinstaller.exe",
+        "supporttool.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\rdclient\\*",
+        "c:\\program files\\rdclient\\*"
+      ],
+      "name": "RdClient"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "rdcman-x86.exe",
+        "rdcman.exe"
+      ],
+      "installation_paths": [
+        "*\\rdcman-x86.exe",
+        "*\\rdcman.exe"
+      ],
+      "name": "RDCMan"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "tdp2tcp.exe"
+      ],
+      "installation_paths": [],
+      "name": "rdp2tcp"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "dwrcs.exe"
+      ],
+      "installation_paths": [],
+      "name": "RDPView"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "rdpcheck.exe",
+        "rdpconf.exe",
+        "rdpwinst.exe"
+      ],
+      "installation_paths": [],
+      "name": "rdpwrap"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "RealVNC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remcos*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Remcos"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Remmina"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remmon.exe"
+      ],
+      "installation_paths": [],
+      "name": "Remmon"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remobo.exe",
+        "remobo_client.exe",
+        "remobo_tracker.exe"
+      ],
+      "installation_paths": [],
+      "name": "Remobo"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Remote Desktop Manager (Devolutions)"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "rdp.exe"
+      ],
+      "installation_paths": [],
+      "name": "Remote Desktop Plus"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "rfusclient.exe",
+        "rutserv.exe"
+      ],
+      "installation_paths": [],
+      "name": "Remote Manipulator System"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remoteripple.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\remote ripple\\*",
+        "c:\\program files\\remote ripple\\*"
+      ],
+      "name": "Remote Ripple"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "rutserv.exe",
+        "rutview.exe"
+      ],
+      "installation_paths": [],
+      "name": "Remote Utilities"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remote-it-installer.exe",
+        "remote.it.exe",
+        "remoteit.exe"
+      ],
+      "installation_paths": [],
+      "name": "Remote.it"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agentu.exe",
+        "raautoup.exe",
+        "rcengmgru.exe",
+        "rcmgrsvc.exe",
+        "rcstartsupport.exe",
+        "remotesupportplayeru.exe",
+        "rxstartsupport.exe"
+      ],
+      "installation_paths": [],
+      "name": "RemoteCall"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remotely_agent.exe",
+        "remotely_desktop.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\remotely\\connectioninfo.json",
+        "c:\\program files\\remotely\\desktop\\remotely_desktop.exe",
+        "c:\\program files\\remotely\\etag.txt",
+        "c:\\program files\\remotely\\remotely_agent.exe"
+      ],
+      "name": "Remotely"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remotepass-access.exe",
+        "rpaccess.exe",
+        "rpwhostscr.exe"
+      ],
+      "installation_paths": [],
+      "name": "RemotePass"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remotepc.exe",
+        "remotepchost.exe",
+        "remotepcservice.exe",
+        "rpcsuite.exe"
+      ],
+      "installation_paths": [
+        "*\\remotepc\\*",
+        "*\\remotepcservice.exe",
+        "c:\\program files (x86)\\remotepc\\*"
+      ],
+      "name": "RemotePC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "agent.ps1",
+        "defender-exclude.ps1",
+        "install.cmd",
+        "install.ps1",
+        "installcore.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\remotepulseagent\\agent.ps1",
+        "c:\\program files (x86)\\remotepulseagent\\defender-exclude.ps1",
+        "c:\\program files (x86)\\remotepulseagent\\install.cmd",
+        "c:\\program files (x86)\\remotepulseagent\\install.ps1",
+        "c:\\program files (x86)\\remotepulseagent\\installcore.exe"
+      ],
+      "name": "RemotePulse"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "rutserv.exe",
+        "rutview.exe"
+      ],
+      "installation_paths": [
+        "*\\remote manipulator system - server\\*",
+        "*\\remote utilities\\*",
+        "*\\rutserv.exe",
+        "c:\\program files\\remote utilities\\*"
+      ],
+      "name": "RemoteUtilities"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remoteview.exe",
+        "rv.exe",
+        "rvagent.exe",
+        "rvagtray.exe"
+      ],
+      "installation_paths": [],
+      "name": "RemoteView"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "installer.exe",
+        "remsupp.exe",
+        "remsupp_setup_x64.exe",
+        "uninstall remsupp.exe"
+      ],
+      "installation_paths": [
+        "c:\\users\\user\\appdata\\local\\programs\\remsupp\\remsupp.exe",
+        "c:\\users\\user\\appdata\\local\\programs\\remsupp\\uninstall remsupp.exe",
+        "c:\\users\\user\\appdata\\local\\remsupp-updater\\installer.exe"
+      ],
+      "name": "RemSupp"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "wisshell*.exe",
+        "wmc.exe",
+        "wmc_deployer.exe",
+        "wmcsvc.exe"
+      ],
+      "installation_paths": [],
+      "name": "RES Automation Manager"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "rdconsole.exe",
+        "rocketremotedesktop_setup.exe"
+      ],
+      "installation_paths": [],
+      "name": "Rocket Remote Desktop"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "rodexagent.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\rodex\\rodexagent.exe",
+        "c:\\windows\\<random>.exe"
+      ],
+      "name": "Rodex RMM"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "royalserver.exe",
+        "royalts.exe"
+      ],
+      "installation_paths": [],
+      "name": "Royal Apps"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Royal Server"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "royalts.exe"
+      ],
+      "installation_paths": [],
+      "name": "Royal TS"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "rport.exe"
+      ],
+      "installation_paths": [],
+      "name": "RPort"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "rd.exe",
+        "rudesktop*.exe"
+      ],
+      "installation_paths": [],
+      "name": "RuDesktop"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "RunSmart"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "rustdesk*.exe",
+        "rustdesk.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\rustdesk",
+        "c:\\users\\user\\appdata\\local\\rustdesk\\*",
+        "c:\\users\\user\\appdata\\local\\rustdesk\\rustdesk.exe"
+      ],
+      "name": "RustDesk"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "s3browser*.exe"
+      ],
+      "installation_paths": [
+        "*\\s3 browser\\*",
+        "*\\s3browser*.exe",
+        "c:\\program files (x86)\\s3 browser\\*"
+      ],
+      "name": "S3 Browser"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "connectwise*.exe",
+        "connectwisecontrol*.exe",
+        "remote workforce client.exe",
+        "screenconnect*.exe",
+        "screenconnect.clientservice.exe",
+        "screenconnect.windowsclient.exe"
+      ],
+      "installation_paths": [
+        "*\\*\\screenconnect.clientservice.exe",
+        "*\\*\\screenconnect.windowsclient.exe",
+        "*\\screenconnect client*\\*",
+        "c:\\program files (x86)\\screenconnect client (<string id>)\\*",
+        "c:\\program files (x86)\\screenconnect client (random)\\screenconnect.clientservice.exe"
+      ],
+      "name": "ScreenConnect"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "screenmeet.support.exe",
+        "screenmeetsupport.exe"
+      ],
+      "installation_paths": [],
+      "name": "ScreenMeet"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "securecrt.exe"
+      ],
+      "installation_paths": [
+        "*\\securecrt.exe",
+        "*\\vandyke software\\clientpack\\*",
+        "c:\\*\\securecrt.exe"
+      ],
+      "name": "SecureCRT"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "seetrolcenter.exe",
+        "seetrolclient.exe",
+        "seetrolmyservice.exe",
+        "seetrolremote.exe",
+        "seetrolsetting.exe"
+      ],
+      "installation_paths": [],
+      "name": "Seetrol"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "aadg.exe",
+        "sensoclient.exe",
+        "sensoservice.exe"
+      ],
+      "installation_paths": [],
+      "name": "Senso.cloud"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "servereye*.exe",
+        "serviceproxylocalsys.exe"
+      ],
+      "installation_paths": [],
+      "name": "ServerEye"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "ShellHub"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "showmypc*.exe",
+        "showmypc.exe",
+        "smpcsetup.exe"
+      ],
+      "installation_paths": [],
+      "name": "ShowMyPC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remote access.exe",
+        "simplegatewayservice.exe",
+        "simplehelpcustomer.exe",
+        "simpleservice.exe",
+        "spsrv.exe",
+        "windowslauncher.exe"
+      ],
+      "installation_paths": [],
+      "name": "SimpleHelp"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "remote access.exe",
+        "simplegatewayservice.exe",
+        "simplehelpcustomer.exe",
+        "simpleservice.exe",
+        "spsrv.exe",
+        "vhost.exe",
+        "windowslauncher.exe"
+      ],
+      "installation_paths": [
+        "%appdata%\\jwrapper-simplesetup\\*",
+        "c:\\programdata\\jwrapper-remote access\\*"
+      ],
+      "name": "SimpleHelp"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "meagenthelper.exe",
+        "monitoringagent.exe",
+        "site24x7pluginagent.exe",
+        "site24x7windowsagenttrayicon.exe"
+      ],
+      "installation_paths": [],
+      "name": "Site24x7"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "deskroll.exe",
+        "deskrollua.exe"
+      ],
+      "installation_paths": [],
+      "name": "SkyFex"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [
+        "*\\tightvnc\\*",
+        "c:\\program files\\tightvnc\\*"
+      ],
+      "name": "SmartCode Web VNC"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [
+        "*\\sfshelltools.dll.mui",
+        "*\\smartftp client\\*",
+        "c:\\program files (x86)\\smartftp client\\en-us\\"
+      ],
+      "name": "SmartFTP"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "smartty.exe"
+      ],
+      "installation_paths": [
+        "*\\smartty.exe",
+        "*\\sysprogs\\smartty\\*",
+        "c:\\program files (x86)\\sysprogs\\smartty\\*"
+      ],
+      "name": "SmarTTY"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "solar-putty.exe"
+      ],
+      "installation_paths": [
+        "*\\solar-putty-v4\\*",
+        "*\\solar-putty.exe",
+        "c:\\program files\\solar-putty-v4\\*"
+      ],
+      "name": "Solar-PuTTY"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "clientmrinit.exe",
+        "mgntsvc.exe",
+        "routernt.exe"
+      ],
+      "installation_paths": [],
+      "name": "Sophos-Remote Management System"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "sorillus launcher.exe",
+        "sorillus-launcher*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Sorillus"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "strwinclt.exe"
+      ],
+      "installation_paths": [
+        "*\\splashtop\\splashtop remote\\client for rmm\\*",
+        "c:\\program files (x86)\\splashtop\\*"
+      ],
+      "name": "Splashtop"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "splashtop_streamer_windows*.exe",
+        "splashtopsos.exe",
+        "srmanager.exe",
+        "srserver.exe"
+      ],
+      "installation_paths": [],
+      "name": "Splashtop (Beta)"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "splashtop_streamer_windows*.exe",
+        "splashtopsos.exe",
+        "sragent.exe",
+        "srmanager.exe",
+        "srserver.exe",
+        "srservice.exe",
+        "strwinclt.exe"
+      ],
+      "installation_paths": [],
+      "name": "Splashtop Remote"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "sysdiag.exe"
+      ],
+      "installation_paths": [],
+      "name": "SpyAnywhere"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "orayremoteservice.exe",
+        "orayremoteshell.exe",
+        "sunlogin*.exe"
+      ],
+      "installation_paths": [],
+      "name": "SunLogin"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "superops.exe",
+        "superopsticket.exe"
+      ],
+      "installation_paths": [],
+      "name": "SuperOps"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "superputty.exe"
+      ],
+      "installation_paths": [
+        "*\\superputty.exe",
+        "*\\superputty\\*",
+        "*downloads\\superputty\\*",
+        "c:\\downloads\\superputty\\*"
+      ],
+      "name": "SuperPuTTY"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "supremo.exe",
+        "supremohelper.exe",
+        "supremoservice.exe",
+        "supremosystem.exe"
+      ],
+      "installation_paths": [
+        "%userprofile%\\\\appdata\\\\local\\\\temp\\\\supremoremotedesktop\\\\",
+        "*\\\\supremoremotedesktop\\\\supremosystem.exe",
+        "c:\\\\programdata\\\\supremoremotedesktop\\\\"
+      ],
+      "name": "Supremo"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "kabuto.app.runner.exe",
+        "kabuto.installer.exe",
+        "kabuto.service.runner.exe",
+        "kabutosetup.exe",
+        "syncro.app.runner.exe",
+        "syncro.installer.exe",
+        "syncro.overmind.service.exe",
+        "syncro.service.exe",
+        "syncrolive.agent.exe",
+        "syncrolive.service.exe"
+      ],
+      "installation_paths": [],
+      "name": "Syncro"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "syncthing.exe"
+      ],
+      "installation_paths": [
+        "*\\syncthing.exe",
+        "*users\\*\\appdata\\roaming\\synctrayzor\\*",
+        "c:\\users\\user\\appdata\\roaming\\synctrayzor\\*"
+      ],
+      "name": "Syncthing"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Synergy"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ilias.exe"
+      ],
+      "installation_paths": [
+        "*\\ilias.exe",
+        "*\\sysaid\\*",
+        "*\\sysaidserver\\*",
+        "c:\\program files\\sysaidserver\\*"
+      ],
+      "name": "SysAid"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "oolocker.exe",
+        "oosyspectr.exe",
+        "syspectr.exe"
+      ],
+      "installation_paths": [],
+      "name": "Syspectr"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "tacticalrmm.exe"
+      ],
+      "installation_paths": [],
+      "name": "Tactical RMM"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "tailscale-*.exe",
+        "tailscale-ipn.exe",
+        "tailscaled.exe"
+      ],
+      "installation_paths": [],
+      "name": "Tailscale"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "taniumclient.exe",
+        "taniumcx.exe",
+        "taniumexecwrapper.exe",
+        "taniumfileinfo.exe",
+        "tpowershell.exe"
+      ],
+      "installation_paths": [],
+      "name": "Tanium"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Tanium Deploy"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "teamviewer.exe",
+        "teamviewer_desktop.exe",
+        "teamviewer_service.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files\\teamviewer\\"
+      ],
+      "name": "TeamViewer"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pstlaunch.exe",
+        "ptdskclient.exe",
+        "ptdskhost.exe"
+      ],
+      "installation_paths": [],
+      "name": "TeleDesktop"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "tmagentsvc.exe"
+      ],
+      "installation_paths": [
+        "c:\\programdata\\package cache\\.unverified\\agent",
+        "c:\\programdata\\teramind agent\\*",
+        "c:\\programdata\\teramind agent\\<version>\\{6d99445f-f40f-45cb-b433-06302dae6c70}\\*",
+        "c:\\programdata\\teramind agent\\<version>\\{6d99445f-f40f-45cb-b433-06302dae6c70}\\tmagentsvc.exe",
+        "c:\\programdata\\teramind agent\\config",
+        "c:\\programdata\\{4cec2908-5ce4-48f0-a717-8fc833d8017a}\\*",
+        "c:\\programdata\\{4cec2908-5ce4-48f0-a717-8fc833d8017a}\\config",
+        "c:\\programdata\\{4cec2908-5ce4-48f0-a717-8fc833d8017a}\\updates\\*"
+      ],
+      "name": "Teramind"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Terminals"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "si.exe",
+        "tiagent.exe",
+        "tiservice.exe",
+        "tiupdateservice.exe"
+      ],
+      "installation_paths": [
+        "%programdata%\\tiflux\\*",
+        "c:\\program files (x86)\\tiflux\\*",
+        "c:\\program files (x86)\\tiflux\\dependencies\\*",
+        "c:\\program files (x86)\\tiflux\\dependencies\\7zip\\*",
+        "c:\\program files (x86)\\tiflux\\dependencies\\tar\\*",
+        "c:\\program files (x86)\\tiflux\\dependencies\\ultravnc\\*",
+        "c:\\program files (x86)\\tiflux\\desktop\\*",
+        "c:\\program files (x86)\\tiflux\\desktop\\tiagent.exe",
+        "c:\\program files (x86)\\tiflux\\si.exe",
+        "c:\\program files (x86)\\tiflux\\tiservice.exe",
+        "c:\\program files (x86)\\tiflux\\tiupdateservice.exe"
+      ],
+      "name": "TiFLUX"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "tigervnc*.exe",
+        "tvnserver.exe",
+        "winvnc4.exe"
+      ],
+      "installation_paths": [
+        "*\\tightvnc\\*",
+        "*\\tvnserver.exe",
+        "c:\\program files\\tightvnc\\*"
+      ],
+      "name": "TigerVNC"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "tightvncviewerportable*.exe",
+        "tvnserver.exe",
+        "tvnviewer.exe"
+      ],
+      "installation_paths": [],
+      "name": "TightVNC"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "tmate"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "todesk.exe",
+        "todesk_service.exe",
+        "todesk_setup.exe"
+      ],
+      "installation_paths": [],
+      "name": "ToDesk"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "tniwinagent.exe",
+        "tsdservice.exe"
+      ],
+      "installation_paths": [
+        "*\\tniwinagent.exe",
+        "*\\total software deployment\\*",
+        "*\\tsdservice.exe",
+        "c:\\programdata\\total software deployment\\*"
+      ],
+      "name": "Total Software Deployment"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "docconnect.agent.exe",
+        "trustconnectagent.exe"
+      ],
+      "installation_paths": [
+        "*\\trustconnectagent.exe",
+        "c:\\program files\\trustconnect agent\\*",
+        "c:\\program files\\trustconnect agent\\trustconnectagent.exe",
+        "c:\\programdata\\trustconnect\\*"
+      ],
+      "name": "TrustConnect"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "pcstarter.exe",
+        "turbomeeting.exe",
+        "turbomeetingstarter.exe"
+      ],
+      "installation_paths": [],
+      "name": "TurboMeeting"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "uvnc_launch.exe",
+        "vncviewer.exe",
+        "winvnc.exe"
+      ],
+      "installation_paths": [
+        "*\\uvnc bvba\\ultravnc\\*",
+        "*\\uvnc_launch.exe",
+        "*\\vncviewer.exe",
+        "*\\winvnc.exe",
+        "c:\\program files\\uvnc bvba\\ultravnc\\*"
+      ],
+      "name": "Ultra VNC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "ultraviewer.exe",
+        "ultraviewer_desktop.exe",
+        "ultraviewer_service.exe"
+      ],
+      "installation_paths": [
+        "*\\ultraviewer\\",
+        "*\\ultraviewer_desktop.exe",
+        "c:\\program files (x86)\\ultraviewer\\ultraviewer_desktop.exe"
+      ],
+      "name": "UltraViewer"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "ultravnc*.exe"
+      ],
+      "installation_paths": [],
+      "name": "UltraVNC"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "veyon-master.exe",
+        "veyon-server.exe",
+        "veyon-service.exe",
+        "veyon-wcli.exe",
+        "veyon-worker.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\veyon\\*",
+        "c:\\program files\\veyon\\*"
+      ],
+      "name": "Veyon"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "Visual Studio Dev Tunnel"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "clboot32.exe"
+      ],
+      "installation_paths": [
+        "c:\\program files (x86)\\vector\\asset management client\\*",
+        "c:\\program files\\vector networks limited\\lanutil32 suite\\*",
+        "c:\\program files\\vector\\asset management client\\*"
+      ],
+      "name": "VIZOR"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "vncserver.exe",
+        "vncserverui.exe",
+        "vncviewer.exe",
+        "winvnc*.exe",
+        "winvnc.exe",
+        "winvncsc.exe",
+        "winwvc.exe"
+      ],
+      "installation_paths": [],
+      "name": "VNC"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [
+        "*\\realvnc\\vnc server\\*",
+        "c:\\program files\\realvnc\\vnc server\\*"
+      ],
+      "name": "VNC Connect"
+    },
+    {
+      "category": "RMM",
+      "executables": [],
+      "installation_paths": [],
+      "name": "WebEx (Remote Access)"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "webrdp.exe"
+      ],
+      "installation_paths": [],
+      "name": "WebRDP"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "weezo setup*.exe",
+        "weezo.exe",
+        "weezohttpd.exe"
+      ],
+      "installation_paths": [],
+      "name": "Weezo"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "winscp.exe"
+      ],
+      "installation_paths": [
+        "*\\winscp*portable\\*",
+        "*\\winscp.exe",
+        "*\\winscp\\*",
+        "c:\\users\\user\\downloads\\winscp-5.21.6-portable\\*"
+      ],
+      "name": "WinSCP"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "X2Go"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "xeox-agent_*.exe",
+        "xeox-agent_x64.exe",
+        "xeox-agent_x86.exe",
+        "xeox_service_windows.exe"
+      ],
+      "installation_paths": [],
+      "name": "Xeox"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "xpra-launcher.exe",
+        "xpra-x86_64_setup.exe"
+      ],
+      "installation_paths": [
+        "*\\xpra-launcher.exe",
+        "*\\xpra-x86_64_setup.exe",
+        "*\\xpra\\*",
+        "c:\\program files (x86)\\xpra\\*"
+      ],
+      "name": "Xpra"
+    },
+    {
+      "category": "RAT",
+      "executables": [],
+      "installation_paths": [],
+      "name": "XRDP"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "xshell.exe"
+      ],
+      "installation_paths": [
+        "*\\netsarang\\xshell\\*",
+        "*\\xshell.exe",
+        "c:\\program files (x86)\\netsarang\\xshell\\*"
+      ],
+      "name": "Xshell"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "yandexdisk2.exe"
+      ],
+      "installation_paths": [
+        "*\\yandex\\*",
+        "*\\yandexdisk2.exe",
+        "c:\\program files (x86)\\yandex\\*"
+      ],
+      "name": "Yandex.Disk"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "zabbix_agent*.exe"
+      ],
+      "installation_paths": [],
+      "name": "Zabbix Agent"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "zero-powershell.exe",
+        "zerotier*.exe",
+        "zerotier*.msi"
+      ],
+      "installation_paths": [],
+      "name": "ZeroTier"
+    },
+    {
+      "category": "RAT",
+      "executables": [
+        "zoc.exe"
+      ],
+      "installation_paths": [
+        "*\\zoc.exe",
+        "*\\zoc?\\*",
+        "c:\\program files\\zoc8\\*"
+      ],
+      "name": "ZOC"
+    },
+    {
+      "category": "RMM",
+      "executables": [
+        "connect.exe",
+        "toolsiq.exe",
+        "za_access.exe",
+        "za_connect.exe",
+        "zaservice.exe",
+        "zmagent.exe",
+        "zohomeeting.exe",
+        "zohotray.exe",
+        "zohours.exe",
+        "zohoursservice.exe"
+      ],
+      "installation_paths": [
+        "*\\za_access.exe"
+      ],
+      "name": "Zoho Assist"
+    }
+  ],
+  "updated_at": "2026-07-28T04:19:13Z"
+}

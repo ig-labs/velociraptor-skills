@@ -1,0 +1,8 @@
+// PasswordFile is an owner-only file path, never a password literal.
+LET ZIP_PASSWORDS <= read_file(filename=PasswordFile, accessor="file", length=4096)
+LET Root <= pathspec(DelegateAccessor="file", DelegatePath=EvidencePath, Path="/")
+LET Index <= SELECT * FROM parse_jsonl(accessor="collector",
+    filename=pathspec(DelegateAccessor="file", DelegatePath=EvidencePath, Path="/uploads.json"))
+LET Members <= SELECT OSPath.Path AS Path, Size FROM glob(
+    globs="/**", accessor="collector", root=Root) WHERE NOT IsDir
+SELECT Index, Members FROM scope()

@@ -1,0 +1,6 @@
+SELECT BodyLine
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.NTFS.MFT.BodyfileCompat'
+)

@@ -1,0 +1,6 @@
+SELECT
+  ClientId,
+  FlowId
+FROM watch_monitoring(artifact='System.Flow.Completion')
+WHERE FlowId =~ flow_id_regex
+LIMIT 1

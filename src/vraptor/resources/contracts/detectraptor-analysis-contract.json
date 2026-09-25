@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "source_of_truth": "Velociraptor DetectRaptor artifact results and exact source context",
+  "evtx_review_output": {
+    "findings": "sparse malicious or potentially malicious groups",
+    "whitelist_candidates": "sparse global or site review candidates",
+    "candidate_file": "analysis/detectraptor_whitelist_candidates.csv",
+    "payload_column": "final",
+    "automatic_mutation": false
+  },
+  "dispositions": [
+    "suspicious",
+    "notable",
+    "expected",
+    "false_positive",
+    "unresolved"
+  ],
+  "evidence_boundaries": {
+    "fleet": {
+      "canonical_skill": "velociraptor-hunting",
+      "allows_prevalence": true,
+      "uplift_scope": "reusable DetectRaptor logic"
+    },
+    "host": {
+      "canonical_skill": "velociraptor-host-analysis",
+      "allows_prevalence": false,
+      "uplift_scope": "candidate uplift requiring fleet validation"
+    }
+  },
+  "priority": [
+    {
+      "rank": 1,
+      "artifact": "DetectRaptor.Windows.Detection.Evtx",
+      "review_stacks": [
+        "detection"
+      ]
+    },
+    {
+      "rank": 2,
+      "artifact": "DetectRaptor.Windows.Detection.MFT",
+      "review_stacks": [
+        "criticality_detection",
+        "detection_path",
+        "string_hit"
+      ]
+    },
+    {
+      "rank": 3,
+      "artifact": "DetectRaptor.Windows.Detection.Powershell.PSReadline",
+      "review_stacks": [
+        "rule",
+        "command",
+        "rule_command"
+      ]
+    },
+    {
+      "rank": 4,
+      "artifact": "DetectRaptor.Windows.Detection.Applications",
+      "review_stacks": [
+        "category_application",
+        "application",
+        "application_version"
+      ]
+    },
+    {
+      "rank": 5,
+      "artifact": "DetectRaptor.Windows.Detection.LolRMM",
+      "review_stacks": [
+        "rmm_application",
+        "install_location"
+      ],
+      "named_sources": [
+        {
+          "artifact": "DetectRaptor.Windows.Detection.LolRMM/Processes",
+          "review_stacks": [
+            "rmm_process",
+            "executable",
+            "command_line"
+          ]
+        },
+        {
+          "artifact": "DetectRaptor.Windows.Detection.LolRMM/ResolvedDomains",
+          "review_stacks": [
+            "rmm_domain",
+            "dns_record"
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 6,
+      "artifact": "DetectRaptor.Windows.Detection.Amcache",
+      "review_stacks": [
+        "criticality_detection",
+        "detection_path",
+        "hash"
+      ]
+    },
+    {
+      "rank": 7,
+      "artifact": "DetectRaptor.Windows.Detection.BinaryRename",
+      "review_stacks": [
+        "rename_identity",
+        "path",
+        "hash"
+      ]
+    },
+    {
+      "rank": 8,
+      "artifact": "DetectRaptor.Windows.Detection.Webhistory",
+      "review_stacks": [
+        "category_domain",
+        "browser_domain"
+      ]
+    },
+    {
+      "rank": 9,
+      "artifact": "DetectRaptor.Windows.Detection.YaraProcessWin",
+      "review_stacks": [
+        "rule_process",
+        "rule_path"
+      ]
+    },
+    {
+      "rank": 10,
+      "artifact": "DetectRaptor.Generic.Detection.YaraWebshell",
+      "review_stacks": [
+        "rule_tags",
+        "rule_path"
+      ]
+    },
+    {
+      "rank": 11,
+      "artifact": "DetectRaptor.Generic.Detection.BrowserExtensions",
+      "review_stacks": [
+        "threat_type",
+        "extension",
+        "path_version"
+      ]
+    }
+  ]
+}

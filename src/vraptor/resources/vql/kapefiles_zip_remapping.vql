@@ -1,0 +1,30 @@
+// Generate a client remapping from a validated collection inventory.
+// The same Remapping can be installed in a notebook with remap(config=Remapping).
+LET Records <= SELECT * FROM parse_json_array(data=read_file(filename=RecordsFile))
+LET Base <= parse_yaml(filename=BaseFile)
+LET Common <= SELECT * FROM foreach(row=Base.remappings) WHERE type != 'mount'
+LET Roots <= SELECT accessor,
+    split(string=target, sep=':')[0] + ':' AS Drive,
+    join(array=split(string=member, sep='/')[:3], sep='/') AS MemberRoot
+FROM foreach(row=Records)
+GROUP BY accessor, Drive
+LET Mounts <= SELECT dict(type='mount', scope=MountScope,
+    `from`=dict(accessor='collector', prefix=serialize(format='json', item=dict(
+        DelegateAccessor='file', DelegatePath=EvidencePath, Path='/' + MemberRoot))),
+    `on`=dict(accessor=accessor, prefix=Drive,
+        path_type=if(condition=accessor='ntfs', then='ntfs', else='windows'))) AS Rule
+FROM foreach(row=Roots)
+LET HiveKeys <= dict(system='HKEY_LOCAL_MACHINE/System', software='HKEY_LOCAL_MACHINE/Software',
+    sam='HKEY_LOCAL_MACHINE/SAM', security='HKEY_LOCAL_MACHINE/Security')
+LET Hives <= SELECT *, lowcase(string=basename(path=relative)) AS Hive
+FROM foreach(row=Records)
+WHERE lowcase(string=relative) =~ '^windows/system32/config/(system|software|sam|security)$'
+GROUP BY Hive
+LET Registry <= SELECT dict(type='mount', scope=MountScope,
+    `from`=dict(accessor='raw_reg', path_type='registry', prefix=serialize(format='json',
+        item=dict(DelegateAccessor='collector', Delegate=dict(DelegateAccessor='file',
+        DelegatePath=EvidencePath, Path='/' + member), Path='/'))),
+    `on`=dict(accessor='registry', prefix=get(item=HiveKeys, field=Hive), path_type='registry')) AS Rule
+FROM foreach(row=Hives)
+LET Remapping <= dict(remappings=Common + Mounts.Rule + Registry.Rule)
+SELECT serialize(format='yaml', item=Remapping) AS Remapping FROM scope()

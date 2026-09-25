@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "scenarios": {
+    "approved-remote-administration-tool": {
+      "title": "Approved remote administration tool review",
+      "objective": "Distinguish approved remote administration from unauthorized deployment or use.",
+      "selection_guidance": "Use when the site's approved remote administration product, service, process, or network indicators are observed.",
+      "tactics": [
+        "execution",
+        "persistence",
+        "lateral-movement"
+      ],
+      "tags": [
+        "site-policy",
+        "remote-administration"
+      ],
+      "question_shapes": [
+        "single-host",
+        "cross-host"
+      ],
+      "artifacts": [
+        {
+          "artifact": "DetectRaptor.Windows.Detection.Applications",
+          "role": "primary",
+          "required_fields": [
+            "Name",
+            "Path"
+          ],
+          "optional_fields": [
+            "Hash",
+            "Publisher",
+            "ClientId",
+            "Fqdn"
+          ],
+          "stack_ids": [
+            "primary"
+          ],
+          "recommended_filters": [
+            "approved product name",
+            "approved publisher",
+            "approved installation path"
+          ],
+          "collection_parameters": {},
+          "notes": "Replace placeholders with site-approved values outside this repository."
+        },
+        {
+          "artifact": "Windows.System.Services",
+          "role": "supporting",
+          "required_fields": [
+            "Name",
+            "AbsoluteExePath",
+            "UserAccount"
+          ],
+          "optional_fields": [
+            "StartMode",
+            "HashServiceExe",
+            "CertinfoServiceExe"
+          ],
+          "stack_ids": [
+            "service_name",
+            "executable_path",
+            "service_account",
+            "executable_hash"
+          ],
+          "recommended_filters": [
+            "approved service name",
+            "approved service account",
+            "approved signer"
+          ],
+          "collection_parameters": {
+            "Calculate_hashes": "Y"
+          },
+          "notes": "Compare observed deployment with the site's approved baseline."
+        }
+      ],
+      "expected_signals": [
+        "Product, service, path, signer, account, and host scope match site policy."
+      ],
+      "benign_explanations": [
+        "Approved support, management, or deployment activity."
+      ],
+      "caveats": [
+        "Approved tooling can still be abused by an attacker.",
+        "A matching product name alone is not sufficient for disposition."
+      ],
+      "follow_up_artifacts": [
+        "Windows.EventLogs.RDPAuth",
+        "Windows.EventLogs.ExplicitLogon",
+        "Windows.Detection.BinaryHunter"
+      ],
+      "scope_expansion_triggers": [
+        "Tooling appears outside approved hosts, paths, accounts, versions, hashes, or time windows."
+      ],
+      "enabled": true
+    }
+  }
+}

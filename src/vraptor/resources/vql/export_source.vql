@@ -1,0 +1,6 @@
+SELECT *
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact=ArtifactName
+)

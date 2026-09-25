@@ -1,0 +1,1822 @@
+{
+  "files": {
+    ".codex/agents/analyst-agent.toml => .codex/agents/analyst-agent.toml": {
+      "ai_path": ".codex/agents/analyst-agent.toml",
+      "fingerprint": "sha256:840865e5edc0cd505a2ce96a5036ad7c0d2e05d6af09b244e826358387e3dcb9;mode:100644",
+      "public_path": ".codex/agents/analyst-agent.toml"
+    },
+    ".codex/agents/collection-agent.toml => .codex/agents/collection-agent.toml": {
+      "ai_path": ".codex/agents/collection-agent.toml",
+      "fingerprint": "sha256:6389e4768ea20b3e1e6e48d17fb1aeb33c7fd98772215314c43910acb2d6af0b;mode:100644",
+      "public_path": ".codex/agents/collection-agent.toml"
+    },
+    ".codex/agents/hunt-agent.toml => .codex/agents/hunt-agent.toml": {
+      "ai_path": ".codex/agents/hunt-agent.toml",
+      "fingerprint": "sha256:95b3b16a7e0e553ca6b511858aef307992451d9f6c5cdb83d1108041e1203e35;mode:100644",
+      "public_path": ".codex/agents/hunt-agent.toml"
+    },
+    ".codex/agents/setup-agent.toml => .codex/agents/setup-agent.toml": {
+      "ai_path": ".codex/agents/setup-agent.toml",
+      "fingerprint": "sha256:f3cda21646ef2df92629be1edb1e32b475bab710d3e999c5b9b7a2c595c21465;mode:100644",
+      "public_path": ".codex/agents/setup-agent.toml"
+    },
+    "config/analyst-agents.example.toml => config/analyst-agents.example.toml": {
+      "ai_path": "config/analyst-agents.example.toml",
+      "fingerprint": "sha256:7f967212cada802d71e6e482416d23022f44858da41180061a3b2b65bb95df1f;mode:100644",
+      "public_path": "config/analyst-agents.example.toml"
+    },
+    "config/vraptor.example.toml => config/vraptor.example.toml": {
+      "ai_path": "config/vraptor.example.toml",
+      "fingerprint": "sha256:49747ddc3c851134e8544abb48055df317d13c928d2d03139b1ca4cb01142871;mode:100644",
+      "public_path": "config/vraptor.example.toml"
+    },
+    "docs/agent-installation.md => docs/agent-installation.md": {
+      "ai_path": "docs/agent-installation.md",
+      "fingerprint": "sha256:2b9057d3f30eacd060b50485ab59bffccabb149bc84035a4812e763cd6e48347;mode:100644",
+      "public_path": "docs/agent-installation.md"
+    },
+    "docs/model-execution.md => docs/model-execution.md": {
+      "ai_path": "docs/model-execution.md",
+      "fingerprint": "sha256:5073475ad0aa1da425b1356c09cf0a6af85e81e33e5cf9e34d965443d7b17dc6;mode:100644",
+      "public_path": "docs/model-execution.md"
+    },
+    "docs/velociraptor-setup-testing.md => docs/velociraptor-setup-testing.md": {
+      "ai_path": "docs/velociraptor-setup-testing.md",
+      "fingerprint": "sha256:fcfbde834503219b0f2183c9030eae00ae1d3e3440b39516aaa97552a77c084d;mode:100644",
+      "public_path": "docs/velociraptor-setup-testing.md"
+    },
+    "docs/vraptor-installation.md => docs/vraptor-installation.md": {
+      "ai_path": "docs/vraptor-installation.md",
+      "fingerprint": "sha256:17197a6db653aafcd726fff090b979a877f43acc80b8a42ee9126dc3b041e496;mode:100644",
+      "public_path": "docs/vraptor-installation.md"
+    },
+    "packages/vraptor/docs/contracts/architecture.md => docs/contracts/architecture.md": {
+      "ai_path": "packages/vraptor/docs/contracts/architecture.md",
+      "fingerprint": "sha256:086d56e6f8626a7f83292021425322f5abadb3e169bc591c7f72c6aec08c78ba;mode:100644",
+      "public_path": "docs/contracts/architecture.md"
+    },
+    "packages/vraptor/docs/contracts/cli.md => docs/contracts/cli.md": {
+      "ai_path": "packages/vraptor/docs/contracts/cli.md",
+      "fingerprint": "sha256:66394a215732709e69eb8b686231ec5c890e411da14fca308618d1d2f2329e11;mode:100644",
+      "public_path": "docs/contracts/cli.md"
+    },
+    "packages/vraptor/docs/contracts/module-map.json => docs/contracts/module-map.json": {
+      "ai_path": "packages/vraptor/docs/contracts/module-map.json",
+      "fingerprint": "sha256:d6a0310c645df15dc6fb0ce74d9907e27bc24f860cd57e877e0bb43500c2cd41;mode:100644",
+      "public_path": "docs/contracts/module-map.json"
+    },
+    "packages/vraptor/docs/contracts/public-import.md => docs/contracts/public-import.md": {
+      "ai_path": "packages/vraptor/docs/contracts/public-import.md",
+      "fingerprint": "sha256:39b2af11fe8f1b6081811ba4344d9b4a58bfb534e5cceca280f1a37a7bb7ecfc;mode:100644",
+      "public_path": "docs/contracts/public-import.md"
+    },
+    "packages/vraptor/docs/reference/analysis-recovery.md => docs/reference/analysis-recovery.md": {
+      "ai_path": "packages/vraptor/docs/reference/analysis-recovery.md",
+      "fingerprint": "sha256:c38cf2d1f6f3dd924c65519defc859288ab0acf156d6ef402ca915751d31ae86;mode:100644",
+      "public_path": "docs/reference/analysis-recovery.md"
+    },
+    "packages/vraptor/docs/reference/analysis-reduction-contract.md => docs/reference/analysis-reduction-contract.md": {
+      "ai_path": "packages/vraptor/docs/reference/analysis-reduction-contract.md",
+      "fingerprint": "sha256:3032910140cff038d1d94eac39ffe8f5589604bb9e00306f1373e22644a9d08c;mode:100644",
+      "public_path": "docs/reference/analysis-reduction-contract.md"
+    },
+    "packages/vraptor/docs/reference/analysis-skip-ai.md => docs/reference/analysis-skip-ai.md": {
+      "ai_path": "packages/vraptor/docs/reference/analysis-skip-ai.md",
+      "fingerprint": "sha256:312b2e1c5d5d8de790173e84fdb30abec4e46b8e5c9ff9ceb623fb9fa45741d1;mode:100644",
+      "public_path": "docs/reference/analysis-skip-ai.md"
+    },
+    "packages/vraptor/docs/reference/analysis-synthesis.md => docs/reference/analysis-synthesis.md": {
+      "ai_path": "packages/vraptor/docs/reference/analysis-synthesis.md",
+      "fingerprint": "sha256:f31b8474fd020f140257f6c007571ae172ab52596c48f6bd1418dc3f1df50c1d;mode:100644",
+      "public_path": "docs/reference/analysis-synthesis.md"
+    },
+    "packages/vraptor/docs/reference/chunk-prompt-debug.md => docs/reference/chunk-prompt-debug.md": {
+      "ai_path": "packages/vraptor/docs/reference/chunk-prompt-debug.md",
+      "fingerprint": "sha256:a77ff9b7d0b4e4f21076172ededec210bdc21c8a112334312d0cc564949f74ea;mode:100644",
+      "public_path": "docs/reference/chunk-prompt-debug.md"
+    },
+    "packages/vraptor/docs/reference/detached-evidence-examples.md => docs/reference/detached-evidence-examples.md": {
+      "ai_path": "packages/vraptor/docs/reference/detached-evidence-examples.md",
+      "fingerprint": "sha256:9636626b2aa1aaef83d84d8c5024be35df528f004c86e4a95f1e374eb8419b10;mode:100644",
+      "public_path": "docs/reference/detached-evidence-examples.md"
+    },
+    "packages/vraptor/docs/reference/detached-evidence-manifest.md => docs/reference/detached-evidence-manifest.md": {
+      "ai_path": "packages/vraptor/docs/reference/detached-evidence-manifest.md",
+      "fingerprint": "sha256:209d142a02310e58a4492baa54f2e74f4c3a3db886088a589bcf2be558934127;mode:100644",
+      "public_path": "docs/reference/detached-evidence-manifest.md"
+    },
+    "packages/vraptor/docs/reference/detectraptor-analysis-contract.md => docs/reference/detectraptor-analysis-contract.md": {
+      "ai_path": "packages/vraptor/docs/reference/detectraptor-analysis-contract.md",
+      "fingerprint": "sha256:094b3b99bd832a72bc66a1d7a47f4d7ef761ccebb691925f29efab3b7a3cc335;mode:100644",
+      "public_path": "docs/reference/detectraptor-analysis-contract.md"
+    },
+    "packages/vraptor/docs/reference/detectraptor-bootstrap.md => docs/reference/detectraptor-bootstrap.md": {
+      "ai_path": "packages/vraptor/docs/reference/detectraptor-bootstrap.md",
+      "fingerprint": "sha256:c732bff2d6a6b24b42ad14ab715cc9037be0fe0028313fa943a11b5d2627ac82;mode:100644",
+      "public_path": "docs/reference/detectraptor-bootstrap.md"
+    },
+    "packages/vraptor/docs/reference/indicator-enrichment-workflow.md => docs/reference/indicator-enrichment-workflow.md": {
+      "ai_path": "packages/vraptor/docs/reference/indicator-enrichment-workflow.md",
+      "fingerprint": "sha256:6b9ea6748dd6b7181b90d6577bab392e684021c0bb8f04d7287ac7c928fb8c15;mode:100644",
+      "public_path": "docs/reference/indicator-enrichment-workflow.md"
+    },
+    "packages/vraptor/docs/reference/provider-api-execution.md => docs/reference/provider-api-execution.md": {
+      "ai_path": "packages/vraptor/docs/reference/provider-api-execution.md",
+      "fingerprint": "sha256:352aee7ae27aa32fb61ca1fcfef625271dfb8fb0168965c1f45898a05aab0287;mode:100644",
+      "public_path": "docs/reference/provider-api-execution.md"
+    },
+    "packages/vraptor/docs/reference/skill-resource-ownership.md => docs/reference/skill-resource-ownership.md": {
+      "ai_path": "packages/vraptor/docs/reference/skill-resource-ownership.md",
+      "fingerprint": "sha256:7cacf9703ef7fe664a0df97ea4836abf72726b1d2a3f7cd224101b3e353d0fa9;mode:100644",
+      "public_path": "docs/reference/skill-resource-ownership.md"
+    },
+    "packages/vraptor/docs/reference/velociraptor-engagement-context.md => docs/reference/velociraptor-engagement-context.md": {
+      "ai_path": "packages/vraptor/docs/reference/velociraptor-engagement-context.md",
+      "fingerprint": "sha256:cc5df3d12cda64fcd0f34df44626f1af6c95e19eee1ab55a7a42978ff93bb8f4;mode:100644",
+      "public_path": "docs/reference/velociraptor-engagement-context.md"
+    },
+    "packages/vraptor/docs/reference/velociraptor-hunt-flow-analysis.md => docs/reference/velociraptor-hunt-flow-analysis.md": {
+      "ai_path": "packages/vraptor/docs/reference/velociraptor-hunt-flow-analysis.md",
+      "fingerprint": "sha256:8c669a7d2771d92424cf95e9f3552c59b81c75cf1a8efc40999164174e777fbd;mode:100644",
+      "public_path": "docs/reference/velociraptor-hunt-flow-analysis.md"
+    },
+    "packages/vraptor/docs/reference/velociraptor-hunt-synthesis-validation-handoff.md => docs/reference/velociraptor-hunt-synthesis-validation-handoff.md": {
+      "ai_path": "packages/vraptor/docs/reference/velociraptor-hunt-synthesis-validation-handoff.md",
+      "fingerprint": "sha256:8f4225da1baafcff2ede68b37e618b2056055f222eb3fd484f498e40dc5d1534;mode:100644",
+      "public_path": "docs/reference/velociraptor-hunt-synthesis-validation-handoff.md"
+    },
+    "packages/vraptor/docs/reference/velociraptor-logging.md => docs/reference/velociraptor-logging.md": {
+      "ai_path": "packages/vraptor/docs/reference/velociraptor-logging.md",
+      "fingerprint": "sha256:4dd0c7ea2d3f3f1e114694670cffc099718f7a63e207f64d1dd7947716a061ba;mode:100644",
+      "public_path": "docs/reference/velociraptor-logging.md"
+    },
+    "packages/vraptor/docs/reference/velociraptor-operation-authorization.md => docs/reference/velociraptor-operation-authorization.md": {
+      "ai_path": "packages/vraptor/docs/reference/velociraptor-operation-authorization.md",
+      "fingerprint": "sha256:bbc49ac5ebfed6d374537014b9a0c32aaeaebe2528d97e4be2ce645bbd83e56d;mode:100644",
+      "public_path": "docs/reference/velociraptor-operation-authorization.md"
+    },
+    "packages/vraptor/pyproject.toml => pyproject.toml": {
+      "ai_path": "packages/vraptor/pyproject.toml",
+      "fingerprint": "sha256:9f3ce519c0838c62fdaf515f65071ef60fef97ba3f427fede4f6b57de2a4598e;mode:100644",
+      "public_path": "pyproject.toml"
+    },
+    "packages/vraptor/src/vraptor/__init__.py => src/vraptor/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/__init__.py",
+      "fingerprint": "sha256:191171ffd7a79c18560e58aa3e527488c2920d6485c623a9b6fa1d8ae66ba7b7;mode:100644",
+      "public_path": "src/vraptor/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/agent/__init__.py => src/vraptor/agent/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/__init__.py",
+      "fingerprint": "sha256:d025ce8ded0ed9761721315288f96acc280b8124215ca4d4506663a30345e09d;mode:100644",
+      "public_path": "src/vraptor/agent/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/agent/additional_providers.py => src/vraptor/agent/additional_providers.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/additional_providers.py",
+      "fingerprint": "sha256:188b0658b9e3913020913a7013e5a0d9953fdbcc0926df3692b8f087e54ccb55;mode:100644",
+      "public_path": "src/vraptor/agent/additional_providers.py"
+    },
+    "packages/vraptor/src/vraptor/agent/cli.py => src/vraptor/agent/cli.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/cli.py",
+      "fingerprint": "sha256:75b6e6b536977a9bc41102636aed9c5c98e89181ca28e13efcbaba52b2088bb4;mode:100644",
+      "public_path": "src/vraptor/agent/cli.py"
+    },
+    "packages/vraptor/src/vraptor/agent/codex_app_server.py => src/vraptor/agent/codex_app_server.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/codex_app_server.py",
+      "fingerprint": "sha256:4aea7ab1550fc619e906807285f17608bac858cfcf322d337d1647462cfb17c4;mode:100644",
+      "public_path": "src/vraptor/agent/codex_app_server.py"
+    },
+    "packages/vraptor/src/vraptor/agent/command.py => src/vraptor/agent/command.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/command.py",
+      "fingerprint": "sha256:fd9f6ae836d58787ff75e4d1ae00268519c5f1ef9bfa7c387977abb4e0261d9f;mode:100644",
+      "public_path": "src/vraptor/agent/command.py"
+    },
+    "packages/vraptor/src/vraptor/agent/config.py => src/vraptor/agent/config.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/config.py",
+      "fingerprint": "sha256:501afb2dc7851e0348e2630fa088c71d4c6831cf23da99f1ed9ce007438056a1;mode:100644",
+      "public_path": "src/vraptor/agent/config.py"
+    },
+    "packages/vraptor/src/vraptor/agent/diagnostics.py => src/vraptor/agent/diagnostics.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/diagnostics.py",
+      "fingerprint": "sha256:01acffdcecef861b277ee581cabcce4a13a6e05c97e0a50e97896b49472d7571;mode:100644",
+      "public_path": "src/vraptor/agent/diagnostics.py"
+    },
+    "packages/vraptor/src/vraptor/agent/factory.py => src/vraptor/agent/factory.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/factory.py",
+      "fingerprint": "sha256:57d3c99e29686fc66736dd4747ed4495efca80a745348fa8329362c234be2e50;mode:100644",
+      "public_path": "src/vraptor/agent/factory.py"
+    },
+    "packages/vraptor/src/vraptor/agent/manage.py => src/vraptor/agent/manage.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/manage.py",
+      "fingerprint": "sha256:4615d2eec1188a720fa191130f54023bca7eabb2478ad5ac03b264977d8ca9c6;mode:100644",
+      "public_path": "src/vraptor/agent/manage.py"
+    },
+    "packages/vraptor/src/vraptor/agent/model_budgets.py => src/vraptor/agent/model_budgets.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/model_budgets.py",
+      "fingerprint": "sha256:3a399df3c51e02873ae3c56aa2e1191a7e153d6d7fad7e76fab1acd3c43ffce6;mode:100644",
+      "public_path": "src/vraptor/agent/model_budgets.py"
+    },
+    "packages/vraptor/src/vraptor/agent/profiles.py => src/vraptor/agent/profiles.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/profiles.py",
+      "fingerprint": "sha256:2f6a7ac650be4667f05adbf740bff9f618cbbddf07e9f38659cc444f98cb8e7a;mode:100644",
+      "public_path": "src/vraptor/agent/profiles.py"
+    },
+    "packages/vraptor/src/vraptor/agent/providers.py => src/vraptor/agent/providers.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/providers.py",
+      "fingerprint": "sha256:5b0c528ba3e7cc4a154ff031bee6ea67a2c83b81be593a610d1d5e4454e34915;mode:100644",
+      "public_path": "src/vraptor/agent/providers.py"
+    },
+    "packages/vraptor/src/vraptor/agent/registry.py => src/vraptor/agent/registry.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/registry.py",
+      "fingerprint": "sha256:9071c250a545acb4306677cae1fcaa57d45d13955e82b21dd73d5fbd717899aa;mode:100644",
+      "public_path": "src/vraptor/agent/registry.py"
+    },
+    "packages/vraptor/src/vraptor/agent/runtime.py => src/vraptor/agent/runtime.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/runtime.py",
+      "fingerprint": "sha256:2319fe7ade36f150fbfdb096c63dc5efbe5690b7b64d71c9a6e44b25cc87ad80;mode:100644",
+      "public_path": "src/vraptor/agent/runtime.py"
+    },
+    "packages/vraptor/src/vraptor/agent/sources.py => src/vraptor/agent/sources.py": {
+      "ai_path": "packages/vraptor/src/vraptor/agent/sources.py",
+      "fingerprint": "sha256:4327fb0c0c519caea07ca0ebdc99f5559052fd19c0699e4e09543d2028865081;mode:100644",
+      "public_path": "src/vraptor/agent/sources.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/__init__.py => src/vraptor/analyze/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/__init__.py",
+      "fingerprint": "sha256:9c58d80e6111590811cbcfa5b93ead17325c690760eecfee9584930bc093e329;mode:100644",
+      "public_path": "src/vraptor/analyze/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/checkpoints.py => src/vraptor/analyze/checkpoints.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/checkpoints.py",
+      "fingerprint": "sha256:65f50ff957830b83f5669f4efbd065944755e33dc9d8814c10c45083a7f9965c;mode:100644",
+      "public_path": "src/vraptor/analyze/checkpoints.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/cli_arguments.py => src/vraptor/analyze/cli_arguments.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/cli_arguments.py",
+      "fingerprint": "sha256:75b6bebe6b4a370d89242156dc291e786f37daf5b1c5269b9cf3910347ad4c21;mode:100644",
+      "public_path": "src/vraptor/analyze/cli_arguments.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/cli_output.py => src/vraptor/analyze/cli_output.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/cli_output.py",
+      "fingerprint": "sha256:b3e313f3b0885c87bb4f105e2458bd5967e51cbf96ec7198ecd6cfdf899e2f0f;mode:100644",
+      "public_path": "src/vraptor/analyze/cli_output.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/command.py => src/vraptor/analyze/command.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/command.py",
+      "fingerprint": "sha256:c7ffccc317e3bf49534113549e098ad2e9ca4b2be4014272ac4cdd0ed2050c62;mode:100644",
+      "public_path": "src/vraptor/analyze/command.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/coordinator.py => src/vraptor/analyze/coordinator.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/coordinator.py",
+      "fingerprint": "sha256:7c10ace3cfe5968eb3dff094630dbe6940a096a88b46f0b8b3b03373645ddaf2;mode:100644",
+      "public_path": "src/vraptor/analyze/coordinator.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/detached.py => src/vraptor/analyze/detached.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/detached.py",
+      "fingerprint": "sha256:16bbb23103e2154158374f4fbf15d2c6ee27c67d018f70f81733129aa26f4fe4;mode:100644",
+      "public_path": "src/vraptor/analyze/detached.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/existing.py => src/vraptor/analyze/existing.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/existing.py",
+      "fingerprint": "sha256:3bc2d1bc4e882746d6f2bd118fe7972e39a6c03bb3b405bd887ac8157192580c;mode:100644",
+      "public_path": "src/vraptor/analyze/existing.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/final_review.py => src/vraptor/analyze/final_review.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/final_review.py",
+      "fingerprint": "sha256:a726325d3843af49a55675ea57f13ae388f2e89d889eab17562688eca505070e;mode:100644",
+      "public_path": "src/vraptor/analyze/final_review.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/flow.py => src/vraptor/analyze/flow.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/flow.py",
+      "fingerprint": "sha256:bf93a61775c722f4e40b04a3777cade5ae31ec3f857065e0522fec0fe97555ca;mode:100644",
+      "public_path": "src/vraptor/analyze/flow.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/flow_runtime.py => src/vraptor/analyze/flow_runtime.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/flow_runtime.py",
+      "fingerprint": "sha256:4e27a094de561bd2469d8bc4fe7230b5cf8ea09d001d01b58cf08f5b904c11f3;mode:100644",
+      "public_path": "src/vraptor/analyze/flow_runtime.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/forward.py => src/vraptor/analyze/forward.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/forward.py",
+      "fingerprint": "sha256:82ff3f6a9b6a665b9b350e19b4e37875c8cb85c72082aa335923e5ddf4574ff0;mode:100644",
+      "public_path": "src/vraptor/analyze/forward.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/host.py => src/vraptor/analyze/host.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/host.py",
+      "fingerprint": "sha256:ccf6aa6afba521cdf10e1b6c1f6d18ff4def34fd23409e22eb0743a74878543c;mode:100644",
+      "public_path": "src/vraptor/analyze/host.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/identity.py => src/vraptor/analyze/identity.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/identity.py",
+      "fingerprint": "sha256:2182ee328f7c08e1f0f340c875bbc4faed9a9cd53497abcadd8222b4197000ee;mode:100644",
+      "public_path": "src/vraptor/analyze/identity.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/limits.py => src/vraptor/analyze/limits.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/limits.py",
+      "fingerprint": "sha256:9d5eb8c004432a59b5e705c0228d87889d0bb8a386920ca689e092fcbc61da50;mode:100644",
+      "public_path": "src/vraptor/analyze/limits.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/line_protocol.py => src/vraptor/analyze/line_protocol.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/line_protocol.py",
+      "fingerprint": "sha256:1f3bb73fcd9c881abde0b366249adba60a7e7d78b881af126f7e559f83c406a0;mode:100644",
+      "public_path": "src/vraptor/analyze/line_protocol.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/model_options.py => src/vraptor/analyze/model_options.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/model_options.py",
+      "fingerprint": "sha256:6ea0087e04db2af233f059180a6ca974bd153951c04f6f47a6c28c631ef213c3;mode:100644",
+      "public_path": "src/vraptor/analyze/model_options.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/planning.py => src/vraptor/analyze/planning.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/planning.py",
+      "fingerprint": "sha256:7bc4fc2f2d046ab31c37915c4ad70fe6895719934692f9a648910b1c8fdefc15;mode:100644",
+      "public_path": "src/vraptor/analyze/planning.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/preparation.py => src/vraptor/analyze/preparation.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/preparation.py",
+      "fingerprint": "sha256:dc2eded65fe827f1f90050147f35aff74f5621e2b7d584544c4ab65c8d704ad2;mode:100644",
+      "public_path": "src/vraptor/analyze/preparation.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/profiles.py => src/vraptor/analyze/profiles.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/profiles.py",
+      "fingerprint": "sha256:0ab7bcf92c1ae3485affd617e9d99fbf4cc87bd85c95d0f49147090cf59b1bcc;mode:100644",
+      "public_path": "src/vraptor/analyze/profiles.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/prompt_debug.py => src/vraptor/analyze/prompt_debug.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/prompt_debug.py",
+      "fingerprint": "sha256:301f75e0f0998b3f2a01e29f132140174ed6d89f64e9eeee5e719a90d7153a37;mode:100644",
+      "public_path": "src/vraptor/analyze/prompt_debug.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/records.py => src/vraptor/analyze/records.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/records.py",
+      "fingerprint": "sha256:e16170b1ad54e1061442ac183f99b72636aa541e6f22c572ba63bf590a242440;mode:100644",
+      "public_path": "src/vraptor/analyze/records.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/recovery.py => src/vraptor/analyze/recovery.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/recovery.py",
+      "fingerprint": "sha256:dc578b6555b9dac51797da588fff39e1ea7abed5b2d0e82a37a36f8c3a49b4aa;mode:100644",
+      "public_path": "src/vraptor/analyze/recovery.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/references.py => src/vraptor/analyze/references.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/references.py",
+      "fingerprint": "sha256:204e34ecf9dadabe72f5ed66531504160f2436d5d85eb1182c7c043314a863c5;mode:100644",
+      "public_path": "src/vraptor/analyze/references.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/runtime.py => src/vraptor/analyze/runtime.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/runtime.py",
+      "fingerprint": "sha256:519b90df80560533b748bfa54bcfcfe98ba016da58ab7cba77d8f37011d1c7f8;mode:100644",
+      "public_path": "src/vraptor/analyze/runtime.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/saved.py => src/vraptor/analyze/saved.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/saved.py",
+      "fingerprint": "sha256:4c7ee875328c48721768ed5dbfa98050ece38685afcc752771f7b24fed52fa36;mode:100644",
+      "public_path": "src/vraptor/analyze/saved.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/scheduler.py => src/vraptor/analyze/scheduler.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/scheduler.py",
+      "fingerprint": "sha256:e5d7c3f2f21a53d018eb842459b2902ed31c1bf377afcdeca447e011a80ccfcd;mode:100644",
+      "public_path": "src/vraptor/analyze/scheduler.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/source.py => src/vraptor/analyze/source.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/source.py",
+      "fingerprint": "sha256:e8e51dd18ec338e2d62e4ece6d77ba4da90ccef2425c5efdec2f37506ee9d9e3;mode:100644",
+      "public_path": "src/vraptor/analyze/source.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/stack_review.py => src/vraptor/analyze/stack_review.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/stack_review.py",
+      "fingerprint": "sha256:cea92d7860576c62eed3f1b33bc232f2493e1b8fc5f2c36ef31672fa8461b58f;mode:100644",
+      "public_path": "src/vraptor/analyze/stack_review.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/summary.py => src/vraptor/analyze/summary.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/summary.py",
+      "fingerprint": "sha256:23e550323675803d9b58dc46f0289d407a50b34a4d717fe1f3889cec613f129a;mode:100644",
+      "public_path": "src/vraptor/analyze/summary.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/synthesis.py => src/vraptor/analyze/synthesis.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/synthesis.py",
+      "fingerprint": "sha256:0f1fbb4a35e813c5293247d7d0fe19263ad2fd8d7162f2c3d4e462b8cf414cdf;mode:100644",
+      "public_path": "src/vraptor/analyze/synthesis.py"
+    },
+    "packages/vraptor/src/vraptor/analyze/time_scope.py => src/vraptor/analyze/time_scope.py": {
+      "ai_path": "packages/vraptor/src/vraptor/analyze/time_scope.py",
+      "fingerprint": "sha256:f00fd33d4275e4ba46cef367f25280782a24563d4a7cc33e8551133f8996ce5f;mode:100644",
+      "public_path": "src/vraptor/analyze/time_scope.py"
+    },
+    "packages/vraptor/src/vraptor/api.py => src/vraptor/api.py": {
+      "ai_path": "packages/vraptor/src/vraptor/api.py",
+      "fingerprint": "sha256:bfe422f10d042a727e81c2b82b2c4267e29bc9f6f73c282cd915075afabbe333;mode:100644",
+      "public_path": "src/vraptor/api.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/__init__.py => src/vraptor/artifacts/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/__init__.py",
+      "fingerprint": "sha256:f466d7c7849efd466c2f6e94b5b94c3d1dd08be6262ce3fa3ad313741726cda7;mode:100644",
+      "public_path": "src/vraptor/artifacts/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/detectraptor.py => src/vraptor/artifacts/detectraptor.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/detectraptor.py",
+      "fingerprint": "sha256:69c1153c9482cf3ebe546c660e0408b4873f09eebe9bc6b7af2e62094ca0d446;mode:100644",
+      "public_path": "src/vraptor/artifacts/detectraptor.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/inventory.py => src/vraptor/artifacts/inventory.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/inventory.py",
+      "fingerprint": "sha256:e45134049584ac30dfb7c6c53bc9d66676d3154622508724b6dda8f723c999d8;mode:100644",
+      "public_path": "src/vraptor/artifacts/inventory.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/linux.py => src/vraptor/artifacts/linux.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/linux.py",
+      "fingerprint": "sha256:14b7c4bb1b991933d3ef43c938e3a73f00ce035caf1dd5719c0fc2d65b78cb85;mode:100644",
+      "public_path": "src/vraptor/artifacts/linux.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/persistence.py => src/vraptor/artifacts/persistence.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/persistence.py",
+      "fingerprint": "sha256:c770ef3652caceeab1e140263ab7550b061ebe5c2a8fe2ee80f29a24faefc7a7;mode:100644",
+      "public_path": "src/vraptor/artifacts/persistence.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/policy.py => src/vraptor/artifacts/policy.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/policy.py",
+      "fingerprint": "sha256:3491abd379fbf3f579e1769e046d30122ec2a1f285c3a590ed752f025b0fcf85;mode:100644",
+      "public_path": "src/vraptor/artifacts/policy.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/policy_cli.py => src/vraptor/artifacts/policy_cli.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/policy_cli.py",
+      "fingerprint": "sha256:3b4b0d68edf5dc4c05bddb487df694d4ab2b86a8a1ca36b5a0c11fcf1410c675;mode:100644",
+      "public_path": "src/vraptor/artifacts/policy_cli.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/profile_cli.py => src/vraptor/artifacts/profile_cli.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/profile_cli.py",
+      "fingerprint": "sha256:703ab1e2e8239227fcb5267fff6ccdff1a58ddedb61f83080e0a40b43efeaa9f;mode:100644",
+      "public_path": "src/vraptor/artifacts/profile_cli.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/profiles.py => src/vraptor/artifacts/profiles.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/profiles.py",
+      "fingerprint": "sha256:039f7e7bea51e0858f702e04984dba918df7013cda69505eaf2978e55957bd04;mode:100644",
+      "public_path": "src/vraptor/artifacts/profiles.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/scenario_cli.py => src/vraptor/artifacts/scenario_cli.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/scenario_cli.py",
+      "fingerprint": "sha256:f4ce50d1de076d8080db9174a4749ab347bbfe7bda8dc26d73da198671417869;mode:100644",
+      "public_path": "src/vraptor/artifacts/scenario_cli.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/scenarios.py => src/vraptor/artifacts/scenarios.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/scenarios.py",
+      "fingerprint": "sha256:0c593a0a9ad7b685804f54e0db372c6d19c98c47de74c88e7deb7fe8ef7d04f2;mode:100644",
+      "public_path": "src/vraptor/artifacts/scenarios.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/schema.py => src/vraptor/artifacts/schema.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/schema.py",
+      "fingerprint": "sha256:b9f95ed157a4cbf66a802d983cfc0f72157fd9ef1dd8b4b1d40c46b29880924d;mode:100644",
+      "public_path": "src/vraptor/artifacts/schema.py"
+    },
+    "packages/vraptor/src/vraptor/artifacts/sources.py => src/vraptor/artifacts/sources.py": {
+      "ai_path": "packages/vraptor/src/vraptor/artifacts/sources.py",
+      "fingerprint": "sha256:2ea7f7c6f54055b6bab4b58cb1c6ba96c51ac51e0ba7b456c76b3643c9690e9f;mode:100644",
+      "public_path": "src/vraptor/artifacts/sources.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/__init__.py => src/vraptor/autoruns/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/__init__.py",
+      "fingerprint": "sha256:b1b455d3eadc5ec7323212fa0b843c2ea8e420e0daa6c65767812649685d040a;mode:100644",
+      "public_path": "src/vraptor/autoruns/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/ai_review.py => src/vraptor/autoruns/ai_review.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/ai_review.py",
+      "fingerprint": "sha256:bddf7147c70eaf3a72eaa468976bb82346e910020f238afaf38d9f20ae33003f;mode:100644",
+      "public_path": "src/vraptor/autoruns/ai_review.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/csv_store.py => src/vraptor/autoruns/csv_store.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/csv_store.py",
+      "fingerprint": "sha256:fc38f2dbdbaacccd34035b5cb0f28bb54a47d6c35ea9afba9eea27082728b08e;mode:100644",
+      "public_path": "src/vraptor/autoruns/csv_store.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/dedup_ai.py => src/vraptor/autoruns/dedup_ai.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/dedup_ai.py",
+      "fingerprint": "sha256:77933cb703f6c2d27ecaf3e1082ed4a235797031839a38246337aaa70769095e;mode:100644",
+      "public_path": "src/vraptor/autoruns/dedup_ai.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/golden.py => src/vraptor/autoruns/golden.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/golden.py",
+      "fingerprint": "sha256:9c55d9ce05f6b8f5e94b529314ab5606e814c4f9c55ad5b5ed61e92544450320;mode:100644",
+      "public_path": "src/vraptor/autoruns/golden.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/pipeline.py => src/vraptor/autoruns/pipeline.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/pipeline.py",
+      "fingerprint": "sha256:d5b521d71aac6cef17296221fa7966acde0bd08a183e32d2030fec7964a05f37;mode:100644",
+      "public_path": "src/vraptor/autoruns/pipeline.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/publication.py => src/vraptor/autoruns/publication.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/publication.py",
+      "fingerprint": "sha256:e32f415b4e05cbac4fa6a6846647d6e6c7197b71ae3b0952e5be9b760c977bbb;mode:100644",
+      "public_path": "src/vraptor/autoruns/publication.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/regex.py => src/vraptor/autoruns/regex.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/regex.py",
+      "fingerprint": "sha256:9a6db73a1e3b672ae3c511b773878a91f8b203d3e10bc7f17a1cc03a0b949cd9;mode:100644",
+      "public_path": "src/vraptor/autoruns/regex.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/regex_store.py => src/vraptor/autoruns/regex_store.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/regex_store.py",
+      "fingerprint": "sha256:c1d76f8d1feffd70680901075e7738350b0cd32296af7c0b63820407a2ad139e;mode:100644",
+      "public_path": "src/vraptor/autoruns/regex_store.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/reporting.py => src/vraptor/autoruns/reporting.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/reporting.py",
+      "fingerprint": "sha256:76645b3bb88f978249029e4bbbea61dd7ca6d78a8a7b265d946aae5a105caa52;mode:100644",
+      "public_path": "src/vraptor/autoruns/reporting.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/review.py => src/vraptor/autoruns/review.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/review.py",
+      "fingerprint": "sha256:3efec8d9cd66400c1964d8923a595d7e656b0ecdaa20a2fd15ef8bc9e68b4ab9;mode:100644",
+      "public_path": "src/vraptor/autoruns/review.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/signature.py => src/vraptor/autoruns/signature.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/signature.py",
+      "fingerprint": "sha256:95dac2f21007d8bd1016f567dbf9352852bb8674280aa6e47c6e2e3386825df6;mode:100644",
+      "public_path": "src/vraptor/autoruns/signature.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/test_groups.py => src/vraptor/autoruns/test_groups.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/test_groups.py",
+      "fingerprint": "sha256:961d57cc64f08b6d17f4efb4257d202b12e0fdbcc34fddb16c3dc7bcd8d06f67;mode:100644",
+      "public_path": "src/vraptor/autoruns/test_groups.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/test_store.py => src/vraptor/autoruns/test_store.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/test_store.py",
+      "fingerprint": "sha256:b1e5dbc1b92621646b3946b52703be9cbdf7292048a1cc0d82d6db07c337d60c;mode:100644",
+      "public_path": "src/vraptor/autoruns/test_store.py"
+    },
+    "packages/vraptor/src/vraptor/autoruns/testing.py => src/vraptor/autoruns/testing.py": {
+      "ai_path": "packages/vraptor/src/vraptor/autoruns/testing.py",
+      "fingerprint": "sha256:945909e5388f752a89c19151ea84ef553c35a714c65bc21d8da2e5ed2c850005;mode:100644",
+      "public_path": "src/vraptor/autoruns/testing.py"
+    },
+    "packages/vraptor/src/vraptor/case_layout.py => src/vraptor/case_layout.py": {
+      "ai_path": "packages/vraptor/src/vraptor/case_layout.py",
+      "fingerprint": "sha256:c34d727daafdf19f3a1e64052262e04718ec357e6939576f923a065626f8667a;mode:100644",
+      "public_path": "src/vraptor/case_layout.py"
+    },
+    "packages/vraptor/src/vraptor/cli.py => src/vraptor/cli.py": {
+      "ai_path": "packages/vraptor/src/vraptor/cli.py",
+      "fingerprint": "sha256:e973d2537b9f453d5943a9815e7145c95abd0dd5ec300f3c765c6411c01bc797;mode:100644",
+      "public_path": "src/vraptor/cli.py"
+    },
+    "packages/vraptor/src/vraptor/collect/__init__.py => src/vraptor/collect/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/collect/__init__.py",
+      "fingerprint": "sha256:00e1b7de82a873085966cb6e4e9d6de471483558a8aaca81bdd18ec948be4c87;mode:100644",
+      "public_path": "src/vraptor/collect/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/collect/catalog.py => src/vraptor/collect/catalog.py": {
+      "ai_path": "packages/vraptor/src/vraptor/collect/catalog.py",
+      "fingerprint": "sha256:3aa6e7732641cb37ce1abfda023ab4dab139d25191b4441e754377fa94f2961f;mode:100644",
+      "public_path": "src/vraptor/collect/catalog.py"
+    },
+    "packages/vraptor/src/vraptor/collect/hydrate.py => src/vraptor/collect/hydrate.py": {
+      "ai_path": "packages/vraptor/src/vraptor/collect/hydrate.py",
+      "fingerprint": "sha256:4cc8902c3eade64675a433e6b92c77818e647ccbc31921b911c4453d1883654c;mode:100644",
+      "public_path": "src/vraptor/collect/hydrate.py"
+    },
+    "packages/vraptor/src/vraptor/collect/layout.py => src/vraptor/collect/layout.py": {
+      "ai_path": "packages/vraptor/src/vraptor/collect/layout.py",
+      "fingerprint": "sha256:6d1f8c14295c3ec0c1d360a134044adb2790e15b0b2c7e3a75f4c3b31aa938bc;mode:100644",
+      "public_path": "src/vraptor/collect/layout.py"
+    },
+    "packages/vraptor/src/vraptor/collect/requests.py => src/vraptor/collect/requests.py": {
+      "ai_path": "packages/vraptor/src/vraptor/collect/requests.py",
+      "fingerprint": "sha256:a782fc30692b680dbd58c01f872a030e585b80a68f5023c99bb1169a966c5a68;mode:100644",
+      "public_path": "src/vraptor/collect/requests.py"
+    },
+    "packages/vraptor/src/vraptor/common/__init__.py => src/vraptor/common/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/common/__init__.py",
+      "fingerprint": "sha256:48fb0a4f3212bdafdd96e053a495c223ff836a0868a158d0e2449472e9822857;mode:100644",
+      "public_path": "src/vraptor/common/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/common/atomic_io.py => src/vraptor/common/atomic_io.py": {
+      "ai_path": "packages/vraptor/src/vraptor/common/atomic_io.py",
+      "fingerprint": "sha256:897e40e6ffa0819707d5d689189139e2d7ea5af697278d64f232b39ca0e30a90;mode:100644",
+      "public_path": "src/vraptor/common/atomic_io.py"
+    },
+    "packages/vraptor/src/vraptor/common/cli_arguments.py => src/vraptor/common/cli_arguments.py": {
+      "ai_path": "packages/vraptor/src/vraptor/common/cli_arguments.py",
+      "fingerprint": "sha256:9421c7b3e4802da609f9bf4aa190a8da09e456cb0628d985b09b1ea5a645e667;mode:100644",
+      "public_path": "src/vraptor/common/cli_arguments.py"
+    },
+    "packages/vraptor/src/vraptor/common/hashing.py => src/vraptor/common/hashing.py": {
+      "ai_path": "packages/vraptor/src/vraptor/common/hashing.py",
+      "fingerprint": "sha256:29338a11a20e338236807461f6efbb24b2f70177c296db9cf61707aac8b8f5ba;mode:100644",
+      "public_path": "src/vraptor/common/hashing.py"
+    },
+    "packages/vraptor/src/vraptor/common/labels.py => src/vraptor/common/labels.py": {
+      "ai_path": "packages/vraptor/src/vraptor/common/labels.py",
+      "fingerprint": "sha256:a08baee389da4d9fe6a79b4c0914bbd60ec07d357861211b4ca12a2a05c4d6a9;mode:100644",
+      "public_path": "src/vraptor/common/labels.py"
+    },
+    "packages/vraptor/src/vraptor/common/sequences.py => src/vraptor/common/sequences.py": {
+      "ai_path": "packages/vraptor/src/vraptor/common/sequences.py",
+      "fingerprint": "sha256:23b7aa4210cb4caffb8d2a0be3866f53156d55ccc09a8658377d9cc52a9f293c;mode:100644",
+      "public_path": "src/vraptor/common/sequences.py"
+    },
+    "packages/vraptor/src/vraptor/common/token_budget.py => src/vraptor/common/token_budget.py": {
+      "ai_path": "packages/vraptor/src/vraptor/common/token_budget.py",
+      "fingerprint": "sha256:7379abfe0f2c62e1ed7e39f716f3cfb176f942fc5c07ac9af67f0cd0c22ed238;mode:100644",
+      "public_path": "src/vraptor/common/token_budget.py"
+    },
+    "packages/vraptor/src/vraptor/context.py => src/vraptor/context.py": {
+      "ai_path": "packages/vraptor/src/vraptor/context.py",
+      "fingerprint": "sha256:6fd6bf4f86744013300ec51842da00227bc62d5bd1c384f51517b8886ccae186;mode:100644",
+      "public_path": "src/vraptor/context.py"
+    },
+    "packages/vraptor/src/vraptor/export_mapping.py => src/vraptor/export_mapping.py": {
+      "ai_path": "packages/vraptor/src/vraptor/export_mapping.py",
+      "fingerprint": "sha256:ce784cd39c0e856a2a8290a884bf326f599030affaa511cb2398bf4c108c8578;mode:100644",
+      "public_path": "src/vraptor/export_mapping.py"
+    },
+    "packages/vraptor/src/vraptor/hunt/__init__.py => src/vraptor/hunt/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/hunt/__init__.py",
+      "fingerprint": "sha256:96724e87f69478a01b93b8580d944d34344b4efcef012e8f861dcd87667edacd;mode:100644",
+      "public_path": "src/vraptor/hunt/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/hunt/analysis.py => src/vraptor/hunt/analysis.py": {
+      "ai_path": "packages/vraptor/src/vraptor/hunt/analysis.py",
+      "fingerprint": "sha256:1bda8e41a30ca0fe3e1ac213fdf39bcb06d9b41ab2307a00733eb11d6bdb7e5f;mode:100644",
+      "public_path": "src/vraptor/hunt/analysis.py"
+    },
+    "packages/vraptor/src/vraptor/hunt/command.py => src/vraptor/hunt/command.py": {
+      "ai_path": "packages/vraptor/src/vraptor/hunt/command.py",
+      "fingerprint": "sha256:2c2fa308c67a7d78963e481d23eb53cbe02dcf1e71a6f88bd352bd784dbcbd54;mode:100644",
+      "public_path": "src/vraptor/hunt/command.py"
+    },
+    "packages/vraptor/src/vraptor/hunt/live.py => src/vraptor/hunt/live.py": {
+      "ai_path": "packages/vraptor/src/vraptor/hunt/live.py",
+      "fingerprint": "sha256:75e1210875fa4433e0695d1ee974e3eb890d5ecfb5e7200591937c517afc8796;mode:100644",
+      "public_path": "src/vraptor/hunt/live.py"
+    },
+    "packages/vraptor/src/vraptor/hunt/operations.py => src/vraptor/hunt/operations.py": {
+      "ai_path": "packages/vraptor/src/vraptor/hunt/operations.py",
+      "fingerprint": "sha256:1ca9b8bbf7961e06e8dabe5fceefed72dfa9e41fc0712a6ea6ba678489068ff0;mode:100644",
+      "public_path": "src/vraptor/hunt/operations.py"
+    },
+    "packages/vraptor/src/vraptor/integrations/__init__.py => src/vraptor/integrations/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/integrations/__init__.py",
+      "fingerprint": "sha256:84b43bed8a22b7e2a90cec08816dc3d63ef26e166e489e6347b1d8956b6dfb83;mode:100644",
+      "public_path": "src/vraptor/integrations/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/legacy_cli.py => src/vraptor/legacy_cli.py": {
+      "ai_path": "packages/vraptor/src/vraptor/legacy_cli.py",
+      "fingerprint": "sha256:b661c07b69b7fb7b7df637126e7cff9bfbfdc1ea297acdef2b989fdea6e67f4c;mode:100644",
+      "public_path": "src/vraptor/legacy_cli.py"
+    },
+    "packages/vraptor/src/vraptor/lifecycle.py => src/vraptor/lifecycle.py": {
+      "ai_path": "packages/vraptor/src/vraptor/lifecycle.py",
+      "fingerprint": "sha256:b44816c3d6969382451d3b0d75923540b461b300c95b496ad08b745f0283f7e6;mode:100644",
+      "public_path": "src/vraptor/lifecycle.py"
+    },
+    "packages/vraptor/src/vraptor/logging/__init__.py => src/vraptor/logging/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/logging/__init__.py",
+      "fingerprint": "sha256:bd5d3c51a0ca600579b21cbc995ed7f108c36c911903b4406a8c7407de13d06e;mode:100644",
+      "public_path": "src/vraptor/logging/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/logging/command.py => src/vraptor/logging/command.py": {
+      "ai_path": "packages/vraptor/src/vraptor/logging/command.py",
+      "fingerprint": "sha256:724ee64383fe1cf8e7d2af5e5837851be308b37658a35001d171f3d3daebd8c9;mode:100644",
+      "public_path": "src/vraptor/logging/command.py"
+    },
+    "packages/vraptor/src/vraptor/logging/operations.py => src/vraptor/logging/operations.py": {
+      "ai_path": "packages/vraptor/src/vraptor/logging/operations.py",
+      "fingerprint": "sha256:3cfe8c0390094862803809966cd0ce8134693c6900f36028461c528176e05c54;mode:100644",
+      "public_path": "src/vraptor/logging/operations.py"
+    },
+    "packages/vraptor/src/vraptor/paths.py => src/vraptor/paths.py": {
+      "ai_path": "packages/vraptor/src/vraptor/paths.py",
+      "fingerprint": "sha256:7d189175d55edfa552482934a4ab61a80dc864aec71f0c76d921b99295600682;mode:100644",
+      "public_path": "src/vraptor/paths.py"
+    },
+    "packages/vraptor/src/vraptor/query.py => src/vraptor/query.py": {
+      "ai_path": "packages/vraptor/src/vraptor/query.py",
+      "fingerprint": "sha256:54a8e041cb80b52c84b621063960010c2f5f52dd11461f3ad9410f4ff45dfc34;mode:100644",
+      "public_path": "src/vraptor/query.py"
+    },
+    "packages/vraptor/src/vraptor/readiness.py => src/vraptor/readiness.py": {
+      "ai_path": "packages/vraptor/src/vraptor/readiness.py",
+      "fingerprint": "sha256:81ce6ad5c2deb6be571bb1ce00c0b4d7470d1cf0997cf744aa89aa9de932f897;mode:100644",
+      "public_path": "src/vraptor/readiness.py"
+    },
+    "packages/vraptor/src/vraptor/readiness_state.py => src/vraptor/readiness_state.py": {
+      "ai_path": "packages/vraptor/src/vraptor/readiness_state.py",
+      "fingerprint": "sha256:8ba1e50f23f4ff4f8b459a66d8a402b258df107959deb3515e3e0981c29465a2;mode:100644",
+      "public_path": "src/vraptor/readiness_state.py"
+    },
+    "packages/vraptor/src/vraptor/resources/README.md => src/vraptor/resources/README.md": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/README.md",
+      "fingerprint": "sha256:2463e00f4cfd6710b3f7dd7ede120ca7a4e681f6b68eb451e6228e0e5d3e062a;mode:100644",
+      "public_path": "src/vraptor/resources/README.md"
+    },
+    "packages/vraptor/src/vraptor/resources/__init__.py => src/vraptor/resources/__init__.py": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/__init__.py",
+      "fingerprint": "sha256:f8faca54a5f8f1852f4d0cee0f49fe241eafe4a949d8ea7c95f666afb19daed3;mode:100644",
+      "public_path": "src/vraptor/resources/__init__.py"
+    },
+    "packages/vraptor/src/vraptor/resources/artifact-schema-compatibility.json => src/vraptor/resources/artifact-schema-compatibility.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/artifact-schema-compatibility.json",
+      "fingerprint": "sha256:c44deca942c2a0b0502e5e79c9bc0da8e8bed1cb2786e4bb98ad899355ab4e65;mode:100644",
+      "public_path": "src/vraptor/resources/artifact-schema-compatibility.json"
+    },
+    "packages/vraptor/src/vraptor/resources/autoruns/builtin-signature-contract.json => src/vraptor/resources/autoruns/builtin-signature-contract.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/autoruns/builtin-signature-contract.json",
+      "fingerprint": "sha256:babba4cad3e45b2ed4e7a3801316db674c3f447f90113ebd4528dce1f95787b8;mode:100644",
+      "public_path": "src/vraptor/resources/autoruns/builtin-signature-contract.json"
+    },
+    "packages/vraptor/src/vraptor/resources/autoruns/regex-review-cached.vql => src/vraptor/resources/autoruns/regex-review-cached.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/autoruns/regex-review-cached.vql",
+      "fingerprint": "sha256:8504f8530d50fee3325ca4ec3eb9d903377cfcd592837a01b3dda3860939e138;mode:100644",
+      "public_path": "src/vraptor/resources/autoruns/regex-review-cached.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/autoruns/regex-review-dedup-first.vql => src/vraptor/resources/autoruns/regex-review-dedup-first.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/autoruns/regex-review-dedup-first.vql",
+      "fingerprint": "sha256:9d400899501c8ee9de3a5369dbecae80ecf9aff250c91f42757b0034f51ee3ac;mode:100644",
+      "public_path": "src/vraptor/resources/autoruns/regex-review-dedup-first.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/autoruns/regex-review.vql => src/vraptor/resources/autoruns/regex-review.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/autoruns/regex-review.vql",
+      "fingerprint": "sha256:5d83ff3eab04b6c53a8d5cd8a4ee606c805df591e5233c277925f10bf039f943;mode:100644",
+      "public_path": "src/vraptor/resources/autoruns/regex-review.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/autoruns/windows-autoruns-known-good-schema.sql => src/vraptor/resources/autoruns/windows-autoruns-known-good-schema.sql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/autoruns/windows-autoruns-known-good-schema.sql",
+      "fingerprint": "sha256:3421954450a3e55f6d11748ff4d21aa2c5ce7ac99f7ccc9a56d2973b6f9fef0a;mode:100644",
+      "public_path": "src/vraptor/resources/autoruns/windows-autoruns-known-good-schema.sql"
+    },
+    "packages/vraptor/src/vraptor/resources/collection-analysis-profiles.json => src/vraptor/resources/collection-analysis-profiles.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/collection-analysis-profiles.json",
+      "fingerprint": "sha256:d113d9c2f6b893d1e4cc8bbbd0f5673159b3c15f46ca8549f611d1a9e67499a4;mode:100644",
+      "public_path": "src/vraptor/resources/collection-analysis-profiles.json"
+    },
+    "packages/vraptor/src/vraptor/resources/collection-groups.json => src/vraptor/resources/collection-groups.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/collection-groups.json",
+      "fingerprint": "sha256:c2f1ec9dab856f15028938eff6e942021a6471acb581a1ea42b995e0c9999869;mode:100644",
+      "public_path": "src/vraptor/resources/collection-groups.json"
+    },
+    "packages/vraptor/src/vraptor/resources/contracts/detached-evidence-manifest.json => src/vraptor/resources/contracts/detached-evidence-manifest.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/contracts/detached-evidence-manifest.json",
+      "fingerprint": "sha256:6bd8c9dfd2181dbae07be7f1b0bef63cba8f0b6b6172101cca0246bbcdf63a55;mode:100644",
+      "public_path": "src/vraptor/resources/contracts/detached-evidence-manifest.json"
+    },
+    "packages/vraptor/src/vraptor/resources/contracts/detectraptor-analysis-contract.json => src/vraptor/resources/contracts/detectraptor-analysis-contract.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/contracts/detectraptor-analysis-contract.json",
+      "fingerprint": "sha256:f37c0e98d5b788b6a84a5a04a28fb76c5ae5aa26c90499e62c5dec40dbe1502e;mode:100644",
+      "public_path": "src/vraptor/resources/contracts/detectraptor-analysis-contract.json"
+    },
+    "packages/vraptor/src/vraptor/resources/contracts/velociraptor-host-analysis-capabilities.json => src/vraptor/resources/contracts/velociraptor-host-analysis-capabilities.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/contracts/velociraptor-host-analysis-capabilities.json",
+      "fingerprint": "sha256:fa264e2d4ebb3a2e237285d8a4bf694624f50fc63e2c6633f25eba876fc4b17b;mode:100644",
+      "public_path": "src/vraptor/resources/contracts/velociraptor-host-analysis-capabilities.json"
+    },
+    "packages/vraptor/src/vraptor/resources/contracts/velociraptor-hunting-capabilities.json => src/vraptor/resources/contracts/velociraptor-hunting-capabilities.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/contracts/velociraptor-hunting-capabilities.json",
+      "fingerprint": "sha256:2d1c05ce837f05b89b6f9f2dfb83f7a798de39d31e13196e85a5c5c9ad2f7382;mode:100644",
+      "public_path": "src/vraptor/resources/contracts/velociraptor-hunting-capabilities.json"
+    },
+    "packages/vraptor/src/vraptor/resources/contracts/velociraptor-linux-host-profile.json => src/vraptor/resources/contracts/velociraptor-linux-host-profile.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/contracts/velociraptor-linux-host-profile.json",
+      "fingerprint": "sha256:30c4b2518e0f3cec5342b5ef0a1db30c0032cff718edbe79154c8c3d68fdb7dd;mode:100644",
+      "public_path": "src/vraptor/resources/contracts/velociraptor-linux-host-profile.json"
+    },
+    "packages/vraptor/src/vraptor/resources/contracts/velociraptor-persistence-policy.json => src/vraptor/resources/contracts/velociraptor-persistence-policy.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/contracts/velociraptor-persistence-policy.json",
+      "fingerprint": "sha256:8b741a344e1d17d453674d2109fa75dbf7526dcb3b31885d9d27d1a13f749b72;mode:100644",
+      "public_path": "src/vraptor/resources/contracts/velociraptor-persistence-policy.json"
+    },
+    "packages/vraptor/src/vraptor/resources/detection-scenarios.json => src/vraptor/resources/detection-scenarios.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/detection-scenarios.json",
+      "fingerprint": "sha256:b1567272833dee5d85add18b55ebd9517c562fe7d69fa2d99353bd85ca2e3170;mode:100644",
+      "public_path": "src/vraptor/resources/detection-scenarios.json"
+    },
+    "packages/vraptor/src/vraptor/resources/golden/README.md => src/vraptor/resources/golden/README.md": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/golden/README.md",
+      "fingerprint": "sha256:29fa91bfc1248f121b03f9c5bdd9499c769762daf74c2c5689a4e6f80906dde6;mode:100644",
+      "public_path": "src/vraptor/resources/golden/README.md"
+    },
+    "packages/vraptor/src/vraptor/resources/golden/autoruns-golden.csv => src/vraptor/resources/golden/autoruns-golden.csv": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/golden/autoruns-golden.csv",
+      "fingerprint": "sha256:05e8eb484f93dea021959435ff21861b5a97a34698c461093f464284fd938a66;mode:100644",
+      "public_path": "src/vraptor/resources/golden/autoruns-golden.csv"
+    },
+    "packages/vraptor/src/vraptor/resources/golden/autoruns-golden.sqlite => src/vraptor/resources/golden/autoruns-golden.sqlite": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/golden/autoruns-golden.sqlite",
+      "fingerprint": "sha256:6acf11c292722e9dd584809755960d8e794816186e24ed413a2ddfee67be059b;mode:100644",
+      "public_path": "src/vraptor/resources/golden/autoruns-golden.sqlite"
+    },
+    "packages/vraptor/src/vraptor/resources/preferred-artifacts.json => src/vraptor/resources/preferred-artifacts.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/preferred-artifacts.json",
+      "fingerprint": "sha256:1f35d76fb21e019ffc65cae163c4e2a5061e46ce5108c552a93d2cfa6037df3b;mode:100644",
+      "public_path": "src/vraptor/resources/preferred-artifacts.json"
+    },
+    "packages/vraptor/src/vraptor/resources/profiles/profiles.toml => src/vraptor/resources/profiles/profiles.toml": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/profiles/profiles.toml",
+      "fingerprint": "sha256:2cf144ce1f389c92d9842c0f802c22d080f111f1c22de8d68a6ed1a04dae8251;mode:100644",
+      "public_path": "src/vraptor/resources/profiles/profiles.toml"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/load_repo_env.sh => src/vraptor/resources/scripts/load_repo_env.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/load_repo_env.sh",
+      "fingerprint": "sha256:e7f9155589fe642f5d3983404cae1f9997ed0eff20a4bbc2f3a4d3388519c1eb;mode:100644",
+      "public_path": "src/vraptor/resources/scripts/load_repo_env.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/prep_dfir_tools.sh => src/vraptor/resources/scripts/prep_dfir_tools.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/prep_dfir_tools.sh",
+      "fingerprint": "sha256:665b01afccc3db9bf1e5235bef29d8b64781c8682c73b37a57ddd8c97e873cf7;mode:100755",
+      "public_path": "src/vraptor/resources/scripts/prep_dfir_tools.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/requirements.txt => src/vraptor/resources/scripts/requirements.txt": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/requirements.txt",
+      "fingerprint": "sha256:a433b1fca929b7aea574fd98a5209ce502fa59b3474e6534b11f03bb884c5a03;mode:100644",
+      "public_path": "src/vraptor/resources/scripts/requirements.txt"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/velociraptor/add_mapped_client.sh => src/vraptor/resources/scripts/velociraptor/add_mapped_client.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/velociraptor/add_mapped_client.sh",
+      "fingerprint": "sha256:ce60b42c2a0c4ad6f0822341c8821f6ebd3f00e4186a7b24c31e33b44cfaa26c;mode:100755",
+      "public_path": "src/vraptor/resources/scripts/velociraptor/add_mapped_client.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/velociraptor/add_remote_mapped_client.sh => src/vraptor/resources/scripts/velociraptor/add_remote_mapped_client.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/velociraptor/add_remote_mapped_client.sh",
+      "fingerprint": "sha256:e71975eba46e300bedca037b0a4ed2ed3da239fedfbaf422133766fc551c9b43;mode:100755",
+      "public_path": "src/vraptor/resources/scripts/velociraptor/add_remote_mapped_client.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/velociraptor/fetch_live_api_client.sh => src/vraptor/resources/scripts/velociraptor/fetch_live_api_client.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/velociraptor/fetch_live_api_client.sh",
+      "fingerprint": "sha256:5192c925dad8be6091401f51e8ba8f6d421e037a742e4e317aaa393fa4774c27;mode:100755",
+      "public_path": "src/vraptor/resources/scripts/velociraptor/fetch_live_api_client.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/velociraptor/fetch_live_client_config.sh => src/vraptor/resources/scripts/velociraptor/fetch_live_client_config.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/velociraptor/fetch_live_client_config.sh",
+      "fingerprint": "sha256:216759aac73cef94b594c5fbcf933c794095fa2c80b7aa2d5b520ba4c15f7513;mode:100755",
+      "public_path": "src/vraptor/resources/scripts/velociraptor/fetch_live_client_config.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/velociraptor/mapped_client_status.sh => src/vraptor/resources/scripts/velociraptor/mapped_client_status.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/velociraptor/mapped_client_status.sh",
+      "fingerprint": "sha256:1bfba1e71dc5356ad54eca8f3768e098de93330984394c96cf11402551da3910;mode:100755",
+      "public_path": "src/vraptor/resources/scripts/velociraptor/mapped_client_status.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/velociraptor/remote_config_access.sh => src/vraptor/resources/scripts/velociraptor/remote_config_access.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/velociraptor/remote_config_access.sh",
+      "fingerprint": "sha256:0553c2fddf009e29339192a7a34cf917bf54fa52b45804449139336cb5cc9ad3;mode:100644",
+      "public_path": "src/vraptor/resources/scripts/velociraptor/remote_config_access.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/scripts/velociraptor/supervise_mapped_client.sh => src/vraptor/resources/scripts/velociraptor/supervise_mapped_client.sh": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/scripts/velociraptor/supervise_mapped_client.sh",
+      "fingerprint": "sha256:70199dd684744426c5786f23a98c899d2910a9f39613d5f0297c0e7161441158;mode:100755",
+      "public_path": "src/vraptor/resources/scripts/velociraptor/supervise_mapped_client.sh"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_autoruns.vql => src/vraptor/resources/vql/export_registry_hunter_autoruns.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_autoruns.vql",
+      "fingerprint": "sha256:b28fbc6c8bea56fea6aabbe3ccce0c9e6bf8eef777a713e9561b4f8c12b568a5;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_autoruns.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_categories.vql => src/vraptor/resources/vql/export_registry_hunter_categories.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_categories.vql",
+      "fingerprint": "sha256:37a16beeec0a2cb3863f0dbfa53c8ef019a2fa92b7cdc21c3f16f9540e8e9f8e;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_categories.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_category.vql => src/vraptor/resources/vql/export_registry_hunter_category.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_category.vql",
+      "fingerprint": "sha256:ae79b444a12298093a85481c18e50362fa63e0f093219d8ef33596c0f5fbc147;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_category.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_cloud_storage.vql => src/vraptor/resources/vql/export_registry_hunter_cloud_storage.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_cloud_storage.vql",
+      "fingerprint": "sha256:ea92c838589aad934ac226acb8f61a57718dca9afdc897f90e12065b3b4d35eb;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_cloud_storage.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_devices.vql => src/vraptor/resources/vql/export_registry_hunter_devices.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_devices.vql",
+      "fingerprint": "sha256:4827a5b198d51a7c5c14e55347ab68e23e8672bf4a0a5d1192113ec8d9180cdf;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_devices.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_event_logs.vql => src/vraptor/resources/vql/export_registry_hunter_event_logs.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_event_logs.vql",
+      "fingerprint": "sha256:cda8399b419cabfe85d482af7d5bd98cebb54578ba6dea9b7a21f79b44e557ae;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_event_logs.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_execution_appcompatcache.vql => src/vraptor/resources/vql/export_registry_hunter_execution_appcompatcache.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_execution_appcompatcache.vql",
+      "fingerprint": "sha256:06d16e573990cee4e11a52528aa23402e31f545e15c41633f91c8259f85d11d2;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_execution_appcompatcache.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_execution_bam.vql => src/vraptor/resources/vql/export_registry_hunter_execution_bam.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_execution_bam.vql",
+      "fingerprint": "sha256:d68e523acec6240ce8e4a3593341b6e13c707221c87a80c3dab238fb3952ced0;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_execution_bam.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_execution_radar.vql => src/vraptor/resources/vql/export_registry_hunter_execution_radar.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_execution_radar.vql",
+      "fingerprint": "sha256:cd3023eec1c95fbc9acc804d799dff2fa4e470c68f278162c0b6fa1d4bc6fb7b;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_execution_radar.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_execution_userassist.vql => src/vraptor/resources/vql/export_registry_hunter_execution_userassist.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_execution_userassist.vql",
+      "fingerprint": "sha256:0a30ae8611a22e39bda43923748742a17135f87768214b32703a07ff94f8f5de;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_execution_userassist.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_installed_software.vql => src/vraptor/resources/vql/export_registry_hunter_installed_software.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_installed_software.vql",
+      "fingerprint": "sha256:0a0de77df7971541671edcba886f7aa0e99a52791267248bcf312213fb8655d0;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_installed_software.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_microsoft_exchange.vql => src/vraptor/resources/vql/export_registry_hunter_microsoft_exchange.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_microsoft_exchange.vql",
+      "fingerprint": "sha256:da6333d7cbd9ef31bba9dacd971420ac1f5c917df8d188f3ffa7c3e038fe6e7d;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_microsoft_exchange.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_microsoft_office.vql => src/vraptor/resources/vql/export_registry_hunter_microsoft_office.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_microsoft_office.vql",
+      "fingerprint": "sha256:b8a996f4a9262f550d7b674ea51fcae4f767b1453b5e6c8566ddbb800511cee4;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_microsoft_office.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_network_shares.vql => src/vraptor/resources/vql/export_registry_hunter_network_shares.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_network_shares.vql",
+      "fingerprint": "sha256:3d7c3678092d7ebe6c4f4724bbed308d060792fc6cc5be1e9b59e6fb4f6c2436;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_network_shares.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_persistence.vql => src/vraptor/resources/vql/export_registry_hunter_persistence.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_persistence.vql",
+      "fingerprint": "sha256:2b86279320390ad0c01f2cf54f992eafa7d442e9040567ea00b9eca686d201ff;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_persistence.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_program_execution.vql => src/vraptor/resources/vql/export_registry_hunter_program_execution.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_program_execution.vql",
+      "fingerprint": "sha256:57b0cfabf957c3e32bac28cd765903bd9d0aa6f902438c4830a45a11a346375d;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_program_execution.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_services.vql => src/vraptor/resources/vql/export_registry_hunter_services.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_services.vql",
+      "fingerprint": "sha256:a0239833907e47e89d75606e26d95ad9d7dbb8e1d639751c363eb62d3980a74c;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_services.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_system_info.vql => src/vraptor/resources/vql/export_registry_hunter_system_info.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_system_info.vql",
+      "fingerprint": "sha256:0eb46d1cb625f0cc44fe4c75318bf45799fa072b6c69da0f0b8ab694e8bb2778;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_system_info.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_third_party_applications.vql => src/vraptor/resources/vql/export_registry_hunter_third_party_applications.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_third_party_applications.vql",
+      "fingerprint": "sha256:132f8541587ce783c8cfaa68300cb67e2dedbf35a371ba622401c49fa63f5720;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_third_party_applications.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_threat_hunting.vql => src/vraptor/resources/vql/export_registry_hunter_threat_hunting.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_threat_hunting.vql",
+      "fingerprint": "sha256:727270b891fc801631228828f702c4c6b9604d695f3181415e29c4404c653f99;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_threat_hunting.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_user_accounts.vql => src/vraptor/resources/vql/export_registry_hunter_user_accounts.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_user_accounts.vql",
+      "fingerprint": "sha256:444ff4ff9c63e0348b8c741547205198cb9aaf1068d524efa2ddbe59d08c2b03;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_user_accounts.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_user_activity.vql => src/vraptor/resources/vql/export_registry_hunter_user_activity.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_user_activity.vql",
+      "fingerprint": "sha256:0a31d51503ce09919884851cd778a8ff58516b41145e5242ac30acd8b2f17b08;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_user_activity.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_volume_shadow_copies.vql => src/vraptor/resources/vql/export_registry_hunter_volume_shadow_copies.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_volume_shadow_copies.vql",
+      "fingerprint": "sha256:5068c1cb494510b40e669236526d10b772ed53f4770aa7a253fce555c9fcab12;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_volume_shadow_copies.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_web_browsers.vql => src/vraptor/resources/vql/export_registry_hunter_web_browsers.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_registry_hunter_web_browsers.vql",
+      "fingerprint": "sha256:344cfdc7d13d9061a3f2b4d52bb65869958517d76358656310e496ec8f250e71;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_registry_hunter_web_browsers.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_source.vql => src/vraptor/resources/vql/export_source.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_source.vql",
+      "fingerprint": "sha256:fed45f38fa6c87689c8aa3c0ead57efa050821f5b387537b8cfd1bb96633263c;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_source.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_windows_eventlogs_evtxhunter.vql => src/vraptor/resources/vql/export_windows_eventlogs_evtxhunter.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_windows_eventlogs_evtxhunter.vql",
+      "fingerprint": "sha256:31fd165ef8747ada57f9377223e7b0f45e5efe395c21dd8bcd02519e13b8a97a;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_windows_eventlogs_evtxhunter.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_windows_eventlogs_explicitlogon.vql => src/vraptor/resources/vql/export_windows_eventlogs_explicitlogon.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_windows_eventlogs_explicitlogon.vql",
+      "fingerprint": "sha256:1a04b50a1b76fa9613dedafa2db9fd9925d75a45340d49bbfb68898899f07de1;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_windows_eventlogs_explicitlogon.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_windows_eventlogs_rdpauth.vql => src/vraptor/resources/vql/export_windows_eventlogs_rdpauth.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_windows_eventlogs_rdpauth.vql",
+      "fingerprint": "sha256:8932a2df66dedfa70bf17247743de0f9f361bec7c22e30975d2ed34009fd6477;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_windows_eventlogs_rdpauth.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_windows_ntfs_mft.vql => src/vraptor/resources/vql/export_windows_ntfs_mft.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_windows_ntfs_mft.vql",
+      "fingerprint": "sha256:71765e853054bed9456eca877b63f1c8ab084604340994dc6b2f9aaba89eda2e;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_windows_ntfs_mft.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/export_windows_ntfs_mft_bodyfile_compat.vql => src/vraptor/resources/vql/export_windows_ntfs_mft_bodyfile_compat.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/export_windows_ntfs_mft_bodyfile_compat.vql",
+      "fingerprint": "sha256:7b1fc61db2dda088b6c27ef3fd12f3581abe11602ae685c58684349330ac0507;mode:100644",
+      "public_path": "src/vraptor/resources/vql/export_windows_ntfs_mft_bodyfile_compat.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/get_client.vql => src/vraptor/resources/vql/get_client.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/get_client.vql",
+      "fingerprint": "sha256:d32c70fd60a096cabbe367a8c50e2f0607e78968b6bf5f6cd084e2bb8024e7c8;mode:100644",
+      "public_path": "src/vraptor/resources/vql/get_client.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/get_flow.vql => src/vraptor/resources/vql/get_flow.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/get_flow.vql",
+      "fingerprint": "sha256:c5626402ec1275cbdc588e4cf18406aa485ae9ba04f84ffb8d8aec825a4e7654;mode:100644",
+      "public_path": "src/vraptor/resources/vql/get_flow.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/kapefiles_zip_inventory.vql => src/vraptor/resources/vql/kapefiles_zip_inventory.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/kapefiles_zip_inventory.vql",
+      "fingerprint": "sha256:95cedbb06b02822827fb9c9617ba0d20787b279d2ec20b1e8d668b9e0a0ccdc7;mode:100644",
+      "public_path": "src/vraptor/resources/vql/kapefiles_zip_inventory.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/kapefiles_zip_remapping.vql => src/vraptor/resources/vql/kapefiles_zip_remapping.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/kapefiles_zip_remapping.vql",
+      "fingerprint": "sha256:d4da44fb8df024e0c666dd1a9a2d804251cd370a7055b73b2951b8db300070ac;mode:100644",
+      "public_path": "src/vraptor/resources/vql/kapefiles_zip_remapping.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/list_artifact_availability.vql => src/vraptor/resources/vql/list_artifact_availability.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/list_artifact_availability.vql",
+      "fingerprint": "sha256:f95f3a94481d0997205334763126491f483860590105feef08d678742d8c7bf8;mode:100644",
+      "public_path": "src/vraptor/resources/vql/list_artifact_availability.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/list_flows.vql => src/vraptor/resources/vql/list_flows.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/list_flows.vql",
+      "fingerprint": "sha256:d8bc5fde65d946bad5c7abc5588ee604b11c693a57980ac36a0b9461147dbdb0;mode:100644",
+      "public_path": "src/vraptor/resources/vql/list_flows.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/queue_collect_client.vql => src/vraptor/resources/vql/queue_collect_client.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/queue_collect_client.vql",
+      "fingerprint": "sha256:e380816c9847fda1a71f775e0caaa36b6c1ef7f687a6e0db4fe90aee08c020a2;mode:100644",
+      "public_path": "src/vraptor/resources/vql/queue_collect_client.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/vql/watch_flow_completions.vql => src/vraptor/resources/vql/watch_flow_completions.vql": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/vql/watch_flow_completions.vql",
+      "fingerprint": "sha256:dace9c451bd69abbcbf37a3497eba60555dfa780cf74f141138dec801b878185;mode:100644",
+      "public_path": "src/vraptor/resources/vql/watch_flow_completions.vql"
+    },
+    "packages/vraptor/src/vraptor/resources/windows-lolbins.json => src/vraptor/resources/windows-lolbins.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/windows-lolbins.json",
+      "fingerprint": "sha256:52f9acfa6810896ca3096310a7ee7ca24003c4217e0d706630407bcab01d8088;mode:100644",
+      "public_path": "src/vraptor/resources/windows-lolbins.json"
+    },
+    "packages/vraptor/src/vraptor/resources/windows-rmm-greyware.json => src/vraptor/resources/windows-rmm-greyware.json": {
+      "ai_path": "packages/vraptor/src/vraptor/resources/windows-rmm-greyware.json",
+      "fingerprint": "sha256:54ff8396bc9f3c6682386d7db19281f7f5dc6a7603b342f5ece782aaec08d066;mode:100644",
+      "public_path": "src/vraptor/resources/windows-rmm-greyware.json"
+    },
+    "packages/vraptor/src/vraptor/results.py => src/vraptor/results.py": {
+      "ai_path": "packages/vraptor/src/vraptor/results.py",
+      "fingerprint": "sha256:33ed87d236aeb72ad059ae74b2272b2c7c3d391846d7d181c393438eecd8c03e;mode:100644",
+      "public_path": "src/vraptor/results.py"
+    },
+    "packages/vraptor/src/vraptor/settings.py => src/vraptor/settings.py": {
+      "ai_path": "packages/vraptor/src/vraptor/settings.py",
+      "fingerprint": "sha256:947b1363dccbd5902663a45f4e5bf5251f7b44fda60b94ad54b4edccd109fe45;mode:100644",
+      "public_path": "src/vraptor/settings.py"
+    },
+    "packages/vraptor/src/vraptor/setup.py => src/vraptor/setup.py": {
+      "ai_path": "packages/vraptor/src/vraptor/setup.py",
+      "fingerprint": "sha256:35c5cfb2bba7cc25fd03944f6871509fb6ad616cc04f80b880dd1c97821bc06b;mode:100644",
+      "public_path": "src/vraptor/setup.py"
+    },
+    "packages/vraptor/src/vraptor/setup_config.py => src/vraptor/setup_config.py": {
+      "ai_path": "packages/vraptor/src/vraptor/setup_config.py",
+      "fingerprint": "sha256:04966cb53a9bce4a8a4f40063bb8ad4cf8d8222fa3feb66b6638bd417fb1eeab;mode:100644",
+      "public_path": "src/vraptor/setup_config.py"
+    },
+    "packages/vraptor/src/vraptor/workspace.py => src/vraptor/workspace.py": {
+      "ai_path": "packages/vraptor/src/vraptor/workspace.py",
+      "fingerprint": "sha256:1e315091da1a47dc26c11aacde048864fd1e638f9abdbc30388b2480d39260db;mode:100644",
+      "public_path": "src/vraptor/workspace.py"
+    },
+    "packages/vraptor/src/vraptor/zip_mapping.py => src/vraptor/zip_mapping.py": {
+      "ai_path": "packages/vraptor/src/vraptor/zip_mapping.py",
+      "fingerprint": "sha256:078bed625ac2dda765fb8926f45fb7cde36188d42aa2a6885121c528e22a9d8c;mode:100644",
+      "public_path": "src/vraptor/zip_mapping.py"
+    },
+    "packages/vraptor/tests/core/fixtures/velociraptor/paginated-multicomponent.json => tests/core/fixtures/velociraptor/paginated-multicomponent.json": {
+      "ai_path": "packages/vraptor/tests/core/fixtures/velociraptor/paginated-multicomponent.json",
+      "fingerprint": "sha256:b95cf456ab307ff0e11d4bc1395329f1ec22f03c9cf2f40d20131095f4523bd6;mode:100644",
+      "public_path": "tests/core/fixtures/velociraptor/paginated-multicomponent.json"
+    },
+    "packages/vraptor/tests/core/test_core_collection_analysis_cli.py => tests/core/test_core_collection_analysis_cli.py": {
+      "ai_path": "packages/vraptor/tests/core/test_core_collection_analysis_cli.py",
+      "fingerprint": "sha256:203940beb86e0936d934e1be65f4370375b1413534caf17858791d343ae6055f;mode:100644",
+      "public_path": "tests/core/test_core_collection_analysis_cli.py"
+    },
+    "packages/vraptor/tests/core/test_core_collection_analysis_integration.py => tests/core/test_core_collection_analysis_integration.py": {
+      "ai_path": "packages/vraptor/tests/core/test_core_collection_analysis_integration.py",
+      "fingerprint": "sha256:eb6c373144206ad8efaf9a819cd99d56b36a4421f07dd3c0138b27e9bf029fbe;mode:100644",
+      "public_path": "tests/core/test_core_collection_analysis_integration.py"
+    },
+    "packages/vraptor/tests/core/test_core_engagement_context.py => tests/core/test_core_engagement_context.py": {
+      "ai_path": "packages/vraptor/tests/core/test_core_engagement_context.py",
+      "fingerprint": "sha256:7a042ca7fbbf3fd89fbc62d20717094aad04e8c21395a100205c7d98013ac1fa;mode:100644",
+      "public_path": "tests/core/test_core_engagement_context.py"
+    },
+    "packages/vraptor/tests/core/test_core_host_analysis_state.py => tests/core/test_core_host_analysis_state.py": {
+      "ai_path": "packages/vraptor/tests/core/test_core_host_analysis_state.py",
+      "fingerprint": "sha256:368e4aeef054f10905ccaff3a0a835bb77b5ba66be4ea4ff723d942d8187b73c;mode:100644",
+      "public_path": "tests/core/test_core_host_analysis_state.py"
+    },
+    "packages/vraptor/tests/core/test_existing_end_to_end.py => tests/core/test_existing_end_to_end.py": {
+      "ai_path": "packages/vraptor/tests/core/test_existing_end_to_end.py",
+      "fingerprint": "sha256:88698f61e011c5c134fc8525f717323ca789622b9250a015cacf87b2f09ca277;mode:100644",
+      "public_path": "tests/core/test_existing_end_to_end.py"
+    },
+    "packages/vraptor/tests/core/test_short_cli.py => tests/core/test_short_cli.py": {
+      "ai_path": "packages/vraptor/tests/core/test_short_cli.py",
+      "fingerprint": "sha256:8713d715f579ff3173522765d060ff40e3f66bb7c16d198118459ab10ff0b576;mode:100644",
+      "public_path": "tests/core/test_short_cli.py"
+    },
+    "skills/prep-dfir-tools/SKILL.md => skills/prep-dfir-tools/SKILL.md": {
+      "ai_path": "skills/prep-dfir-tools/SKILL.md",
+      "fingerprint": "sha256:afe6117fa336ecb899405f1e1916d919ec03b377818d462bac4bccf2f9b3b3a4;mode:100644",
+      "public_path": "skills/prep-dfir-tools/SKILL.md"
+    },
+    "skills/velociraptor-artifact-selection/SKILL.md => skills/velociraptor-artifact-selection/SKILL.md": {
+      "ai_path": "skills/velociraptor-artifact-selection/SKILL.md",
+      "fingerprint": "sha256:f3b2a76a7d2c62b0f816a8d324509cd29703e97b4f854e24866f4d776fc8ddd8;mode:100644",
+      "public_path": "skills/velociraptor-artifact-selection/SKILL.md"
+    },
+    "skills/velociraptor-artifact-selection/references/artifact-field-optimization.md => skills/velociraptor-artifact-selection/references/artifact-field-optimization.md": {
+      "ai_path": "skills/velociraptor-artifact-selection/references/artifact-field-optimization.md",
+      "fingerprint": "sha256:a15a4bce4894cbc1ebca51223484f3ef0efa1c9b9c08dd652e81bb608ee7317f;mode:100644",
+      "public_path": "skills/velociraptor-artifact-selection/references/artifact-field-optimization.md"
+    },
+    "skills/velociraptor-artifact-selection/references/field-selection-rules.md => skills/velociraptor-artifact-selection/references/field-selection-rules.md": {
+      "ai_path": "skills/velociraptor-artifact-selection/references/field-selection-rules.md",
+      "fingerprint": "sha256:bae3d79c53168b1b4b45f9101d7126a18650d19a1ebc1d73d569a8c6b3f5a41d;mode:100644",
+      "public_path": "skills/velociraptor-artifact-selection/references/field-selection-rules.md"
+    },
+    "skills/velociraptor-artifact-selection/references/site-artifact-profiles.example.json => skills/velociraptor-artifact-selection/references/site-artifact-profiles.example.json": {
+      "ai_path": "skills/velociraptor-artifact-selection/references/site-artifact-profiles.example.json",
+      "fingerprint": "sha256:13628620680e54cb871e104c3aa2b993ca694ae8ecaa9049cf0eefd2b8a17b46;mode:100644",
+      "public_path": "skills/velociraptor-artifact-selection/references/site-artifact-profiles.example.json"
+    },
+    "skills/velociraptor-artifact-selection/references/site-detection-scenarios.example.json => skills/velociraptor-artifact-selection/references/site-detection-scenarios.example.json": {
+      "ai_path": "skills/velociraptor-artifact-selection/references/site-detection-scenarios.example.json",
+      "fingerprint": "sha256:aa18047d8d86ca1584c9b8f46c6720297754bc4e1c4eb8bd822aa7e7a1ecf31c;mode:100644",
+      "public_path": "skills/velociraptor-artifact-selection/references/site-detection-scenarios.example.json"
+    },
+    "skills/velociraptor-collection/SKILL.md => skills/velociraptor-collection/SKILL.md": {
+      "ai_path": "skills/velociraptor-collection/SKILL.md",
+      "fingerprint": "sha256:735cd9f7b86de757b235410906791103ca68701c2340bb2830bc00c8d2d45e15;mode:100644",
+      "public_path": "skills/velociraptor-collection/SKILL.md"
+    },
+    "skills/velociraptor-collection/references/collection-types.md => skills/velociraptor-collection/references/collection-types.md": {
+      "ai_path": "skills/velociraptor-collection/references/collection-types.md",
+      "fingerprint": "sha256:d0140c9d4bbef00d2850d64ec8c2653eee51c593462e0c3521fe3d1972c0a2b7;mode:100644",
+      "public_path": "skills/velociraptor-collection/references/collection-types.md"
+    },
+    "skills/velociraptor-collection/references/export-and-state.md => skills/velociraptor-collection/references/export-and-state.md": {
+      "ai_path": "skills/velociraptor-collection/references/export-and-state.md",
+      "fingerprint": "sha256:15b8d9951168bb946a64aeeb0ff2f3704abe6085b70721a581ea638dc4c2c8ee;mode:100644",
+      "public_path": "skills/velociraptor-collection/references/export-and-state.md"
+    },
+    "skills/velociraptor-collection/references/registry-hunter.md => skills/velociraptor-collection/references/registry-hunter.md": {
+      "ai_path": "skills/velociraptor-collection/references/registry-hunter.md",
+      "fingerprint": "sha256:4c09f786dc0a6f9855ca8ef549eb23d94cb90ff5f61fb45a029c163aa804cbb6;mode:100644",
+      "public_path": "skills/velociraptor-collection/references/registry-hunter.md"
+    },
+    "skills/velociraptor-engagement-setup/SKILL.md => skills/velociraptor-engagement-setup/SKILL.md": {
+      "ai_path": "skills/velociraptor-engagement-setup/SKILL.md",
+      "fingerprint": "sha256:cc9f49ded29896a3e67384d4e651b97cd8ec9d8fd5f31b9e103be6e890ed3799;mode:100644",
+      "public_path": "skills/velociraptor-engagement-setup/SKILL.md"
+    },
+    "skills/velociraptor-engagement-setup/references/import-extras.csv => skills/velociraptor-engagement-setup/references/import-extras.csv": {
+      "ai_path": "skills/velociraptor-engagement-setup/references/import-extras.csv",
+      "fingerprint": "sha256:3429e6ff176f2a766f93a4c3d60fc94bb47b046faa60a7d202d650454f944751;mode:100644",
+      "public_path": "skills/velociraptor-engagement-setup/references/import-extras.csv"
+    },
+    "skills/velociraptor-host-analysis/SKILL.md => skills/velociraptor-host-analysis/SKILL.md": {
+      "ai_path": "skills/velociraptor-host-analysis/SKILL.md",
+      "fingerprint": "sha256:b97f502af4e7042890737d6916f0bd540738ab065b4bb1b7cd768d15559675aa;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/SKILL.md"
+    },
+    "skills/velociraptor-host-analysis/agents/openai.yaml => skills/velociraptor-host-analysis/agents/openai.yaml": {
+      "ai_path": "skills/velociraptor-host-analysis/agents/openai.yaml",
+      "fingerprint": "sha256:032b6cb1b6f44b5f652e5d2df27f886d3fde4fb82e5d261b2502937edcd460e0;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/agents/openai.yaml"
+    },
+    "skills/velociraptor-host-analysis/references/analysis-output-contract.md => skills/velociraptor-host-analysis/references/analysis-output-contract.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/analysis-output-contract.md",
+      "fingerprint": "sha256:cd149038d741bd405daf7126f20920816314ddfbba895a0b791e3f4f5ef6c9ae;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/analysis-output-contract.md"
+    },
+    "skills/velociraptor-host-analysis/references/detectraptor-host-analysis.md => skills/velociraptor-host-analysis/references/detectraptor-host-analysis.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/detectraptor-host-analysis.md",
+      "fingerprint": "sha256:57a3f45a1452a65ce3297f1dcc48ee9a7081246f91bd0b484116921f245216f9;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/detectraptor-host-analysis.md"
+    },
+    "skills/velociraptor-host-analysis/references/extracted-host-evidence.md => skills/velociraptor-host-analysis/references/extracted-host-evidence.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/extracted-host-evidence.md",
+      "fingerprint": "sha256:e3c7d50461147e63c99999df5167fad08dbbd17abac66eb200e33a98b8efee49;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/extracted-host-evidence.md"
+    },
+    "skills/velociraptor-host-analysis/references/final-review.md => skills/velociraptor-host-analysis/references/final-review.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/final-review.md",
+      "fingerprint": "sha256:562c8635d83b87e16d59e7067399b9daeb8abb0bad8037d6e0ab027503b9ba5a;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/final-review.md"
+    },
+    "skills/velociraptor-host-analysis/references/linux-authentication.md => skills/velociraptor-host-analysis/references/linux-authentication.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/linux-authentication.md",
+      "fingerprint": "sha256:72abb0911ab99fadc175e96df4c59f3daa43d51ce886d65b6b3a766b0c085b17;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/linux-authentication.md"
+    },
+    "skills/velociraptor-host-analysis/references/linux-host-analysis.md => skills/velociraptor-host-analysis/references/linux-host-analysis.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/linux-host-analysis.md",
+      "fingerprint": "sha256:136eb6d6f64946eec67dd2bbd270786a4a551cfe95205e2444055b0c6a14ccc2;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/linux-host-analysis.md"
+    },
+    "skills/velociraptor-host-analysis/references/linux-persistence-execution.md => skills/velociraptor-host-analysis/references/linux-persistence-execution.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/linux-persistence-execution.md",
+      "fingerprint": "sha256:b7dac6907c76e7c513a8a51855602632201f83c5b081e5925e16283e38c60338;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/linux-persistence-execution.md"
+    },
+    "skills/velociraptor-host-analysis/references/linux-timeline-filesystem.md => skills/velociraptor-host-analysis/references/linux-timeline-filesystem.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/linux-timeline-filesystem.md",
+      "fingerprint": "sha256:1f96d6393d4659637498c5b16eef836480aae80b4ad2a71d8e3f55dbc2ef4684;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/linux-timeline-filesystem.md"
+    },
+    "skills/velociraptor-host-analysis/references/linux-web-container-analysis.md => skills/velociraptor-host-analysis/references/linux-web-container-analysis.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/linux-web-container-analysis.md",
+      "fingerprint": "sha256:e164ee7572c7547ab850168930bdfbb64d5ca05e96e495fc28a1c8d7ff0fb5c8;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/linux-web-container-analysis.md"
+    },
+    "skills/velociraptor-host-analysis/references/macos-host-analysis.md => skills/velociraptor-host-analysis/references/macos-host-analysis.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/macos-host-analysis.md",
+      "fingerprint": "sha256:a82527b25c11700d375c8193c7b6fe14dff17350e3a64af565fade3a3c5d83ad;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/macos-host-analysis.md"
+    },
+    "skills/velociraptor-host-analysis/references/operating-contract.md => skills/velociraptor-host-analysis/references/operating-contract.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/operating-contract.md",
+      "fingerprint": "sha256:2e660146c9287156d151d18ef404d55b1a6cefa72bed44388737175fbedd97f2;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/operating-contract.md"
+    },
+    "skills/velociraptor-host-analysis/references/report-contract.md => skills/velociraptor-host-analysis/references/report-contract.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/report-contract.md",
+      "fingerprint": "sha256:ff644bd5ae151ffa129b0f74c0121dd102baed35799a29dd9be1bfd7eab9874e;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/report-contract.md"
+    },
+    "skills/velociraptor-host-analysis/references/windows-artifact-analysis.md => skills/velociraptor-host-analysis/references/windows-artifact-analysis.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/windows-artifact-analysis.md",
+      "fingerprint": "sha256:fb0e519758bc00334808ee07f1850bfdff9df82a93dbf2674cc09f719c9e6975;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/windows-artifact-analysis.md"
+    },
+    "skills/velociraptor-host-analysis/references/windows-autoruns-analysis.md => skills/velociraptor-host-analysis/references/windows-autoruns-analysis.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/windows-autoruns-analysis.md",
+      "fingerprint": "sha256:2c91df38028c9dda3361352013c49b1f9d6f0427ac1a163f5e2d98bc995ea8f8;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/windows-autoruns-analysis.md"
+    },
+    "skills/velociraptor-host-analysis/references/windows-host-analysis.md => skills/velociraptor-host-analysis/references/windows-host-analysis.md": {
+      "ai_path": "skills/velociraptor-host-analysis/references/windows-host-analysis.md",
+      "fingerprint": "sha256:707fdc95327a2084ba52447ff3da45bc61d137c90b428165a2ffaf24a4cfe51a;mode:100644",
+      "public_path": "skills/velociraptor-host-analysis/references/windows-host-analysis.md"
+    },
+    "skills/velociraptor-hunting/SKILL.md => skills/velociraptor-hunting/SKILL.md": {
+      "ai_path": "skills/velociraptor-hunting/SKILL.md",
+      "fingerprint": "sha256:4b263d51a9bdc0a8fd6a1a324dc07019e598a7e5631c51b69a9f73f2213437af;mode:100644",
+      "public_path": "skills/velociraptor-hunting/SKILL.md"
+    },
+    "skills/velociraptor-hunting/agents/openai.yaml => skills/velociraptor-hunting/agents/openai.yaml": {
+      "ai_path": "skills/velociraptor-hunting/agents/openai.yaml",
+      "fingerprint": "sha256:58b29349abaa80d7b649a2707055b61139dc1bd01d4c433d34404f9759ddf5bd;mode:100644",
+      "public_path": "skills/velociraptor-hunting/agents/openai.yaml"
+    },
+    "skills/velociraptor-hunting/references/analysis-time-filter-support.md => skills/velociraptor-hunting/references/analysis-time-filter-support.md": {
+      "ai_path": "skills/velociraptor-hunting/references/analysis-time-filter-support.md",
+      "fingerprint": "sha256:8f0478aa1f06c598adf0bc427233cea99fd9389827509a345d4c3d0e55c84180;mode:100644",
+      "public_path": "skills/velociraptor-hunting/references/analysis-time-filter-support.md"
+    },
+    "skills/velociraptor-hunting/references/detectraptor-analysis.md => skills/velociraptor-hunting/references/detectraptor-analysis.md": {
+      "ai_path": "skills/velociraptor-hunting/references/detectraptor-analysis.md",
+      "fingerprint": "sha256:6fa452b8b824a2cda3a39a03a699402e5a3727401c0745565b4bd807bba7d5a9;mode:100644",
+      "public_path": "skills/velociraptor-hunting/references/detectraptor-analysis.md"
+    },
+    "skills/velociraptor-hunting/references/extracted-evidence-analysis.md => skills/velociraptor-hunting/references/extracted-evidence-analysis.md": {
+      "ai_path": "skills/velociraptor-hunting/references/extracted-evidence-analysis.md",
+      "fingerprint": "sha256:b077b2144de19d4d52853c6cbf8b99f983a81273f42eab7c96bc956b0769da21;mode:100644",
+      "public_path": "skills/velociraptor-hunting/references/extracted-evidence-analysis.md"
+    },
+    "skills/velociraptor-hunting/references/live-analysis.md => skills/velociraptor-hunting/references/live-analysis.md": {
+      "ai_path": "skills/velociraptor-hunting/references/live-analysis.md",
+      "fingerprint": "sha256:fa5746d3532527e86b1522ef45d22d33afd94dec4e03925c164e97a032bcdc91;mode:100644",
+      "public_path": "skills/velociraptor-hunting/references/live-analysis.md"
+    },
+    "skills/velociraptor-hunting/references/task-intent-and-output.md => skills/velociraptor-hunting/references/task-intent-and-output.md": {
+      "ai_path": "skills/velociraptor-hunting/references/task-intent-and-output.md",
+      "fingerprint": "sha256:1d3ffd994a5eccb4ba85f3c1d88debd7959a652af7151c83e16f3e5fe04616e9;mode:100644",
+      "public_path": "skills/velociraptor-hunting/references/task-intent-and-output.md"
+    },
+    "skills/velociraptor-hunting/references/windows-hunt-orchestration.md => skills/velociraptor-hunting/references/windows-hunt-orchestration.md": {
+      "ai_path": "skills/velociraptor-hunting/references/windows-hunt-orchestration.md",
+      "fingerprint": "sha256:6e16599a1d9a4dd9a3979301167bd141f78cad679d8cdeaa97a8af75a8d39f57;mode:100644",
+      "public_path": "skills/velociraptor-hunting/references/windows-hunt-orchestration.md"
+    },
+    "skills/velociraptor-hunting/references/windows-live-analysis.md => skills/velociraptor-hunting/references/windows-live-analysis.md": {
+      "ai_path": "skills/velociraptor-hunting/references/windows-live-analysis.md",
+      "fingerprint": "sha256:f304fdef3f71760746889768712d3ff0ff449c38020e54869e591bcdf8629217;mode:100644",
+      "public_path": "skills/velociraptor-hunting/references/windows-live-analysis.md"
+    },
+    "skills/velociraptor-hunting/references/windows-persistence-autoruns.md => skills/velociraptor-hunting/references/windows-persistence-autoruns.md": {
+      "ai_path": "skills/velociraptor-hunting/references/windows-persistence-autoruns.md",
+      "fingerprint": "sha256:6a82ee042c900cf36174c46cc9380520ca2de176536b0cd7ccccbca5f719966b;mode:100644",
+      "public_path": "skills/velociraptor-hunting/references/windows-persistence-autoruns.md"
+    },
+    "skills/velociraptor-live-api-client/SKILL.md => skills/velociraptor-live-api-client/SKILL.md": {
+      "ai_path": "skills/velociraptor-live-api-client/SKILL.md",
+      "fingerprint": "sha256:e3fd042bb0b3160833fb55668c1ceee2dc0a33d46bb2efa461cca41eaf101678;mode:100644",
+      "public_path": "skills/velociraptor-live-api-client/SKILL.md"
+    },
+    "skills/velociraptor-live-api-client/references/service-account-config.md => skills/velociraptor-live-api-client/references/service-account-config.md": {
+      "ai_path": "skills/velociraptor-live-api-client/references/service-account-config.md",
+      "fingerprint": "sha256:3667b8a3126d17fe16d4f9c4a7e558a32c78c70c24246c4364d7847a9c7579b4;mode:100644",
+      "public_path": "skills/velociraptor-live-api-client/references/service-account-config.md"
+    },
+    "skills/velociraptor-mapped-client/SKILL.md => skills/velociraptor-mapped-client/SKILL.md": {
+      "ai_path": "skills/velociraptor-mapped-client/SKILL.md",
+      "fingerprint": "sha256:52e4a566316732e0fcf4836c0caf7d2d7257944e020a14dfb14d8787c7e75b3a;mode:100644",
+      "public_path": "skills/velociraptor-mapped-client/SKILL.md"
+    },
+    "tests/test_additional_agent_providers.py => tests/test_additional_agent_providers.py": {
+      "ai_path": "tests/test_additional_agent_providers.py",
+      "fingerprint": "sha256:6337979fd7c3cf4e40e99cd2472e00253b5448bde0e2d9710f925b28161ec8fa;mode:100644",
+      "public_path": "tests/test_additional_agent_providers.py"
+    },
+    "tests/test_agent_analysis_defaults.py => tests/test_agent_analysis_defaults.py": {
+      "ai_path": "tests/test_agent_analysis_defaults.py",
+      "fingerprint": "sha256:c766229e531208e70457b157a4674ba7dec585dba3602f9d6df53db24e44cf69;mode:100644",
+      "public_path": "tests/test_agent_analysis_defaults.py"
+    },
+    "tests/test_agent_config.py => tests/test_agent_config.py": {
+      "ai_path": "tests/test_agent_config.py",
+      "fingerprint": "sha256:417156325c251b966bb4c026478339a255ffd582a5535f2171dc82b2d7dfc5a0;mode:100644",
+      "public_path": "tests/test_agent_config.py"
+    },
+    "tests/test_agent_diagnostics.py => tests/test_agent_diagnostics.py": {
+      "ai_path": "tests/test_agent_diagnostics.py",
+      "fingerprint": "sha256:ea6c878bd342e46d582da8849227d024ffeaf8c74d8148c996a62101238ef5a6;mode:100644",
+      "public_path": "tests/test_agent_diagnostics.py"
+    },
+    "tests/test_agent_profile_schema.py => tests/test_agent_profile_schema.py": {
+      "ai_path": "tests/test_agent_profile_schema.py",
+      "fingerprint": "sha256:d99ce185209c5b9e3949552aea5485a2ac6111f108180b9097a2447fbf395963;mode:100644",
+      "public_path": "tests/test_agent_profile_schema.py"
+    },
+    "tests/test_agent_profile_token_budgets.py => tests/test_agent_profile_token_budgets.py": {
+      "ai_path": "tests/test_agent_profile_token_budgets.py",
+      "fingerprint": "sha256:3eb7e1fcc6f11abf9055c3211d0498639cb2df293201f82226053ee65741eee4;mode:100644",
+      "public_path": "tests/test_agent_profile_token_budgets.py"
+    },
+    "tests/test_agent_profiles.py => tests/test_agent_profiles.py": {
+      "ai_path": "tests/test_agent_profiles.py",
+      "fingerprint": "sha256:0aee76a9ca09e3cfe8fc960f83f81e624f230f46ee11071eb2f8aaac5a361013;mode:100644",
+      "public_path": "tests/test_agent_profiles.py"
+    },
+    "tests/test_agent_providers.py => tests/test_agent_providers.py": {
+      "ai_path": "tests/test_agent_providers.py",
+      "fingerprint": "sha256:d0144a4e4f583308107138d943e7157d0c3211221ea18fab9fd88b6dde23e267;mode:100644",
+      "public_path": "tests/test_agent_providers.py"
+    },
+    "tests/test_agent_runtime.py => tests/test_agent_runtime.py": {
+      "ai_path": "tests/test_agent_runtime.py",
+      "fingerprint": "sha256:4f06d7cf3207781fbdd3e948aaf02c826c76939137db3a6ced7d22b4acb5061a;mode:100644",
+      "public_path": "tests/test_agent_runtime.py"
+    },
+    "tests/test_agent_settings_environment.py => tests/test_agent_settings_environment.py": {
+      "ai_path": "tests/test_agent_settings_environment.py",
+      "fingerprint": "sha256:4b703704b4515ee8c8bd4cc7b7fd45f37c5b4c2dfa07c62a72304ad30ae81892;mode:100644",
+      "public_path": "tests/test_agent_settings_environment.py"
+    },
+    "tests/test_agent_setup.py => tests/test_agent_setup.py": {
+      "ai_path": "tests/test_agent_setup.py",
+      "fingerprint": "sha256:d1d7c2dba4e91c52dae8b04318733d0985343a96c096f47253fe5f39a0772f0f;mode:100644",
+      "public_path": "tests/test_agent_setup.py"
+    },
+    "tests/test_agent_setup_defaults.py => tests/test_agent_setup_defaults.py": {
+      "ai_path": "tests/test_agent_setup_defaults.py",
+      "fingerprint": "sha256:a6a6e790f6339cdf4979775dea6ad01e4d365b558cde9ba5830489d99f59e89b;mode:100644",
+      "public_path": "tests/test_agent_setup_defaults.py"
+    },
+    "tests/test_ai_harness_setup.py => tests/test_ai_harness_setup.py": {
+      "ai_path": "tests/test_ai_harness_setup.py",
+      "fingerprint": "sha256:feb4fa0bae7de5bf687f4caada6cc723db4b703039a59bcf21f76c952393c1a9;mode:100644",
+      "public_path": "tests/test_ai_harness_setup.py"
+    },
+    "tests/test_analysis_cli_output.py => tests/test_analysis_cli_output.py": {
+      "ai_path": "tests/test_analysis_cli_output.py",
+      "fingerprint": "sha256:67a5d802350c18e43c9c3abbf1463b826451bbdf42e009ca8cc84f17d409b854;mode:100644",
+      "public_path": "tests/test_analysis_cli_output.py"
+    },
+    "tests/test_analysis_limits.py => tests/test_analysis_limits.py": {
+      "ai_path": "tests/test_analysis_limits.py",
+      "fingerprint": "sha256:a3b9bd3ef2083989a847ae68484a308e72f5103cd9c6c666ada6b5f3aaf985a8;mode:100644",
+      "public_path": "tests/test_analysis_limits.py"
+    },
+    "tests/test_analysis_model_options.py => tests/test_analysis_model_options.py": {
+      "ai_path": "tests/test_analysis_model_options.py",
+      "fingerprint": "sha256:5ab1954f03786c3eb435b8501eda7596075310c8a3a2fd8eec46aec5e258699c;mode:100644",
+      "public_path": "tests/test_analysis_model_options.py"
+    },
+    "tests/test_analysis_operator_status.py => tests/test_analysis_operator_status.py": {
+      "ai_path": "tests/test_analysis_operator_status.py",
+      "fingerprint": "sha256:5b450a2932b112dc8c4b1b2669735c662efea875da43106be7ae53c04d01effa;mode:100644",
+      "public_path": "tests/test_analysis_operator_status.py"
+    },
+    "tests/test_analysis_recovery.py => tests/test_analysis_recovery.py": {
+      "ai_path": "tests/test_analysis_recovery.py",
+      "fingerprint": "sha256:e74013f6d922f40ac5fe16a83271816a77b554640f922a827ebc81aada6d8def;mode:100644",
+      "public_path": "tests/test_analysis_recovery.py"
+    },
+    "tests/test_analysis_scheduler.py => tests/test_analysis_scheduler.py": {
+      "ai_path": "tests/test_analysis_scheduler.py",
+      "fingerprint": "sha256:38a883fc8c245f19b3a90c59cc71a81c41761f43911d4094e955705bd7c8772a;mode:100644",
+      "public_path": "tests/test_analysis_scheduler.py"
+    },
+    "tests/test_analysis_skip_ai.py => tests/test_analysis_skip_ai.py": {
+      "ai_path": "tests/test_analysis_skip_ai.py",
+      "fingerprint": "sha256:08dfd7b5a3666b62bda6c822be32d362df1ef4c0426c2e1e44892138106e06ed;mode:100644",
+      "public_path": "tests/test_analysis_skip_ai.py"
+    },
+    "tests/test_analysis_temp_policy.py => tests/test_analysis_temp_policy.py": {
+      "ai_path": "tests/test_analysis_temp_policy.py",
+      "fingerprint": "sha256:654bf8e11094bbe2debcce56ae695e0b985e9bb3dfdc28c9267c9a4f5d1e1e2a;mode:100644",
+      "public_path": "tests/test_analysis_temp_policy.py"
+    },
+    "tests/test_analysis_time_scope.py => tests/test_analysis_time_scope.py": {
+      "ai_path": "tests/test_analysis_time_scope.py",
+      "fingerprint": "sha256:53ba4977058270be60da6d66da1882f1a95dae40c1558c4a16caf68d19af43f1;mode:100644",
+      "public_path": "tests/test_analysis_time_scope.py"
+    },
+    "tests/test_analyst_line_protocol.py => tests/test_analyst_line_protocol.py": {
+      "ai_path": "tests/test_analyst_line_protocol.py",
+      "fingerprint": "sha256:096e379b735f489b4e32548c5a1fec9b49ceec13b8f5b92b9995eed45a424486;mode:100644",
+      "public_path": "tests/test_analyst_line_protocol.py"
+    },
+    "tests/test_artifact_policy.py => tests/test_artifact_policy.py": {
+      "ai_path": "tests/test_artifact_policy.py",
+      "fingerprint": "sha256:729e7a54d9a1f384762ae7d00b1f7ec0ac0f70de6ecb9da3e81fa760c89b436e;mode:100644",
+      "public_path": "tests/test_artifact_policy.py"
+    },
+    "tests/test_autoruns_accounted_stack.py => tests/test_autoruns_accounted_stack.py": {
+      "ai_path": "tests/test_autoruns_accounted_stack.py",
+      "fingerprint": "sha256:ff4bcc8331c353dc01c9c0053b8e1aa61c53883bf571967f28b2e66b03a6990c;mode:100644",
+      "public_path": "tests/test_autoruns_accounted_stack.py"
+    },
+    "tests/test_autoruns_ai_review.py => tests/test_autoruns_ai_review.py": {
+      "ai_path": "tests/test_autoruns_ai_review.py",
+      "fingerprint": "sha256:94dd3eb4cbb6bfe1e921719c03813f2582783413a17d0785447194c8772de713;mode:100644",
+      "public_path": "tests/test_autoruns_ai_review.py"
+    },
+    "tests/test_autoruns_approved_rules.py => tests/test_autoruns_approved_rules.py": {
+      "ai_path": "tests/test_autoruns_approved_rules.py",
+      "fingerprint": "sha256:bdbeed6d567b3e21c40537d9320f2b64ba31fcd4ddc6df106fb31ce1e36d27ef;mode:100644",
+      "public_path": "tests/test_autoruns_approved_rules.py"
+    },
+    "tests/test_autoruns_csv_db.py => tests/test_autoruns_csv_db.py": {
+      "ai_path": "tests/test_autoruns_csv_db.py",
+      "fingerprint": "sha256:e91ac6adba523a81b238f2252af8588a4b22b252a0cff651af38a1d0b70ca440;mode:100644",
+      "public_path": "tests/test_autoruns_csv_db.py"
+    },
+    "tests/test_autoruns_dedup_ai.py => tests/test_autoruns_dedup_ai.py": {
+      "ai_path": "tests/test_autoruns_dedup_ai.py",
+      "fingerprint": "sha256:40016791ed5116191c67135e45f488fb41f4fa3958a171e1bc015ec1098f9da9;mode:100644",
+      "public_path": "tests/test_autoruns_dedup_ai.py"
+    },
+    "tests/test_autoruns_diagnostics.py => tests/test_autoruns_diagnostics.py": {
+      "ai_path": "tests/test_autoruns_diagnostics.py",
+      "fingerprint": "sha256:611f9cd5f157148429465bc8f66ea6542989a70744a8ce43e8c9df6637e74dce;mode:100644",
+      "public_path": "tests/test_autoruns_diagnostics.py"
+    },
+    "tests/test_autoruns_golden.py => tests/test_autoruns_golden.py": {
+      "ai_path": "tests/test_autoruns_golden.py",
+      "fingerprint": "sha256:4b03402e3e9de5b9f7d7a2947737fbfe0fef48b239783606b07043f9b659b14c;mode:100644",
+      "public_path": "tests/test_autoruns_golden.py"
+    },
+    "tests/test_autoruns_regex.py => tests/test_autoruns_regex.py": {
+      "ai_path": "tests/test_autoruns_regex.py",
+      "fingerprint": "sha256:326db97ddda2296ed7c38e93ad1e08873701831df801638a93c6a8b0b6ee9fd0;mode:100644",
+      "public_path": "tests/test_autoruns_regex.py"
+    },
+    "tests/test_autoruns_regex_review.py => tests/test_autoruns_regex_review.py": {
+      "ai_path": "tests/test_autoruns_regex_review.py",
+      "fingerprint": "sha256:37b3943bd922c32126017b0afbbbce8b1577eee92b8d25a6f6cd0abc95d6e1ed;mode:100644",
+      "public_path": "tests/test_autoruns_regex_review.py"
+    },
+    "tests/test_autoruns_request_batches.py => tests/test_autoruns_request_batches.py": {
+      "ai_path": "tests/test_autoruns_request_batches.py",
+      "fingerprint": "sha256:b1e20838d5d2f49a033f72288563f332a2ff6dce0b5566db2d1353f52c055ebe;mode:100644",
+      "public_path": "tests/test_autoruns_request_batches.py"
+    },
+    "tests/test_autoruns_signature.py => tests/test_autoruns_signature.py": {
+      "ai_path": "tests/test_autoruns_signature.py",
+      "fingerprint": "sha256:01e02e30bd9b4a84f0d805320adb61a0d2868ad41bbe16a4b635d7cd0c91da34;mode:100644",
+      "public_path": "tests/test_autoruns_signature.py"
+    },
+    "tests/test_autoruns_single_lru.py => tests/test_autoruns_single_lru.py": {
+      "ai_path": "tests/test_autoruns_single_lru.py",
+      "fingerprint": "sha256:d74c1edbb72c3f190dd356d3e46e8f5dd409aedd6b44531aab37069d8dc65bab;mode:100644",
+      "public_path": "tests/test_autoruns_single_lru.py"
+    },
+    "tests/test_autoruns_test.py => tests/test_autoruns_test.py": {
+      "ai_path": "tests/test_autoruns_test.py",
+      "fingerprint": "sha256:31c18bbef446f8160832e864819a836b721033a854e75e75247e92c5a0980ce5;mode:100644",
+      "public_path": "tests/test_autoruns_test.py"
+    },
+    "tests/test_autoruns_test_db.py => tests/test_autoruns_test_db.py": {
+      "ai_path": "tests/test_autoruns_test_db.py",
+      "fingerprint": "sha256:9b6ecd6e4d2d3c42fea69170158babbb0934f26946a4a8642494b6128edb4026;mode:100644",
+      "public_path": "tests/test_autoruns_test_db.py"
+    },
+    "tests/test_autoruns_test_grouped_runtime.py => tests/test_autoruns_test_grouped_runtime.py": {
+      "ai_path": "tests/test_autoruns_test_grouped_runtime.py",
+      "fingerprint": "sha256:3af7ff440ab820cf166bac424c607c4ecefd8cd2e12314d2977b0e818f4abfe7;mode:100644",
+      "public_path": "tests/test_autoruns_test_grouped_runtime.py"
+    },
+    "tests/test_autoruns_test_groups.py => tests/test_autoruns_test_groups.py": {
+      "ai_path": "tests/test_autoruns_test_groups.py",
+      "fingerprint": "sha256:d3ceadcd6b1c911690cc29518c5fd401d54f21bfbc1bb26ffe922efe68b8ed40;mode:100644",
+      "public_path": "tests/test_autoruns_test_groups.py"
+    },
+    "tests/test_autoruns_unicode_contract.py => tests/test_autoruns_unicode_contract.py": {
+      "ai_path": "tests/test_autoruns_unicode_contract.py",
+      "fingerprint": "sha256:fafeff736b604da862ee20b6f9e6479f066c39d1b38926306b6ea2a5b9f96014;mode:100644",
+      "public_path": "tests/test_autoruns_unicode_contract.py"
+    },
+    "tests/test_autoruns_workflow.py => tests/test_autoruns_workflow.py": {
+      "ai_path": "tests/test_autoruns_workflow.py",
+      "fingerprint": "sha256:10889dcad9dd2aa465f496777417ad931d31dc6bac6e3db376f2cc87b1e90b9a;mode:100644",
+      "public_path": "tests/test_autoruns_workflow.py"
+    },
+    "tests/test_chunk_prompt_debug.py => tests/test_chunk_prompt_debug.py": {
+      "ai_path": "tests/test_chunk_prompt_debug.py",
+      "fingerprint": "sha256:accdbe95c8b83db589617d2ca26726520ceaab6e2fe9da32066552350fa1d34c;mode:100644",
+      "public_path": "tests/test_chunk_prompt_debug.py"
+    },
+    "tests/test_collection_analysis.py => tests/test_collection_analysis.py": {
+      "ai_path": "tests/test_collection_analysis.py",
+      "fingerprint": "sha256:531948313c2be0b8ad41b395191dae3e2e767b4db82c44d3ade66ef1e6385c1a;mode:100644",
+      "public_path": "tests/test_collection_analysis.py"
+    },
+    "tests/test_collection_analysis_forward.py => tests/test_collection_analysis_forward.py": {
+      "ai_path": "tests/test_collection_analysis_forward.py",
+      "fingerprint": "sha256:329e57ad524016ce7c225a0b078063a0b9f094608ab9525e3cbee0fabe387779;mode:100644",
+      "public_path": "tests/test_collection_analysis_forward.py"
+    },
+    "tests/test_collection_analysis_profiles.py => tests/test_collection_analysis_profiles.py": {
+      "ai_path": "tests/test_collection_analysis_profiles.py",
+      "fingerprint": "sha256:e519c229e9a628b8a90310a44a692c1f8902d36fa1f807bad5d4ad7e944e19b5;mode:100644",
+      "public_path": "tests/test_collection_analysis_profiles.py"
+    },
+    "tests/test_collection_analysis_runtime.py => tests/test_collection_analysis_runtime.py": {
+      "ai_path": "tests/test_collection_analysis_runtime.py",
+      "fingerprint": "sha256:fed9a2553b84da71502bf2528f21287c5a41c803e98bcb4614e48d22c5f2de98;mode:100644",
+      "public_path": "tests/test_collection_analysis_runtime.py"
+    },
+    "tests/test_detached_evidence_manifest.py => tests/test_detached_evidence_manifest.py": {
+      "ai_path": "tests/test_detached_evidence_manifest.py",
+      "fingerprint": "sha256:482b3f40e26c609d1edb8be6966329f3c4689ffe5e91afc12df1d5e84fad2a82;mode:100644",
+      "public_path": "tests/test_detached_evidence_manifest.py"
+    },
+    "tests/test_detectraptor_contract.py => tests/test_detectraptor_contract.py": {
+      "ai_path": "tests/test_detectraptor_contract.py",
+      "fingerprint": "sha256:baad9ff802599379915e00bb41d9d17a8af7e2964ce836583ab69407af66cb19;mode:100644",
+      "public_path": "tests/test_detectraptor_contract.py"
+    },
+    "tests/test_engagement_state.py => tests/test_engagement_state.py": {
+      "ai_path": "tests/test_engagement_state.py",
+      "fingerprint": "sha256:e96cf06aa41fdd747e1607fc4c15c4d61825c96cff463582e477000dd4fe00b2;mode:100644",
+      "public_path": "tests/test_engagement_state.py"
+    },
+    "tests/test_evidence_records.py => tests/test_evidence_records.py": {
+      "ai_path": "tests/test_evidence_records.py",
+      "fingerprint": "sha256:b0120b84ce39b2d98763548b0a3423553ffd7e2f69f2283e661af66cef635435;mode:100644",
+      "public_path": "tests/test_evidence_records.py"
+    },
+    "tests/test_evidence_references.py => tests/test_evidence_references.py": {
+      "ai_path": "tests/test_evidence_references.py",
+      "fingerprint": "sha256:17df6a66be835df5139a1a89c0deb9dcc848e836d368a8c574156f3722911651;mode:100644",
+      "public_path": "tests/test_evidence_references.py"
+    },
+    "tests/test_export_mapping.py => tests/test_export_mapping.py": {
+      "ai_path": "tests/test_export_mapping.py",
+      "fingerprint": "sha256:9532bc8f629b97754fc9b8e9f7799b9177bd1d50fca770780fc42f3f9ab954cc;mode:100644",
+      "public_path": "tests/test_export_mapping.py"
+    },
+    "tests/test_file_hashing.py => tests/test_file_hashing.py": {
+      "ai_path": "tests/test_file_hashing.py",
+      "fingerprint": "sha256:621fbbecbb1973f3866d7773a4ac83a6f63d23bea24a4b541b704014db961edf;mode:100644",
+      "public_path": "tests/test_file_hashing.py"
+    },
+    "tests/test_flow_analysis.py => tests/test_flow_analysis.py": {
+      "ai_path": "tests/test_flow_analysis.py",
+      "fingerprint": "sha256:e613404f3222d7fa04ed0591935d79a03b5c2d0805d5ab7b97698f85d7664cde;mode:100644",
+      "public_path": "tests/test_flow_analysis.py"
+    },
+    "tests/test_generic_stack_review.py => tests/test_generic_stack_review.py": {
+      "ai_path": "tests/test_generic_stack_review.py",
+      "fingerprint": "sha256:fc71a0ceaf68512d5d59d279763430260d648322eefbb18ee8b9809be66fa11b;mode:100644",
+      "public_path": "tests/test_generic_stack_review.py"
+    },
+    "tests/test_host_final_review.py => tests/test_host_final_review.py": {
+      "ai_path": "tests/test_host_final_review.py",
+      "fingerprint": "sha256:c656696dc913942ebaba33e03077684049e2dd0a9ec769aab1bb8d1b552b4090;mode:100644",
+      "public_path": "tests/test_host_final_review.py"
+    },
+    "tests/test_hunt_flow_inventory.py => tests/test_hunt_flow_inventory.py": {
+      "ai_path": "tests/test_hunt_flow_inventory.py",
+      "fingerprint": "sha256:addf4eee1b8f567e6610d70eadd1a0bdbab0caa08033935aabe63104f8a71776;mode:100644",
+      "public_path": "tests/test_hunt_flow_inventory.py"
+    },
+    "tests/test_hunt_metadata_lookup.py => tests/test_hunt_metadata_lookup.py": {
+      "ai_path": "tests/test_hunt_metadata_lookup.py",
+      "fingerprint": "sha256:ba52c2dd0ad38a9cf47270ecd11c0f2080a641cc55e997306260a2368d2aa205;mode:100644",
+      "public_path": "tests/test_hunt_metadata_lookup.py"
+    },
+    "tests/test_hunt_workflow.py => tests/test_hunt_workflow.py": {
+      "ai_path": "tests/test_hunt_workflow.py",
+      "fingerprint": "sha256:320fde4ed676710ad98fac537a95e7b1e232cbf0c0d7768c0ab6216ff897ad11;mode:100644",
+      "public_path": "tests/test_hunt_workflow.py"
+    },
+    "tests/test_investigation_workspace.py => tests/test_investigation_workspace.py": {
+      "ai_path": "tests/test_investigation_workspace.py",
+      "fingerprint": "sha256:f018e5297a9b83f852deb8edf5ba966a4c8c2fb3ba461893181b2e2fcdb9601c;mode:100644",
+      "public_path": "tests/test_investigation_workspace.py"
+    },
+    "tests/test_link_claude_skills_sh.py => tests/test_link_claude_skills_sh.py": {
+      "ai_path": "tests/test_link_claude_skills_sh.py",
+      "fingerprint": "sha256:81584777239e1ababdd487c83a9e66eccee099e233a5f623beaa698da7f57f7b;mode:100644",
+      "public_path": "tests/test_link_claude_skills_sh.py"
+    },
+    "tests/test_link_codex_agents_sh.py => tests/test_link_codex_agents_sh.py": {
+      "ai_path": "tests/test_link_codex_agents_sh.py",
+      "fingerprint": "sha256:76bb16b79db5a9a04e4accfc23a752e17ddb473b56a53586b06f9a086f8782c2;mode:100644",
+      "public_path": "tests/test_link_codex_agents_sh.py"
+    },
+    "tests/test_linux_host_profile.py => tests/test_linux_host_profile.py": {
+      "ai_path": "tests/test_linux_host_profile.py",
+      "fingerprint": "sha256:d75d2713a32abb74678d2b196016d3222f1bbc6b47f65c23577dfee7bc148a74;mode:100644",
+      "public_path": "tests/test_linux_host_profile.py"
+    },
+    "tests/test_live_hunt_analysis.py => tests/test_live_hunt_analysis.py": {
+      "ai_path": "tests/test_live_hunt_analysis.py",
+      "fingerprint": "sha256:da7321d0df0d752defae70c1ff8af8b3249a8db50fd94a8c005b14f5ace0fdce;mode:100644",
+      "public_path": "tests/test_live_hunt_analysis.py"
+    },
+    "tests/test_operational_connection_options.py => tests/test_operational_connection_options.py": {
+      "ai_path": "tests/test_operational_connection_options.py",
+      "fingerprint": "sha256:a2ccd6c68190be1e0ac7dbaa5291a62fbd9e0203c97d71cc43442371a86b056d;mode:100644",
+      "public_path": "tests/test_operational_connection_options.py"
+    },
+    "tests/test_prep_dfir_tools_sh.py => tests/test_prep_dfir_tools_sh.py": {
+      "ai_path": "tests/test_prep_dfir_tools_sh.py",
+      "fingerprint": "sha256:b9cfeedc2b7492a88dd931f1348e4c6797eb848f8b966030423e4b9ddb7cdf6a;mode:100644",
+      "public_path": "tests/test_prep_dfir_tools_sh.py"
+    },
+    "tests/test_remote_config_privileges.py => tests/test_remote_config_privileges.py": {
+      "ai_path": "tests/test_remote_config_privileges.py",
+      "fingerprint": "sha256:aa3c7b3fb662b6b0bec5a09f2aa6fc046bb2e24635e25199fcae146c0133adb8;mode:100644",
+      "public_path": "tests/test_remote_config_privileges.py"
+    },
+    "tests/test_removed_ai_provider.py => tests/test_removed_ai_provider.py": {
+      "ai_path": "tests/test_removed_ai_provider.py",
+      "fingerprint": "sha256:f8d0f47e0afe05bfba1ed22417fc595ac5a5d7d318057474aabd68d88ebaed85;mode:100644",
+      "public_path": "tests/test_removed_ai_provider.py"
+    },
+    "tests/test_reset_vraptor_config.py => tests/test_reset_vraptor_config.py": {
+      "ai_path": "tests/test_reset_vraptor_config.py",
+      "fingerprint": "sha256:77c81cba983e29af964dee296bf4e870e910fb3b6d1c8ad2f62f7a0a16900337;mode:100644",
+      "public_path": "tests/test_reset_vraptor_config.py"
+    },
+    "tests/test_run_velociraptor_collection.py => tests/test_run_velociraptor_collection.py": {
+      "ai_path": "tests/test_run_velociraptor_collection.py",
+      "fingerprint": "sha256:6f65d0f8f56b9eb373d73ffef4e4d1424c17da9443d6fac832c74be32adaa04e;mode:100644",
+      "public_path": "tests/test_run_velociraptor_collection.py"
+    },
+    "tests/test_run_velociraptor_hunting.py => tests/test_run_velociraptor_hunting.py": {
+      "ai_path": "tests/test_run_velociraptor_hunting.py",
+      "fingerprint": "sha256:2c638b5ee69b55f4586ac5ff9a1f8c9c41a0e36687201f8e14af3f2a5b12f8aa;mode:100644",
+      "public_path": "tests/test_run_velociraptor_hunting.py"
+    },
+    "tests/test_setup_config_transfer.py => tests/test_setup_config_transfer.py": {
+      "ai_path": "tests/test_setup_config_transfer.py",
+      "fingerprint": "sha256:5de68aa41c80427098832a4a7fc7f9d5d7aec45af5e41867e9e22b46d02a3584;mode:100644",
+      "public_path": "tests/test_setup_config_transfer.py"
+    },
+    "tests/test_synthesis_modes.py => tests/test_synthesis_modes.py": {
+      "ai_path": "tests/test_synthesis_modes.py",
+      "fingerprint": "sha256:4a192f416a6328e06585d55d1ae979f617b4d07d0ab331b5f52e160532adce23;mode:100644",
+      "public_path": "tests/test_synthesis_modes.py"
+    },
+    "tests/test_token_budget.py => tests/test_token_budget.py": {
+      "ai_path": "tests/test_token_budget.py",
+      "fingerprint": "sha256:3a93aa56625eb5049c8c8daa9067bf12df0156c8d238528e0e748674ef53b0d8;mode:100644",
+      "public_path": "tests/test_token_budget.py"
+    },
+    "tests/test_velociraptor_artifact_schema_compatibility.py => tests/test_velociraptor_artifact_schema_compatibility.py": {
+      "ai_path": "tests/test_velociraptor_artifact_schema_compatibility.py",
+      "fingerprint": "sha256:5ea9bb069219c13c362bb56f1826de7fd7d9abf31d3e4fcd4212aeb6ba8a4665;mode:100644",
+      "public_path": "tests/test_velociraptor_artifact_schema_compatibility.py"
+    },
+    "tests/test_velociraptor_artifact_selection.py => tests/test_velociraptor_artifact_selection.py": {
+      "ai_path": "tests/test_velociraptor_artifact_selection.py",
+      "fingerprint": "sha256:8cb25951458b2f5b1ed80cb35d65ead8b143d3bd54581e912d20877f7fea5294;mode:100644",
+      "public_path": "tests/test_velociraptor_artifact_selection.py"
+    },
+    "tests/test_velociraptor_cli.py => tests/test_velociraptor_cli.py": {
+      "ai_path": "tests/test_velociraptor_cli.py",
+      "fingerprint": "sha256:2a1734e83536883597add52729bdf00a1d3ab75efa3146ddd0bea7ca058635b1;mode:100644",
+      "public_path": "tests/test_velociraptor_cli.py"
+    },
+    "tests/test_velociraptor_client_query.py => tests/test_velociraptor_client_query.py": {
+      "ai_path": "tests/test_velociraptor_client_query.py",
+      "fingerprint": "sha256:82f9720fe35b178c4c71d3e729d91978ee7f1cc54c48ee208f2aa854eb821c6a;mode:100644",
+      "public_path": "tests/test_velociraptor_client_query.py"
+    },
+    "tests/test_velociraptor_detection_scenarios.py => tests/test_velociraptor_detection_scenarios.py": {
+      "ai_path": "tests/test_velociraptor_detection_scenarios.py",
+      "fingerprint": "sha256:9d774fe7a3a0731a996af93ab0bb545df0a80d78997315fae2d34ad49e6295a3;mode:100644",
+      "public_path": "tests/test_velociraptor_detection_scenarios.py"
+    },
+    "tests/test_velociraptor_layout.py => tests/test_velociraptor_layout.py": {
+      "ai_path": "tests/test_velociraptor_layout.py",
+      "fingerprint": "sha256:d9eceb8862b333af4077c53b9829ecc47330341548eeaf42b9c46b993bf99c46;mode:100644",
+      "public_path": "tests/test_velociraptor_layout.py"
+    },
+    "tests/test_velociraptor_logging_monitoring.py => tests/test_velociraptor_logging_monitoring.py": {
+      "ai_path": "tests/test_velociraptor_logging_monitoring.py",
+      "fingerprint": "sha256:a6637217ff18afabafa56148bcc83c5a0b5c81f56ae2f5fb08d5b7a129f07ed8;mode:100644",
+      "public_path": "tests/test_velociraptor_logging_monitoring.py"
+    },
+    "tests/test_velociraptor_operation_log.py => tests/test_velociraptor_operation_log.py": {
+      "ai_path": "tests/test_velociraptor_operation_log.py",
+      "fingerprint": "sha256:0ce303d77086085ee68818eec41e5331857920a3ece8814e5492789b3817566d;mode:100644",
+      "public_path": "tests/test_velociraptor_operation_log.py"
+    },
+    "tests/test_velociraptor_persistence_policy.py => tests/test_velociraptor_persistence_policy.py": {
+      "ai_path": "tests/test_velociraptor_persistence_policy.py",
+      "fingerprint": "sha256:fc2cbe0fd35605b7d5c6eb6ab6b1a4cf6350bcab9a89b0f18053e50d045cd4a6;mode:100644",
+      "public_path": "tests/test_velociraptor_persistence_policy.py"
+    },
+    "tests/test_velociraptor_query_timeout.py => tests/test_velociraptor_query_timeout.py": {
+      "ai_path": "tests/test_velociraptor_query_timeout.py",
+      "fingerprint": "sha256:8a51f056448ab1624259ae62d1fbc2d52e0b0431ff8ef9d98fb0d7775bb14d55;mode:100644",
+      "public_path": "tests/test_velociraptor_query_timeout.py"
+    },
+    "tests/test_vraptor_lifecycle.py => tests/test_vraptor_lifecycle.py": {
+      "ai_path": "tests/test_vraptor_lifecycle.py",
+      "fingerprint": "sha256:07408fbee45d420cd44caecef6007aa5c379da7759bd866c1510a99edb3c633a;mode:100644",
+      "public_path": "tests/test_vraptor_lifecycle.py"
+    },
+    "tests/test_vraptor_settings.py => tests/test_vraptor_settings.py": {
+      "ai_path": "tests/test_vraptor_settings.py",
+      "fingerprint": "sha256:ddfb9774ce3e063f686a4128d83ada2f7f1cbdba3691b833c889035852ed2aba;mode:100644",
+      "public_path": "tests/test_vraptor_settings.py"
+    },
+    "tests/test_vraptor_setup.py => tests/test_vraptor_setup.py": {
+      "ai_path": "tests/test_vraptor_setup.py",
+      "fingerprint": "sha256:cd206d510ae3be0b24783d65b1cb361654c6ffeb34b50bc7d9f8f415ff988be3;mode:100644",
+      "public_path": "tests/test_vraptor_setup.py"
+    },
+    "tests/test_zip_mapping.py => tests/test_zip_mapping.py": {
+      "ai_path": "tests/test_zip_mapping.py",
+      "fingerprint": "sha256:2aebb67ade324c702364615e055342ab1970664e9e6d8c98e26e6038a5e32fe8;mode:100644",
+      "public_path": "tests/test_zip_mapping.py"
+    },
+    "utils/configure-velociraptor-ssh.sh => utils/configure-velociraptor-ssh.sh": {
+      "ai_path": "utils/configure-velociraptor-ssh.sh",
+      "fingerprint": "sha256:e675d5dcae40905a35f3d8cd8383a9d938664e3ee6b417fac27ae5dd5f92b81f;mode:100755",
+      "public_path": "utils/configure-velociraptor-ssh.sh"
+    },
+    "utils/link-claude-skills.sh => utils/link-claude-skills.sh": {
+      "ai_path": "utils/link-claude-skills.sh",
+      "fingerprint": "sha256:cfcb1752ac1228070e7d9da469fa3e25864d8ebef2be4789fc1a563ca1520e94;mode:100755",
+      "public_path": "utils/link-claude-skills.sh"
+    },
+    "utils/link-codex-agents.sh => utils/link-codex-agents.sh": {
+      "ai_path": "utils/link-codex-agents.sh",
+      "fingerprint": "sha256:e6f618475c883b406dda4ae6df59d2928ac83b40b3aaaf4b36eb3d7fc2cbcebc;mode:100755",
+      "public_path": "utils/link-codex-agents.sh"
+    },
+    "utils/link-codex-skills.sh => utils/link-codex-skills.sh": {
+      "ai_path": "utils/link-codex-skills.sh",
+      "fingerprint": "sha256:52c84dc4c6f8d7099b7ef639db117625d9564a35e75ed16c9ec8afc63e4d37ce;mode:100755",
+      "public_path": "utils/link-codex-skills.sh"
+    },
+    "utils/review_evtx_csv.py => utils/review_evtx_csv.py": {
+      "ai_path": "utils/review_evtx_csv.py",
+      "fingerprint": "sha256:1971ddf0fbcc1bcaaba4f2392fddc6c29ec95ae9c46154f2b59f60c61387646c;mode:100755",
+      "public_path": "utils/review_evtx_csv.py"
+    },
+    "utils/validate_collection_analysis_forward.py => utils/validate_collection_analysis_forward.py": {
+      "ai_path": "utils/validate_collection_analysis_forward.py",
+      "fingerprint": "sha256:859a944fbaf1b0196a3121213760b03ca1e76fecd59d84593dd5af673baef932;mode:100644",
+      "public_path": "utils/validate_collection_analysis_forward.py"
+    },
+    "utils/validate_velociraptor_artifact_schemas.py => utils/validate_velociraptor_artifact_schemas.py": {
+      "ai_path": "utils/validate_velociraptor_artifact_schemas.py",
+      "fingerprint": "sha256:0449ca5ce9355d67f5efcfe47247410cb574d948e9cb8dd8c39b4df47c1f2aa3;mode:100755",
+      "public_path": "utils/validate_velociraptor_artifact_schemas.py"
+    }
+  },
+  "last_direction": "from-ai",
+  "last_source_revision": "8e2824d1304e917228458a7673fdebfcb11975ea+working-tree",
+  "schema_version": 1
+}

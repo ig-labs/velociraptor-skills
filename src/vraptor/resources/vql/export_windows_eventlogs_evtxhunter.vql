@@ -1,0 +1,13 @@
+SELECT EventTime,
+       Provider,
+       EventID,
+       EventRecordID,
+       UserSID,
+       Username,
+       EventData,
+       UserData
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.EventLogs.EvtxHunter'
+)

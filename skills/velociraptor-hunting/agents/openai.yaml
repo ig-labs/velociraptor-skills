@@ -1,0 +1,4 @@
+interface:
+  display_name: "Velociraptor Hunting"
+  short_description: "Live-first cross-host hunting and review"
+  default_prompt: "Use $velociraptor-hunting to discover and classify all artifact-compatible server hunts before mutation, safely reuse an exact current-case hunt, or run the smallest new hunt. Never use template results as current-case evidence; obtain explicit authorization before --authorize-template-create or --force-run."
