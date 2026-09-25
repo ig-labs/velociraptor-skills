@@ -1,4 +1,7 @@
 # ai_skills path	velociraptor-skills path	kind
+# Retired helpers are deliberately unmapped: configure-velociraptor-ssh.sh and
+# validate_velociraptor_artifact_schemas.py. Use native ssh-add and the CLI.
+# Keep public-owned installation/launcher glue out of broad utils/ tree mappings.
 skills/prep-dfir-tools	skills/prep-dfir-tools	tree
 skills/velociraptor-artifact-selection	skills/velociraptor-artifact-selection	tree
 skills/velociraptor-collection	skills/velociraptor-collection	tree
@@ -26,7 +29,6 @@ skills/velociraptor-mapped-client	skills/velociraptor-mapped-client	tree
 .codex/agents/collection-agent.toml	.codex/agents/collection-agent.toml	file
 .codex/agents/hunt-agent.toml	.codex/agents/hunt-agent.toml	file
 .codex/agents/setup-agent.toml	.codex/agents/setup-agent.toml	file
-utils/configure-velociraptor-ssh.sh	utils/configure-velociraptor-ssh.sh	file
 utils/link-codex-agents.sh	utils/link-codex-agents.sh	file
 utils/link-codex-skills.sh	utils/link-codex-skills.sh	file
 utils/link-claude-skills.sh	utils/link-claude-skills.sh	file
@@ -90,8 +92,8 @@ docs/model-execution.md	docs/model-execution.md	file
 docs/agent-installation.md	docs/agent-installation.md	file
 docs/velociraptor-setup-testing.md	docs/velociraptor-setup-testing.md	file
 utils/review_evtx_csv.py	utils/review_evtx_csv.py	file
+tests/test_review_evtx_csv.py	tests/test_review_evtx_csv.py	file
 utils/validate_collection_analysis_forward.py	utils/validate_collection_analysis_forward.py	file
-utils/validate_velociraptor_artifact_schemas.py	utils/validate_velociraptor_artifact_schemas.py	file
 tests/test_additional_agent_providers.py	tests/test_additional_agent_providers.py	file
 tests/test_agent_analysis_defaults.py	tests/test_agent_analysis_defaults.py	file
 tests/test_agent_diagnostics.py	tests/test_agent_diagnostics.py	file

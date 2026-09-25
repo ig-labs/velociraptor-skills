@@ -306,6 +306,28 @@ def test_configure_normalizes_prompted_paths(workstation, monkeypatch, capsys):
     assert result.values["env_file"] == str(repo / "credentials.env")
 
 
+def test_interactive_configure_repairs_missing_credential_reference(workstation, monkeypatch, capsys):
+    from vraptor import cli
+    home, repo = workstation
+    path = config(home, '[credentials]\nenv_file="~/moved.env"\n')
+    original = path.read_text()
+    replacement = home / "credentials.env"
+    replacement.write_text("API_SECRET=fixture-secret\n")
+    monkeypatch.setattr(settings.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt:
+                        str(replacement) if prompt.startswith("Optional credential .env path") else "")
+    assert cli.main(["setup", "configure"]) == 0
+    output = capsys.readouterr()
+    assert "fixture-secret" not in output.out + output.err + path.read_text()
+    assert path.with_name("config.toml.bak").read_text() == original
+    snapshot = settings.resolve(repo_root=repo)
+    assert snapshot.values["env_file"] == str(replacement)
+    assert snapshot.environment["API_SECRET"] == "fixture-secret"
+    replacement.unlink()
+    with pytest.raises(ValueError, match="credential env file does not exist"):
+        settings.resolve(repo_root=repo)
+
+
 @pytest.mark.parametrize("profile", [None, "lab"])
 def test_interactive_remote_settings_are_saved_in_selected_scope(workstation, monkeypatch, capsys, profile):
     from vraptor import cli

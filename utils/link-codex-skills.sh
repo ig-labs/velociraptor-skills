@@ -45,6 +45,7 @@ if [[ ! -d "${SOURCE_DIR}" ]]; then
   printf 'Skills directory not found: %s\n' "${SOURCE_DIR}" >&2
   exit 1
 fi
+SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd)"
 
 if [[ "${DRY_RUN}" == false ]]; then
   mkdir -p -- "${DEST_DIR}"

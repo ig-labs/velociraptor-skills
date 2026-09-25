@@ -187,6 +187,13 @@ def review_evtx_csv(
         raise RuntimeError("--context-chars must be zero or greater.")
     if max_matches <= 0:
         raise RuntimeError("--max-matches must be a positive integer.")
+    paths = [("input", input_path), ("output", output_path), ("manifest", manifest_path)]
+    for index, (label, path) in enumerate(paths):
+        for other_label, other in paths[index + 1:]:
+            if path.resolve() == other.resolve() or (
+                path.exists() and other.exists() and path.samefile(other)
+            ):
+                raise RuntimeError(f"{label} and {other_label} must be different files.")
     specs = build_match_specs(literals, regexes, case_sensitive=case_sensitive)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)

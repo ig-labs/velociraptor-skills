@@ -21,4 +21,6 @@ fi
 )
 
 printf 'Installed dependencies in %s/.venv\n' "${REPO_ROOT}"
+printf 'Configure workstation, connections and optional AI: %s/vraptor setup configure\n' "${REPO_ROOT}"
+printf 'Configuration is saved separately; a repository .env is optional.\n'
 printf 'Preview skill links with: ./utils/link-codex-skills.sh --dry-run\n'

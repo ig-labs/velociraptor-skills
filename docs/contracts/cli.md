@@ -88,7 +88,14 @@ switching projects or running concurrent streams.
 
 ## Operational setup
 
+Run bare `vraptor setup configure` in a terminal for the complete operational
+wizard and optional AI handoff. Setting flags provide targeted configuration and
+skip that wizard. No repository `.env` is required; TOML stores preferences and
+credential-file references. Inspect effective sources after configuration.
+
 ```sh
+vraptor setup configure
+# Targeted, non-interactive updates:
 vraptor setup configure --case-root ~/cases
 vraptor setup configure --server-profile lab --api-client /configs/lab.yaml
 vraptor setup show --server-profile lab

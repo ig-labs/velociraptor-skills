@@ -51,9 +51,8 @@ print("ISOLATED_RESOURCES_AND_MOCK_API_OK")
 '''
 
 
-def main():
+def validate_install(root: Path):
     repository = Path(__file__).resolve().parents[1]
-    root = Path(tempfile.mkdtemp(prefix="vraptor-install-check-"))
     print("Validation directory:", root, flush=True)
     wheels = root / "wheels"
     wheels.mkdir()
@@ -63,10 +62,12 @@ def main():
     shutil.copy2(repository / "pyproject.toml", build_source / "pyproject.toml")
     shutil.copytree(repository / "src", build_source / "src",
                     ignore=shutil.ignore_patterns("build", "dist", "*.egg-info", "__pycache__", "*.pyc"))
+    # Call the declared setuptools backend directly. uv-created development
+    # environments need not contain pip; installation uses the temporary venv.
     subprocess.run(
-        [sys.executable, "-m", "pip", "wheel", "--no-deps", "--no-build-isolation",
-         str(build_source), "-w", str(wheels)],
-        check=True, stdout=subprocess.DEVNULL,
+        [sys.executable, "-c",
+         "from setuptools.build_meta import build_wheel; import sys; build_wheel(sys.argv[1])",
+         str(wheels)], cwd=build_source, check=True, stdout=subprocess.DEVNULL,
     )
     wheel = next(wheels.glob("vraptor-*.whl"))
     with zipfile.ZipFile(wheel) as archive:
@@ -119,6 +120,11 @@ def main():
     )
     print(result.stdout, result.stderr)
     return result.returncode
+
+
+def main():
+    with tempfile.TemporaryDirectory(prefix="vraptor-install-check-") as temporary:
+        return validate_install(Path(temporary))
 
 
 if __name__ == "__main__":

@@ -30,6 +30,8 @@ Requirements are Python 3.11 or later, Git, and a POSIX shell.
 git clone https://github.com/ig-labs/velociraptor-skills.git
 cd velociraptor-skills
 ./utils/install.sh
+./vraptor setup configure
+./vraptor config
 ./utils/link-codex-skills.sh --dry-run
 ./utils/link-codex-skills.sh
 ```
@@ -57,11 +59,21 @@ Install the optional custom-agent templates with:
 ./utils/link-codex-agents.sh
 ```
 
-Start a new Codex task after changing installed links. Copy `config/example.env` to
-the ignored `.env` file and add only the settings needed for the deployment.
+Start a new Codex task after changing installed links. Run the bare
+`./vraptor setup configure` command in a terminal for the complete wizard:
+workstation paths, connections, SSH settings, credential-file references and
+optional AI configuration. It saves operational settings in
+`~/.config/vraptor/config.toml`; the AI wizard saves
+`~/.config/vraptor/analyst-agents.toml`. Both follow `$XDG_CONFIG_HOME`.
+
+A repository `.env` is optional. Use a selected credential file or process
+environment for provider keys; `config/example.env` is a reference for optional
+overrides. Existing environment/dotenv overrides take precedence over saved TOML;
+inspect `./vraptor config` and `./vraptor ai config` to see effective sources.
 Never commit credentials or Velociraptor API-client YAML.
 
-The installer includes the optional AI dependencies. For an API-only environment,
+`utils/install.sh` only bootstraps Python dependencies, including the `ai` extra;
+it does not run the configuration wizard or install native tools. For an API-only environment,
 install the package with `python -m pip install -e .`; add `.[ai]`,
 `.[azure]`, `.[anthropic]`, or `.[claude]` for the selected provider.
 See [configuration](CONFIG.md) and the [installation and AI setup guide](docs/vraptor-installation.md).
@@ -70,8 +82,8 @@ See [configuration](CONFIG.md) and the [installation and AI setup guide](docs/vr
 
 ```sh
 ./vraptor --help
+./vraptor setup configure
 ./vraptor setup init --id example-case
-./vraptor setup configure --case-root ~/cases
 ./vraptor setup show
 ./vraptor ai config --view defaults
 ./vraptor tools prep --help
@@ -206,6 +218,12 @@ response profiles are owned solely by the packaged file above.
 Public-owned files such as this README, CI, configuration templates, and sync
 utilities are outside the managed export unless they are explicitly present in
 the manifest.
+
+Retired utility mappings must stay removed from future exports. Use
+`vraptor artifacts validate-schema --snapshot FILE --strict` for offline schema
+validation and native `ssh-add` for SSH-agent enrollment. See the
+[setup audit and upstream alignment instructions](docs/setup-configuration-audit.md)
+before changing installer, launcher or sync ownership.
 
 ## Validation
 

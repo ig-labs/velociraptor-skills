@@ -1,5 +1,10 @@
 # Repository retention and public-data audit
 
+This is the original retention snapshot. The later
+[setup configuration audit](setup-configuration-audit.md) supersedes its utility
+retention recommendations: two wrappers were retired, launcher dotenv loading
+was removed, and the remaining utility defects were corrected.
+
 Reviewed 2026-09-25. Scope: folder and utility ownership, references, packaging,
 generated files, synchronization safeguards, and public-data validation. This is
 a structural/maintenance review, not a complete security review of every runtime

@@ -77,6 +77,28 @@ def test_directional_sync_is_idempotent_and_reversible(tmp_path: Path) -> None:
     assert (ai / "shared" / "file.txt").read_text() == "public update\n"
 
 
+def test_retired_mapping_does_not_reimport_file_from_old_baseline(tmp_path: Path) -> None:
+    public, ai, script = initialize_pair(tmp_path)
+    manifest = public / "config/sync-manifest.tsv"
+    original = manifest.read_text()
+    manifest.write_text(original + "shared/retired.sh\tutils/retired.sh\tfile\n")
+    upstream = ai / "shared/retired.sh"
+    upstream.write_text("old helper\n")
+    commit_all(ai, "add helper")
+    run(["python3", str(script), "from-ai", "--source", str(ai), "--apply"], public)
+    baseline = json.loads((public / ".sync-state.json").read_text())
+    assert "shared/retired.sh => utils/retired.sh" in baseline["files"]
+    manifest.write_text(original)
+    (public / "utils/retired.sh").unlink()
+    preview = run(["python3", str(script), "from-ai", "--source", str(ai), "--check"], public)
+    digest = next(line.split(": ", 1)[1] for line in preview.stdout.splitlines() if line.startswith("Plan SHA256:"))
+    run(["python3", str(script), "from-ai", "--source", str(ai), "--apply",
+         "--require-plan-hash", digest], public)
+    assert upstream.exists()
+    assert not (public / "utils/retired.sh").exists()
+    assert "shared/retired.sh => utils/retired.sh" not in json.loads((public / ".sync-state.json").read_text())["files"]
+
+
 def test_conflicting_changes_are_refused(tmp_path: Path) -> None:
     public, ai, script = initialize_pair(tmp_path)
     run(["python3", str(script), "from-ai", "--source", str(ai), "--apply"], public)

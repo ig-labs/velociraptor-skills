@@ -139,9 +139,11 @@ dfir collect analyze \
 
 ## Analyst runtime contract
 
-Repository-root `.env` may override the shared stateless API runner. This
-example explicitly selects Codex-managed OpenAI routing; omitted settings use
-the code-owned defaults reported by `dfir ai config --view defaults`:
+Configure reusable analyst profiles with `vraptor ai setup`, or accept the AI
+handoff in bare `vraptor setup configure`. No repository `.env` is required.
+Process environment and optional credential/dotenv files can override saved
+profiles. This compatibility example selects Codex-managed OpenAI routing;
+inspect effective values with `dfir ai config` before relying on saved settings:
 
 ```dotenv
 AI_SKILLS_ANALYST_AGENT_ENABLED=true
@@ -161,7 +163,7 @@ overview; `config/example.env` lists optional override names,
 `dfir ai config --view defaults` reports machine-independent code defaults,
 and `dfir ai config` reports effective values and provenance.
 
-Optional shared TOML execution profiles also configure OpenAI, Azure and Anthropic.
+Saved TOML execution profiles configure OpenAI, Azure and Anthropic.
 Use `vraptor ai setup` and offline `vraptor ai doctor`; see
 repository `docs/model-execution.md` for native Codex/Claude login and API setup.
 Setup reruns preserve saved settings and use the existing harness path as the

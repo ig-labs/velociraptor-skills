@@ -46,6 +46,8 @@ if [[ ! -d "${SOURCE_DIR}" ]]; then
   printf 'Custom-agent directory not found: %s\n' "${SOURCE_DIR}" >&2
   exit 1
 fi
+# Keep logical absolute paths so existing owned retired links still match.
+SOURCE_DIR="$(cd -- "${SOURCE_DIR}" && pwd)"
 
 if [[ "${DRY_RUN}" == false ]]; then
   mkdir -p -- "${DEST_DIR}"

@@ -56,6 +56,12 @@ is created.
 
 ## Environment and analyst configuration
 
+Use bare `vraptor setup configure` in a terminal for the complete operational
+wizard and optional AI handoff. No repository `.env` is required: save reusable
+preferences in TOML and reference existing credential files or process credentials.
+Environment/dotenv overrides remain supported and can mask wizard changes;
+inspect effective sources before changing a saved value again.
+
 Remote profiles inherit `api_user` and `api_role_profile` from
 `[connection_defaults]`, including previously unseen profile names. Precedence is
 CLI > environment/dotenv > named connection > connection defaults > application
@@ -122,6 +128,8 @@ and print JSON; defaults inspection ignores local files and environment override
 `setup show`. Use `setup configure` and `ai setup` to configure each subsystem.
 
 ```bash
+dfir setup configure
+# Targeted updates skip the interactive wizard and AI handoff:
 dfir setup configure --case-root ~/cases
 dfir setup configure --server-profile lab --api-client /configs/lab_api_client.yaml
 dfir setup show --server-profile lab

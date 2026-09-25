@@ -90,7 +90,8 @@ def main(argv=None):
         if args[:1] == ["setup"] and (len(args) == 1 or args[1] in {"--help", "-h"}):
             print("Usage: vraptor setup <configure|show|migrate|export|deploy|reset|start|status|resume|stop|init|local-deaddisk|remote-deaddisk|live-remote> [args]")
             print("Use start for guided three-mode setup; existing mode commands retain their lower-level interfaces.")
-            print("To configure AI, run: vraptor ai setup (agent is also accepted).")
+            print("Use configure in a terminal to save operational settings and optionally open AI setup.")
+            print("To configure AI separately, run: vraptor ai setup (agent is also accepted).")
             return 0
         if args[:1] == ["setup"] and len(args) > 1:
             if args[1] in {"export", "deploy", "reset"}:
@@ -102,6 +103,11 @@ def main(argv=None):
             if args[1] in {"start", "status", "resume", "stop"}:
                 from .setup import main as setup
                 return setup(_aliases(args[1:], "setup"))
+        # Offline snapshot validation must work without local credentials or
+        # a usable connection configuration, just like the former utility.
+        if args[:2] == ["artifacts", "validate-schema"]:
+            from .artifacts.schema import main as validate_schema
+            return validate_schema(args[2:])
         defaults_view = args[:2] == ["ai", "config"] and (
             "--view=defaults" in args or any(args[i:i + 2] == ["--view", "defaults"] for i in range(len(args))))
         if args and not defaults_view and not any(arg in {"-h", "--help", "help"} for arg in args):

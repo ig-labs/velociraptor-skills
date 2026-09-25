@@ -115,8 +115,10 @@ Do not rebuild GoldenDB as part of copying code or update it from live evidence.
    reviewed deletions. Preserve destination-only changes with the existing
    `--allow-reverse-pending` mechanism; it does not resolve conflicts.
 7. Adapt the public launcher/installer to install this package and invoke
-   `vraptor.cli:main`. Public `dfir` compatibility routes call the shared legacy
-   dispatcher. The case-management package has been removed from the source checkout. Change public skill links
+   `vraptor.cli:main`. The public `dfir velociraptor` alias strips its old namespace
+   before entering that same settings resolver; operational groups still use
+   the internal legacy dispatcher where needed. Do not preload dotenv in the
+   public launchers. The case-management package has been removed from the source checkout. Change public skill links
    from upstream `packages/vraptor/docs/contracts` to `docs/contracts`. Retain
    public help, integration tests and generic configuration examples.
 8. Run public export validation, core and public integration tests, an unrelated-
@@ -129,3 +131,20 @@ After the initial conversion, later shared updates use the same folder mappings
 and existing hash-bound sync procedure. Rollback restores the source checkout
 and pre-conversion sync baseline; runtime case directories require no rollback
 or data conversion.
+
+## Ongoing setup and utility ownership
+
+The public dependency installer, checkout bootstrap, root documentation, CI and
+sync utilities remain public-owned unless explicitly mapped. Shared setup code
+and documentation must lead with bare `vraptor setup configure`, its optional AI
+handoff, XDG TOML settings and optional credential dotenv/process environment.
+Preserve private launcher consumers when aligning configuration resolution.
+
+Keep utility mappings explicit. The retired `configure-velociraptor-ssh.sh` and
+`validate_velociraptor_artifact_schemas.py` must not be restored by export
+inventories or a broad `utils/` tree mapping: native `ssh-add` and
+`vraptor artifacts validate-schema --snapshot FILE --strict` replace them.
+Retain the functional regression coverage when retiring wrappers. Removing a
+mapping prevents future imports; stale baseline entries are pruned by successful
+sync, not by manually editing accepted fingerprints. Reverse-sync deletions need
+independent review because a private package may retain modules absent publicly.

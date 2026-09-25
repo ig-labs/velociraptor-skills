@@ -14,10 +14,12 @@ operational settings. Use `vraptor ai setup` directly to change AI profiles late
 From this repository use `./vraptor ai ...`; installed users use
 `vraptor ai ...`. `./dfir ai config` remains the existing compatibility route.
 
-The interactive `./utils/configure-codex.sh` installer offers to run model setup
-after configuring Codex. Press Enter to accept, or decline and run setup later.
-Use `--skip-agent-setup` to suppress the offer. Non-interactive installation skips
-it; the Python dependencies must be installed before running the wizard.
+Run bare `vraptor setup configure` in a terminal and answer Yes to
+`Configure AI analyst settings [y/N]:` to open the AI wizard after operational
+settings are saved. Enter skips AI setup. Setting flags select targeted,
+non-interactive configuration and do not open the AI wizard. Python dependencies
+must already be installed. No repository `.env` is required; select a credential
+file or use process credentials when the chosen provider needs them.
 
 ```sh
 ./vraptor ai setup

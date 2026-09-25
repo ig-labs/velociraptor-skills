@@ -12,8 +12,10 @@ readiness and hunt scope matching, retaining both existing module import names.
 Client-query label parsing remains separate because it returns a sorted list and
 discards empty scalar values.
 `dfir` and `vraptor` share `vraptor.cli:main`. Both repository launchers use
-`utils/runtime-env.sh`; `dfir velociraptor` dispatches to `vraptor.legacy_cli`
-for compatibility. The removed case-management package is not required.
+`utils/runtime-env.sh` only to select the interpreter and repository import paths.
+`dfir velociraptor` strips the old namespace and uses the same `vraptor.cli:main`
+settings resolution as `./vraptor`. Operational commands still dispatch internally
+to `vraptor.legacy_cli` where needed. The removed case-management package is not required.
 
 `workspace.initialize` creates/reuses one investigation folder and missing
 `AGENTS.md` without connecting to a server. It returns bounded existing-analysis

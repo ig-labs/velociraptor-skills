@@ -2,12 +2,8 @@
 set -euo pipefail
 . "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/utils/runtime-env.sh"
 
-case "${1:---help}" in
-  velociraptor)
-    shift
-    exec "${VRAPTOR_PYTHON}" -m vraptor.legacy_cli "$@"
-    ;;
-  *)
-    exec "${VRAPTOR_PYTHON}" -m vraptor.cli "$@"
-    ;;
-esac
+# Preserve the old namespace while using the same settings resolver as vraptor.
+if [[ "${1:-}" == velociraptor ]]; then
+  shift
+fi
+exec "${VRAPTOR_PYTHON}" -m vraptor.cli "$@"

@@ -46,6 +46,11 @@ vraptor --help
 vraptor setup configure --help
 ```
 
+For an editable public-checkout installation with the `ai` extra,
+`./utils/install.sh` creates/reuses `.venv` and installs the dependencies.
+It prints the configuration command but does not run the wizard. Skill/agent
+linking remains a separate, optional step in the [repository instructions](../README.md#install).
+
 If `.venv` already exists, activate and reuse it. In the upstream `ai_skills`
 checkout, use `./packages/vraptor[ai,azure,anthropic,claude]` as the pip target.
 Install a supplied wheel by its local path.
@@ -80,6 +85,13 @@ Run this in a terminal for the grouped interactive wizard:
 ```sh
 vraptor setup configure
 ```
+
+No repository `.env` is required. The wizard saves reusable preferences in TOML;
+the optional Credentials section selects an existing credential file. Process
+environment and legacy dotenv files remain supported overrides. They can mask
+saved settings, so inspect effective sources after configuration.
+If a saved credential file has moved, the wizard can repair its path; operational
+commands still fail when their selected credential file is missing.
 
 At the saved-server-name prompt, enter a name such as `lab` for a remote
 connection. Use the same name to edit it later. Leave the name blank for shared
@@ -118,9 +130,18 @@ A failed AI wizard leaves the operational settings saved and reports a retry
 command. The AI wizard may offer a separate native login check/sign-in; it does
 not send an inference request as part of saving settings.
 
-Use the bare command above to get every relevant wizard section. Saved settings
+Use the bare command above to get every relevant wizard section. Setting flags
+such as `--case-root` skip the interactive questions and AI handoff. Saved settings
 are managed interactively; the analysis flags in step 7 are optional overrides
 for individual runs.
+
+### Optional SSH-agent enrollment
+
+The wizard saves SSH user/key references. To unlock an existing key in your
+local agent, use `ssh-add /path/to/private-key`. On macOS, use
+`ssh-add --apple-use-keychain /path/to/private-key` when Keychain storage is wanted.
+The native tool obtains the passphrase locally. Configuration does not load keys,
+remove existing agent entries or provision remote access.
 
 ### Native binary for mapped evidence or a local server
 
@@ -226,8 +247,9 @@ endpoint when prompted:
 | `azure_openai` | `azure_work` | Azure endpoint URL, deployment name and `AZURE_OPENAI_API_KEY` (or choose Entra in advanced authentication) |
 | `anthropic` | `claude_api` | Claude model ID; `ANTHROPIC_API_KEY` in the credential source |
 
-Provide `AZURE_OPENAI_API_KEY` through your process environment or the ignored
-repository-root `.env`. The optional **Advanced API settings** section lets you
+Provide `AZURE_OPENAI_API_KEY` through your process environment or the credential
+file selected in setup. The ignored repository-root `.env` remains an optional
+compatibility source. The **Advanced API settings** section lets you
 choose a different credential variable name, authentication mode or endpoint.
 To select a credential dotenv, enter its path in the **Credentials** section
 of `vraptor setup configure`.

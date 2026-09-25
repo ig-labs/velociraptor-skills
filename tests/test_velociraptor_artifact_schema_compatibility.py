@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -16,10 +17,7 @@ from vraptor import legacy_cli as cli
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-VALIDATOR_SCRIPT = (
-    REPO_ROOT
-    / "utils/validate_velociraptor_artifact_schemas.py"
-)
+VALIDATOR_COMMAND = [sys.executable, "-m", "vraptor.cli", "artifacts", "validate-schema"]
 
 
 def official_schema_snapshot() -> dict[str, object]:
@@ -216,7 +214,7 @@ class VelociraptorArtifactSchemaCompatibilityTest(unittest.TestCase):
             snapshot_path = Path(tmpdir) / "snapshot.json"
             snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
             non_strict = subprocess.run(
-                [sys.executable, str(VALIDATOR_SCRIPT), str(snapshot_path)],
+                [*VALIDATOR_COMMAND, str(snapshot_path)],
                 cwd=REPO_ROOT,
                 text=True,
                 capture_output=True,
@@ -224,8 +222,7 @@ class VelociraptorArtifactSchemaCompatibilityTest(unittest.TestCase):
             )
             strict = subprocess.run(
                 [
-                    sys.executable,
-                    str(VALIDATOR_SCRIPT),
+                    *VALIDATOR_COMMAND,
                     "--snapshot",
                     str(snapshot_path),
                     "--strict",
@@ -250,8 +247,7 @@ class VelociraptorArtifactSchemaCompatibilityTest(unittest.TestCase):
             )
             result = subprocess.run(
                 [
-                    sys.executable,
-                    str(VALIDATOR_SCRIPT),
+                    *VALIDATOR_COMMAND,
                     str(snapshot_path),
                     "--strict",
                 ],
@@ -263,6 +259,23 @@ class VelociraptorArtifactSchemaCompatibilityTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(json.loads(result.stdout)["compatible"])
+
+    def test_offline_cli_ignores_unusable_connection_settings(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            configuration = root / ".config/vraptor/config.toml"
+            configuration.parent.mkdir(parents=True)
+            configuration.write_text('schema_version = 1\n[credentials]\nenv_file="missing.env"\n')
+            snapshot = root / "snapshot.json"
+            snapshot.write_text(json.dumps(official_schema_snapshot()))
+            result = subprocess.run(
+                [*VALIDATOR_COMMAND, str(snapshot), "--strict"], cwd=root,
+                env={"HOME": str(root), "PATH": os.defpath,
+                     "PYTHONPATH": str(REPO_ROOT / "src"), "PYTHONNOUSERSITE": "1"},
+                text=True, capture_output=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(json.loads(result.stdout)["compatible"])
 
     def test_unified_cli_routes_schema_validation(self):
         with mock.patch.object(

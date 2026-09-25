@@ -508,7 +508,10 @@ def main(argv=None):
                 for key, value in tables.items():
                     destination.setdefault(key, value)
     changes, conflicts = [], []
+    # Configuration must remain usable to repair a moved/deleted credential file.
+    # Operational commands still require the selected file to exist.
     snapshot = resolve(args.server_profile, config_file=path, allow_missing=True,
+                       require_credentials=args.action != "configure",
                        overrides={"env_file": args.env_file} if args.env_file else None)
     configure_ai = False
     if args.action == "configure" and sys.stdin.isatty() and not any(getattr(args, key) is not None for key in _FIELDS) and not args.template:
