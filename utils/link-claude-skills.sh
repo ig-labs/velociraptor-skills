@@ -11,7 +11,7 @@ usage() {
   cat <<'EOF'
 Usage: utils/link-claude-skills.sh [--dry-run]
 
-Create or update one symlink in ~/.claude/skills for every directory under
+Experimental: Create or update one symlink in ~/.claude/skills for every directory under
 the repository skills/ directory that contains a SKILL.md file.
 Links keep repository-relative runtime and configuration paths available.
 Existing real files and directories are never replaced. Shell startup files
@@ -46,6 +46,8 @@ fi
 linked=0
 unchanged=0
 conflicts=0
+
+echo "Experimental - please check paths"
 
 for source in "${SOURCE_DIR}"/*; do
   [[ -d "${source}" ]] || continue
