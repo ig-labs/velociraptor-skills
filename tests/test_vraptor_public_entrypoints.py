@@ -26,7 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
          "vraptor.cli", ["setup", "init", "--id", "example-case"]),
     ],
 )
-def test_launchers_preserve_dispatch_from_another_directory(tmp_path, launcher, args, module, forwarded):
+@pytest.mark.parametrize("via_path", [False, True])
+def test_launchers_preserve_dispatch_from_another_directory(tmp_path, launcher, args, module, forwarded, via_path):
     repo = tmp_path / "repository with spaces"
     for relative in [launcher, "utils/runtime-env.sh"]:
         target = repo / relative
@@ -35,13 +36,15 @@ def test_launchers_preserve_dispatch_from_another_directory(tmp_path, launcher, 
     fake_python = repo / ".venv/bin/python3"
     fake_python.parent.mkdir(parents=True)
     fake_python.write_text(
-        '#!/bin/sh\nprintf "%s\\n" "$AI_SKILLS_REPO_ROOT" "$PYTHONPATH" "$@"\n'
+        '#!/bin/sh\nprintf "%s\\n" "$AI_SKILLS_REPO_ROOT" "$VELOCIRAPTOR_SKILLS_REPO_ROOT" "$PYTHONPATH" "$PWD" "$@"\n'
     )
     fake_python.chmod(0o755)
     env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path / "home")}
-    result = subprocess.run([str(repo / launcher), *args], cwd=tmp_path, env=env,
+    if via_path:
+        env["PATH"] = str(repo) + os.pathsep + env["PATH"]
+    result = subprocess.run([launcher if via_path else str(repo / launcher), *args], cwd=tmp_path, env=env,
                             text=True, capture_output=True, check=True)
-    assert result.stdout.splitlines() == [str(repo), str(repo / "src"), "-m", module, *forwarded]
+    assert result.stdout.splitlines() == [str(repo), str(repo), str(repo / "src"), str(tmp_path), "-m", module, *forwarded]
 
 
 @pytest.mark.parametrize("command", [("vraptor",), ("dfir",), ("dfir", "velociraptor")])

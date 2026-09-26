@@ -80,15 +80,26 @@ An outdated existing `.venv` must be replaced separately after preserving anythi
 needed; the installer does not silently delete it.
 Skill/agent linking remains optional in the [repository instructions](../README.md#install).
 
-Commands below use bare `vraptor`. Activate the environment in each new terminal:
+Commands below use bare `vraptor`. Add the repository's absolute path to `PATH`;
+the root `vraptor` and `dfir` launchers select the checkout's source and `.venv`
+automatically. For a checkout at `~/git/velociraptor-skills`:
 
 ```sh
-source .venv/bin/activate
+export PATH="$HOME/git/velociraptor-skills:$PATH"
 vraptor --help
+dfir --help
 ```
 
-Alternatively, use `./vraptor` from the checkout or its absolute path from anywhere.
-Neither the checkout launcher nor the installer edits your shell startup files.
+The installer prints the command with your actual checkout path. Run it in the
+current shell and add it once to `~/.zshrc` for interactive zsh or `~/.bashrc` for
+interactive Bash. Neither the launchers nor the installer edits shell startup
+files. New processes must inherit the updated `PATH` to find these commands.
+Keep the checkout available; moving it requires updating this entry and any
+installed skill links. Use `command -v vraptor` and `command -v dfir` to check for
+another installation taking precedence.
+
+You can also use `./vraptor` or `./dfir` from the checkout, their absolute paths,
+or activate `.venv` with `source .venv/bin/activate` for that terminal.
 
 For an equivalent manual install, create a venv and run
 `python -m pip install '.[ai,anthropic,claude]'`.
@@ -113,8 +124,8 @@ The Python package does not install Codex. Native login/setup details are below.
 If the repository requirements are already installed, vraptor is included;
 add any missing provider extra to the same environment.
 
-In this repository, `./vraptor` selects the repository virtual environment without
-activation. Outside it, activate the environment before using `vraptor`.
+With the repository on `PATH`, both root launchers work from other directories
+without activating the virtual environment or changing the working directory.
 `dfir` is an equivalent command. Installing Python dependencies does not install
 the native Velociraptor executable, start a server or link skills into a harness.
 
@@ -444,7 +455,7 @@ sample and review its evidence references before adopting the profile for cases.
 | --- | --- |
 | Python is too old | Select a Python 3.11+ executable with `PYTHON_BIN=/path/to/python3.12 ./utils/install.sh`. An existing old `.venv` needs separate replacement. |
 | `venv` / `ensurepip` is unavailable | Install the selected interpreter's venv support, such as `python3-venv` on Debian/Ubuntu, and rerun the installer. |
-| `vraptor` is not on `PATH` | Use `./vraptor` from the checkout or activate `.venv` in this terminal. |
+| `vraptor` is not on `PATH` | Add the checkout's absolute path to `PATH` using the command printed by the installer, or use `./vraptor` from the checkout. |
 | AI doctor reports a missing key | Add `OPENAI_API_KEY` to the selected credential file or process environment, then inspect `vraptor ai config` and rerun doctor. |
 | API connection fails | Check `vraptor config --server-profile "<SERVER REFERENCE>"`, the API-client YAML path, its server address, VPN/firewall access, and the credential's permissions with your administrator. |
 | OpenAI reports model access or quota failure | Check the API account/project and model availability; select an accessible model with `vraptor ai setup`. Offline doctor cannot verify account access or quota. |

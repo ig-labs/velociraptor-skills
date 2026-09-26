@@ -58,6 +58,10 @@ fi
 )
 
 printf 'Installed dependencies in %s/.venv\n' "${REPO_ROOT}"
+printf '\nUse vraptor and dfir from any directory without activating .venv:\n'
+printf '  export PATH=%q:"$PATH"\n' "${REPO_ROOT}"
+printf 'Run this in your shell and add it once to your shell startup file for future terminals.\n'
+printf 'The root launchers select this checkout and its .venv; keep the checkout at this path.\n'
 if [[ "${CONFIGURE}" == yes || ( "${CONFIGURE}" == auto && -t 0 && -t 1 ) ]]; then
   printf '\nConfigure an existing live server and OpenAI analysis. Have your API-client YAML path and OpenAI credential environment ready.\n'
   "${REPO_ROOT}/vraptor" setup configure

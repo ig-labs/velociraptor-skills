@@ -115,9 +115,22 @@ install the package with `python -m pip install -e .`; add `.[ai]`,
 `.[azure]`, `.[anthropic]`, or `.[claude]` for the selected provider.
 See [configuration](CONFIG.md) and the [installation and AI setup guide](docs/vraptor-installation.md).
 
-The `./vraptor` launcher works from the checkout without activating `.venv`.
-To use bare `vraptor` from another directory, run `source .venv/bin/activate`
-from the checkout in each new terminal, or use the launcher's absolute path.
+The root `vraptor` and `dfir` launchers select this checkout's source and `.venv`
+without activation. Add the repository's absolute path to `PATH` to use either
+command from any directory. For a checkout at `~/git/velociraptor-skills`:
+
+```sh
+export PATH="$HOME/git/velociraptor-skills:$PATH"
+vraptor --help
+dfir --help
+```
+
+The installer prints the command for your actual checkout. Run it in your current
+shell and add it once to your shell startup file (`~/.zshrc` for interactive zsh,
+or `~/.bashrc` for interactive Bash). The installer does not edit these files.
+Keep the checkout at that location; update `PATH` if you move it. If another
+installation exists, use `command -v vraptor` and `command -v dfir` to check which
+commands your shell selects. Skill linking remains a separate step above.
 
 ## vraptor CLI
 
