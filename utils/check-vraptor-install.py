@@ -36,6 +36,16 @@ assert load_agent_profile_config()
 from vraptor import query as client_query
 from vraptor import cli
 from pathlib import Path
+from vraptor.workspace import initialize
+case_root = Path("cases").resolve()
+assert initialize("package-check", case_root)["guidance_created"]
+guidance = case_root / "package-check/AGENTS.md"
+text = guidance.read_text()
+assert text.startswith("# Investigation package-check\\n")
+assert f"--id 'package-check' --case-root {str(case_root)!r}" in text
+guidance.write_text("Operator guidance\\n")
+assert not initialize("package-check", case_root)["guidance_created"]
+assert guidance.read_text() == "Operator guidance\\n"
 class FakeApi:
     def __init__(self, *args, **kwargs): pass
     def __enter__(self): return self

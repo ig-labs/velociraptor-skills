@@ -79,6 +79,13 @@ alone. Legacy routes retain their existing exit/status behavior.
 Use `dfir setup init --id ir1234` once to create/reuse a standalone workspace.
 `--case-root` selects its parent; `--investigation-dir` accepts an exact folder
 ending in the ID. Existing `AGENTS.md` and investigation data are preserved.
+New guidance comes from the packaged
+`src/vraptor/resources/templates/investigation-agents.md` template. Edit that
+Markdown file to change defaults for future investigations; initialization
+substitutes `{{investigation_id}}`, `{{investigation_id_arg}}` and
+`{{case_root_arg}}`. The `_arg` values retain the CLI argument quoting.
+Other Markdown, braces and dollar signs are literal. Existing investigation
+guidance is never refreshed from the template.
 The result lists at most 500 existing analysis paths and reports truncation.
 It also returns `configuration_checks` for repository/shared dotenv loading and
 the offline analyst doctor, including selected config/profile, execution settings,

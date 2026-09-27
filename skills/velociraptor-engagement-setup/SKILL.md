@@ -49,6 +49,11 @@ rejects a conflicting readiness identity, and lists up to 500 existing report,
 request and checkpoint paths without reading their contents. A truncated listing
 is not complete coverage. It does not validate the old readiness against a server.
 
+New guidance uses the packaged `resources/templates/investigation-agents.md`
+template in the `vraptor` Python package. Edit the template for future defaults;
+edit an investigation's own `AGENTS.md` for case-specific guidance. Repeating
+initialization never overwrites existing guidance.
+
 Work from that investigation folder for as long as needed. Repeating `setup init`
 is safe. Read the relevant existing reports and accepted checkpoints before
 assigning new work. No database, task register, workbook or empty analysis tree

@@ -180,6 +180,10 @@ or publish business case state. Explicit `collect analyze` retains its legacy
 collection behavior. `./dfir` accepts the same commands as `./vraptor`;
 `./dfir velociraptor` remains a compatibility entrypoint.
 
+`setup init` creates investigation `AGENTS.md` files from the editable
+[Markdown template](src/vraptor/resources/templates/investigation-agents.md).
+Template edits affect future initialization only; existing guidance is preserved.
+
 Case and engagement paths are unchanged: `<case-root>/<id>/engagement.json`,
 `systems/<host>/collection/requests/<request-id>/`, `hunts/<hunt-id>/`,
 reports, exports and checkpoints retain their existing names and schemas.

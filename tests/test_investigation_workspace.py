@@ -50,6 +50,35 @@ def test_init_is_standalone_and_preserves_existing_work(tmp_path):
     assert report.read_text() == 'Retained findings\n'
 
 
+def test_init_renders_editable_template(tmp_path, monkeypatch):
+    resources = tmp_path / 'resources'
+    template = resources / 'templates/investigation-agents.md'
+    template.parent.mkdir(parents=True)
+    template.write_text(
+        '# {{investigation_id}}\n'
+        '--id {{investigation_id_arg}} --case-root {{case_root_arg}}\n'
+        'Custom guidance: {braces}, $HOME, and `code`.\n', encoding='utf-8',
+    )
+    monkeypatch.setattr(workspace, 'resource_root', lambda: resources)
+    root = tmp_path / "analyst's cases"
+    result = workspace.initialize('ir1234', root)
+    guidance = root / 'ir1234/AGENTS.md'
+    assert result['guidance_created']
+    assert guidance.read_text() == (
+        f"# ir1234\n--id 'ir1234' --case-root {str(root)!r}\n"
+        'Custom guidance: {braces}, $HOME, and `code`.\n'
+    )
+    template.unlink()
+    assert not workspace.initialize('ir1234', root)['guidance_created']
+
+
+def test_missing_template_does_not_leave_empty_guidance(tmp_path, monkeypatch):
+    monkeypatch.setattr(workspace, 'resource_root', lambda: tmp_path / 'missing')
+    with pytest.raises(FileNotFoundError):
+        workspace.initialize('ir1234', tmp_path)
+    assert not (tmp_path / 'ir1234/AGENTS.md').exists()
+
+
 @pytest.mark.parametrize('identity', ['../escape', '.', '..', 'bad/name', 'bad\nname', 'bad`id'])
 def test_invalid_ids_do_not_create_folders(tmp_path, identity):
     with pytest.raises(ValueError):
