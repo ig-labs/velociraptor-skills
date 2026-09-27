@@ -74,8 +74,15 @@ configure_cli_path() {
     printf '\n# Velociraptor Skills CLI\n%s\n' "${path_line}" >> "${startup_file}"
     printf 'Saved PATH entry in %s\n' "${startup_file}"
   fi
-  printf 'Open a new terminal, or update your existing terminal now:\n  %s\n' "${export_line}"
   printf 'An installer subprocess cannot change its parent terminal environment.\n'
+  printf 'Open a new terminal, or run these commands in your existing terminal:\n'
+  printf '  source %q\n' "${startup_file}"
+  case "${SHELL}" in
+    */zsh|zsh) printf '  rehash\n' ;;
+    */bash|bash) printf '  hash -r\n' ;;
+  esac
+  printf '  command -v vraptor\n  vraptor --help\n'
+  printf 'Alternatively, enable this checkout directly in your terminal:\n  %s\n' "${export_line}"
   printf 'The root launchers select this checkout and its .venv; keep the checkout at this path.\n'
 }
 

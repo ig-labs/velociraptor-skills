@@ -94,7 +94,10 @@ dfir --help
 ```
 
 An installer subprocess cannot change its parent terminal's environment. The
-printed export uses your actual checkout path. For an existing installation,
+installer prints commands to source the saved startup file, refresh command lookup
+(`rehash` for zsh or `hash -r` for Bash), and verify `vraptor`. Run these in your
+existing terminal, or use the printed export with your actual checkout path.
+For an existing installation,
 `./utils/install.sh --path-only` saves the PATH entry without reinstalling
 dependencies or opening the wizard. `--no-path` disables PATH setup. Unsupported
 shells receive manual guidance without startup edits. Bash login shells need
