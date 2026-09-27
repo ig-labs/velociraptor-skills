@@ -57,8 +57,9 @@ connection per command with `--server-profile "<SERVER REFERENCE>"` (or the
 `--server` alias). `./vraptor config` lists saved references in `connections`.
 See [multiple-server configuration](CONFIG.md#multiple-server-connections).
 
-Use `./utils/install.sh --no-configure` for dependency-only installation or
-upgrades; non-interactive runs also skip configuration. Run bare
+Use `./utils/install.sh --no-configure` to skip the wizard during upgrades;
+add `--no-path` for dependency-only installation or CI. Non-interactive runs also
+skip the wizard. Run bare
 `./vraptor setup configure` later to reopen the wizard.
 Remote API access needs no local Velociraptor binary, SSH connection or Codex login.
 The offline checks above do not prove live authentication; explicit connection
@@ -116,8 +117,10 @@ install the package with `python -m pip install -e .`; add `.[ai]`,
 See [configuration](CONFIG.md) and the [installation and AI setup guide](docs/vraptor-installation.md).
 
 The root `vraptor` and `dfir` launchers select this checkout's source and `.venv`
-without activation. Add the repository's absolute path to `PATH` to use either
-command from any directory. For a checkout at `~/git/velociraptor-skills`:
+without activation. The installer adds the checkout to its `PATH` and saves a
+guarded entry in your shell startup file if missing: `~/.zshrc` for zsh (respecting
+`ZDOTDIR`) or `~/.bashrc` for Bash, selected by `SHELL`. Open a new terminal after
+installation, or run the printed export in your existing terminal. For example:
 
 ```sh
 export PATH="$HOME/git/velociraptor-skills:$PATH"
@@ -125,9 +128,11 @@ vraptor --help
 dfir --help
 ```
 
-The installer prints the command for your actual checkout. Run it in your current
-shell and add it once to your shell startup file (`~/.zshrc` for interactive zsh,
-or `~/.bashrc` for interactive Bash). The installer does not edit these files.
+An installer subprocess cannot update the parent terminal's environment.
+For an existing install, run `./utils/install.sh --path-only` to save the entry
+without reinstalling dependencies or opening the wizard. Use `--no-path` to
+disable PATH setup. Other shells receive manual guidance without startup edits.
+Bash login shells must source `~/.bashrc` from their login profile to load it.
 Keep the checkout at that location; update `PATH` if you move it. If another
 installation exists, use `command -v vraptor` and `command -v dfir` to check which
 commands your shell selects. Skill linking remains a separate step above.

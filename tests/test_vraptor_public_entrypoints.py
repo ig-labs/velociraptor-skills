@@ -133,7 +133,8 @@ def test_installer_resolves_editable_requirement_from_repository(tmp_path):
     fake_python.chmod(0o755)
     subprocess.run(
         [str(repo / "utils/install.sh")], cwd=tmp_path,
-        env={**os.environ, "PYTHON_BIN": sys.executable, "TEST_CALL_LOG": str(log)},
+        env={**os.environ, "PYTHON_BIN": sys.executable, "TEST_CALL_LOG": str(log),
+             "HOME": str(tmp_path / "home"), "SHELL": "/bin/bash"},
         text=True, capture_output=True, check=True,
     )
     calls = [json.loads(line) for line in log.read_text().splitlines()]

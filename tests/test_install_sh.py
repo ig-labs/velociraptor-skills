@@ -47,7 +47,7 @@ with open(os.environ["INSTALL_TEST_LOG"], "a") as f:
 ''')
     launcher.chmod(0o755)
     log = tmp_path / "calls.jsonl"
-    env = {"PATH": os.defpath, "HOME": str(tmp_path), "PYTHON_BIN": str(fake),
+    env = {"PATH": os.defpath, "HOME": str(tmp_path), "SHELL": "/bin/bash", "PYTHON_BIN": str(fake),
            "INSTALL_TEST_LOG": str(log)}
     return repo, env, log
 
@@ -128,4 +128,68 @@ def test_configure_requires_terminal_before_installing(installer):
     result = run_installer(repo, env, "--configure")
     assert result.returncode == 2
     assert "interactive terminal" in result.stderr
+    assert not log.exists()
+
+
+@pytest.mark.parametrize("shell,custom_zdotdir", [("bash", False), ("zsh", False), ("zsh", True)])
+def test_path_setup_preserves_startup_and_is_idempotent(installer, shell, custom_zdotdir):
+    repo, env, log = installer
+    executable = shutil.which(shell)
+    if not executable:
+        pytest.skip(f"{shell} is unavailable")
+    env["SHELL"] = executable
+    startup_dir = repo.parent / "shell config" if custom_zdotdir else repo.parent
+    if custom_zdotdir:
+        env["ZDOTDIR"] = str(startup_dir)
+    startup_dir.mkdir(exist_ok=True)
+    startup = startup_dir / (".zshrc" if shell == "zsh" else ".bashrc")
+    original = "# Existing settings\nexport KEEP_SETTING=preserved\n"
+    startup.write_text(original)
+    first = run_installer(repo, env, "--path-only")
+    assert first.returncode == 0, first.stderr
+    saved = startup.read_text()
+    assert saved.startswith(original)
+    # An inherited PATH entry does not suppress persistence or duplicate it.
+    env["PATH"] = str(repo) + os.pathsep + env["PATH"]
+    second = run_installer(repo, env, "--path-only")
+    assert second.returncode == 0, second.stderr
+    assert startup.read_text() == saved
+    assert not log.exists()  # No dependency installs or wizard.
+    result = subprocess.run(
+        [executable, "-c", '. "$1"; . "$1"; printf "%s\\n" "$PATH" "$KEEP_SETTING"; command -v vraptor',
+         "test", str(startup)], cwd=repo.parent, env=env, text=True, capture_output=True, check=True,
+    )
+    path, setting, command = result.stdout.splitlines()
+    assert path.split(os.pathsep).count(str(repo)) == 1
+    assert setting == "preserved"
+    assert command == str(repo / "vraptor")
+
+
+@pytest.mark.parametrize("home_relative", [False, True])
+def test_path_setup_reuses_existing_manual_export(installer, home_relative):
+    repo, env, _ = installer
+    startup = repo.parent / ".bashrc"
+    path = "$HOME/" + repo.name if home_relative else str(repo)
+    original = f'export PATH="{path}:$PATH"\n'
+    startup.write_text(original)
+    result = run_installer(repo, env, "--path-only")
+    assert result.returncode == 0, result.stderr
+    assert startup.read_text() == original
+
+
+def test_no_path_preserves_startup_files(installer):
+    repo, env, _ = installer
+    startup = repo.parent / ".bashrc"
+    startup.write_text("# Untouched\n")
+    result = run_installer(repo, env, "--no-configure", "--no-path")
+    assert result.returncode == 0, result.stderr
+    assert startup.read_text() == "# Untouched\n"
+
+
+def test_unknown_shell_leaves_startup_files_alone(installer):
+    repo, env, log = installer
+    result = run_installer(repo, {**env, "SHELL": "/bin/fish"}, "--path-only")
+    assert result.returncode == 0, result.stderr
+    assert not (repo.parent / ".bashrc").exists()
+    assert not (repo.parent / ".zshrc").exists()
     assert not log.exists()

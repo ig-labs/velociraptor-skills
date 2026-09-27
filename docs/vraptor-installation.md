@@ -72,17 +72,20 @@ vraptor with `.[ai,anthropic,claude]`, and opens `setup configure` automatically
 OpenAI remains the default provider; both direct Anthropic API and Claude-managed
 login routes have their SDK dependencies available when selected. Each route
 still needs its own credentials/login. Azure Entra remains an optional `azure` extra.
-Continue with step 2 when the wizard opens. For dependency-only installation or
-upgrades, use `./utils/install.sh --no-configure`; runs without a terminal also
-skip the wizard. `--configure` requires a terminal and explicitly requests it.
+Continue with step 2 when the wizard opens. For upgrades, use
+`./utils/install.sh --no-configure`; add `--no-path` for dependency-only installation
+or CI. Runs without a terminal also skip the wizard. `--configure` requires a
+terminal and explicitly requests it.
 Set `PYTHON_BIN=/path/to/python3.12` when `python3` selects an older interpreter.
 An outdated existing `.venv` must be replaced separately after preserving anything
 needed; the installer does not silently delete it.
 Skill/agent linking remains optional in the [repository instructions](../README.md#install).
 
-Commands below use bare `vraptor`. Add the repository's absolute path to `PATH`;
-the root `vraptor` and `dfir` launchers select the checkout's source and `.venv`
-automatically. For a checkout at `~/git/velociraptor-skills`:
+Commands below use bare `vraptor`. The installer adds the checkout to its `PATH`
+and saves a guarded entry if missing in `~/.zshrc` for zsh (respecting `ZDOTDIR`)
+or `~/.bashrc` for Bash, based on `SHELL`. The root `vraptor` and `dfir` launchers
+select the checkout's source and `.venv` automatically. Open a new terminal or
+run the printed export in your existing terminal. For example:
 
 ```sh
 export PATH="$HOME/git/velociraptor-skills:$PATH"
@@ -90,10 +93,13 @@ vraptor --help
 dfir --help
 ```
 
-The installer prints the command with your actual checkout path. Run it in the
-current shell and add it once to `~/.zshrc` for interactive zsh or `~/.bashrc` for
-interactive Bash. Neither the launchers nor the installer edits shell startup
-files. New processes must inherit the updated `PATH` to find these commands.
+An installer subprocess cannot change its parent terminal's environment. The
+printed export uses your actual checkout path. For an existing installation,
+`./utils/install.sh --path-only` saves the PATH entry without reinstalling
+dependencies or opening the wizard. `--no-path` disables PATH setup. Unsupported
+shells receive manual guidance without startup edits. Bash login shells need
+their login profile to source `~/.bashrc`; existing login profiles are preserved.
+New processes must inherit the updated `PATH` to find these commands.
 Keep the checkout available; moving it requires updating this entry and any
 installed skill links. Use `command -v vraptor` and `command -v dfir` to check for
 another installation taking precedence.

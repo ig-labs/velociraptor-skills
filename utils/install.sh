@@ -5,20 +5,27 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 CONFIGURE=auto
+INSTALL_PATH=yes
+PATH_ONLY=no
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --configure) CONFIGURE=yes ;;
     --no-configure) CONFIGURE=no ;;
+    --no-path) INSTALL_PATH=no ;;
+    --path-only) PATH_ONLY=yes ;;
     -h|--help)
       cat <<'HELP'
-Usage: ./utils/install.sh [--configure | --no-configure]
+Usage: ./utils/install.sh [--configure | --no-configure] [--no-path | --path-only]
 
 Install vraptor plus the OpenAI, Anthropic and Claude Agent SDKs in .venv.
 In a terminal, continue into setup configure (live server + OpenAI defaults).
 Non-interactive runs install dependencies and print the configuration command.
+By default, add this checkout to PATH and persist it for your zsh or Bash shell.
 --configure     Require a terminal and run configuration after installation.
---no-configure  Install dependencies only, including for upgrades and CI.
+--no-configure  Skip the configuration wizard.
+--no-path       Leave PATH and shell startup files unchanged (for example, CI).
+--path-only     Set up PATH for an existing install; skip dependencies and wizard.
 PYTHON_BIN      Select Python 3.11+ when python3 is not suitable.
 HELP
       exit 0 ;;
@@ -26,6 +33,56 @@ HELP
   esac
   shift
 done
+
+if [[ "${PATH_ONLY}" == yes && ( "${INSTALL_PATH}" == no || "${CONFIGURE}" == yes ) ]]; then
+  printf '%s\n' '--path-only cannot be combined with --no-path or --configure.' >&2
+  exit 2
+fi
+
+configure_cli_path() {
+  local export_line path_line startup_file candidate already_saved=no
+  printf -v export_line 'export PATH=%q:"$PATH"' "${REPO_ROOT}"
+  # Guard both the immediate export and future startup against duplicate entries.
+  case ":${PATH}:" in
+    *:"${REPO_ROOT}":*) ;;
+    *) export PATH="${REPO_ROOT}:${PATH}" ;;
+  esac
+  printf -v path_line 'case ":${PATH}:" in *:%q:*) ;; *) %s ;; esac' "${REPO_ROOT}" "${export_line}"
+  case "${SHELL:-}" in
+    */zsh|zsh) startup_file="${ZDOTDIR:-${HOME}}/.zshrc" ;;
+    */bash|bash) startup_file="${HOME}/.bashrc" ;;
+    *)
+      printf 'PATH updated for this installer. Shell %s has no automatic startup-file support.\n' "${SHELL:-unknown}"
+      printf 'Add the checkout using your shell configuration; for Bash/zsh:\n  %s\n' "${export_line}"
+      return ;;
+  esac
+  for candidate in "${path_line}" "${export_line}" "export PATH=\"${REPO_ROOT}:\$PATH\""; do
+    if [[ -f "${startup_file}" ]] && grep -Fxq -- "${candidate}" "${startup_file}"; then
+      already_saved=yes
+    fi
+  done
+  if [[ "${REPO_ROOT}" == "${HOME}/"* && -f "${startup_file}" ]]; then
+    candidate='export PATH="$HOME/'"${REPO_ROOT#"${HOME}/"}"':$PATH"'
+    if grep -Fxq -- "${candidate}" "${startup_file}"; then
+      already_saved=yes
+    fi
+  fi
+  if [[ "${already_saved}" == yes ]]; then
+    printf 'PATH entry already saved in %s\n' "${startup_file}"
+  else
+    mkdir -p -- "$(dirname -- "${startup_file}")"
+    printf '\n# Velociraptor Skills CLI\n%s\n' "${path_line}" >> "${startup_file}"
+    printf 'Saved PATH entry in %s\n' "${startup_file}"
+  fi
+  printf 'Open a new terminal, or update your existing terminal now:\n  %s\n' "${export_line}"
+  printf 'An installer subprocess cannot change its parent terminal environment.\n'
+  printf 'The root launchers select this checkout and its .venv; keep the checkout at this path.\n'
+}
+
+if [[ "${PATH_ONLY}" == yes ]]; then
+  configure_cli_path
+  exit 0
+fi
 
 if [[ "${CONFIGURE}" == yes && ! -t 0 ]]; then
   printf 'Configuration requires an interactive terminal. Run ./utils/install.sh --no-configure, then ./vraptor setup configure in a terminal.\n' >&2
@@ -58,10 +115,9 @@ fi
 )
 
 printf 'Installed dependencies in %s/.venv\n' "${REPO_ROOT}"
-printf '\nUse vraptor and dfir from any directory without activating .venv:\n'
-printf '  export PATH=%q:"$PATH"\n' "${REPO_ROOT}"
-printf 'Run this in your shell and add it once to your shell startup file for future terminals.\n'
-printf 'The root launchers select this checkout and its .venv; keep the checkout at this path.\n'
+if [[ "${INSTALL_PATH}" == yes ]]; then
+  configure_cli_path
+fi
 if [[ "${CONFIGURE}" == yes || ( "${CONFIGURE}" == auto && -t 0 && -t 1 ) ]]; then
   printf '\nConfigure an existing live server and OpenAI analysis. Have your API-client YAML path and OpenAI credential environment ready.\n'
   "${REPO_ROOT}/vraptor" setup configure
