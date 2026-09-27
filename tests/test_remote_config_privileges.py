@@ -186,6 +186,7 @@ def test_manual_generation_stages_then_hands_off_without_overwriting_existing(tm
         script.chmod(0o755)
     installed = tmp_path / "server space's"
     installed.mkdir()
+    (installed / "server.yaml").write_text("synthetic-server-config\n")
     output = installed / ("test-api_api_client.yaml" if kind == "api" else "dfir_client.config.yaml")
     if existing is True:
         output.write_text("preserved\n")

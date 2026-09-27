@@ -136,16 +136,25 @@ stores those records atomically under the case setup lock. Exact-host operationa
 commands validate the selected mapping; unscoped commands require all mappings
 ready. Legacy single-mapping state and runtime paths remain supported.
 
-Remote credential access uses SCP first. Root SSH sessions may generate YAML
-as root or an explicitly configured `run_as` datastore owner, and stream protected
-files into the local temporary file. Non-root sessions try noninteractive sudo;
+Remote credential access uses SCP first. YAML generation defaults to the
+`velociraptor` service account; explicit `run_as` settings or `--run-as` override
+that default. Root SSH sessions can switch to the generation account and stream
+protected files into the local temporary file. Non-root sessions try noninteractive sudo;
 when authentication is required, interactive invocations open an SSH terminal
 for sudo's password prompt. Passwords bypass captured setup output. Generation
 runs as `run_as`, stages private output, validates it, and prepares only the
 requested YAML for mode-0600 SCP retrieval. Successful sudo preparation resumes
 automatically, without a Continue prompt. Failed preparation is not retried.
+Preparation failures report a fixed diagnostic for the failing stage. A rejected
+generation account requires `--run-as` matching the server's `Frontend.run_as_user`.
+Raw native output is kept only in a private temporary file, then removed.
 `--force` refreshes the local cache; generation requires `--provision-api` or
 `--provision-client`, and remote API replacement requires `--regenerate-remote-api`.
+
+If the default `velociraptor` account is absent, the fetch helper reports this
+and selects root before generation. Explicit `run_as` settings (including
+`velociraptor`) and `--run-as` disable this fallback. Account lookup errors and
+generation failures stop without retrying as root.
 
 If sudo is unavailable, or needs a password without a terminal, fetch helpers
 exit 3 and write `status=needs_user_action` plus numbered manual steps to

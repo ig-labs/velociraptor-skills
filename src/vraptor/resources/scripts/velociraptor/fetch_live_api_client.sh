@@ -77,6 +77,7 @@ Usage:
     [--regenerate-remote-api] \
     [--provision-api] \
     [--api-role-profile <provisioning-admin|investigation>] \
+    [--run-as <remote-generation-user>] \
     [--json-out <path>] \
     [--dry-run]
 EOF
@@ -214,6 +215,10 @@ while [ "$#" -gt 0 ]; do
             API_ROLE_PROFILE="${2:?missing value for --api-role-profile}"
             shift 2
             ;;
+        --run-as)
+            REMOTE_RUN_AS="${2:?missing value for --run-as}"
+            shift 2
+            ;;
         --json-out)
             JSON_OUT="${2:?missing value for --json-out}"
             shift 2
@@ -265,8 +270,14 @@ REMOTE_OUTPUT_PATH="$(first_env VELO_REMOTE_API_CONFIG_PATH)"
 REMOTE_SERVER_CONFIG_PATH="$(first_env VELO_REMOTE_SERVER_CONFIG_PATH)"
 REMOTE_VELOCIRAPTOR_BIN="$(first_env VELO_REMOTE_BIN || true)"
 REMOTE_VELOCIRAPTOR_BIN="${REMOTE_VELOCIRAPTOR_BIN:-velociraptor}"
-REMOTE_RUN_AS="$(first_env VELO_REMOTE_RUN_AS)"
-REMOTE_RUN_AS="${REMOTE_RUN_AS:-root}"
+REMOTE_RUN_AS_DEFAULT=0
+if [ -z "$REMOTE_RUN_AS" ]; then
+    REMOTE_RUN_AS="$(first_env VELO_REMOTE_RUN_AS)"
+    if [ -z "$REMOTE_RUN_AS" ] || [ "${VRAPTOR_REMOTE_RUN_AS_DEFAULT:-0}" = 1 ]; then
+        REMOTE_RUN_AS_DEFAULT=1
+    fi
+fi
+REMOTE_RUN_AS="${REMOTE_RUN_AS:-velociraptor}"
 LOCAL_OUTPUT_ROOT="$(first_env VELO_LOCAL_CONFIG_ROOT)"
 IDENTITY_FILE="$(first_env VELO_REMOTE_SSH_KEY)"
 

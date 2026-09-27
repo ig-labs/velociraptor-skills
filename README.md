@@ -145,10 +145,17 @@ Keep the checkout at that location; update `PATH` if you move it. If another
 installation exists, use `command -v vraptor` and `command -v dfir` to check which
 commands your shell selects. Skill linking remains a separate step above.
 
+Remote generation defaults to the `velociraptor` service account; explicit
+`run_as` settings or `--run-as` override it.
 Remote credential fetches use root or sudo automatically. If sudo needs a password,
 enter it directly in your terminal; retrieval resumes without pasted shell commands.
 Generation requires `--provision-api` or `--provision-client`. Manual instructions
 remain available when sudo or an interactive terminal is unavailable.
+
+If the default `velociraptor` account is absent, the fetch helper reports this
+and selects root before generation. Explicit `run_as` settings (including
+`velociraptor`) and `--run-as` disable this fallback. Account lookup errors and
+generation failures stop without retrying as root.
 
 ## vraptor CLI
 

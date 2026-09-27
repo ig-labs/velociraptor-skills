@@ -91,10 +91,16 @@ Generation is explicit:
 A failed copy, SSH error or permission error alone never triggers generation.
 Fetches use temporary local files and replace the cache only after a complete
 copy. Native credential validation and server permissions are checked by setup.
-Root SSH sessions generate the requested YAML using the current root user;
-an explicit `run_as` can select another datastore owner. Existing readable files
+Remote YAML generation defaults to the `velociraptor` service account, including
+root SSH sessions. Explicit `run_as` settings or `--run-as` select another account
+(for example, `--run-as root` for a root-owned deployment). Existing readable files
 are copied with SCP. Root can also stream a protected file into a local
 mode-0600 temporary file without displaying it.
+
+If the default `velociraptor` account is absent, the fetch helper reports this
+and selects root before generation. Explicit `run_as` settings (including
+`velociraptor`) and `--run-as` disable this fallback. Account lookup errors and
+generation failures stop without retrying as root.
 
 For non-root SSH accounts, the fetch helper tries noninteractive sudo. If sudo
 requires authentication and the invocation has a terminal, SSH opens a remote
@@ -104,6 +110,12 @@ Generation still requires the provisioning flag; `--force` refreshes only the
 local cache. The configured `run_as` selects the datastore owner for generation.
 Passwords and generated YAML must never enter chat or captured setup output.
 A failed privileged preparation is reported without automatically retrying it.
+Diagnostics distinguish a rejected generation account, missing binary, unreadable
+server config, native generation failure, empty output, and installation failure.
+If Velociraptor rejects the account, set `--run-as` to `Frontend.run_as_user` from
+the server configuration; sudo root access does not override that requirement.
+Native output stays in a private temporary file and is removed after the attempt;
+only fixed diagnostic messages are displayed, never credential-bearing logs.
 
 If sudo is unavailable, or requires a password without an interactive terminal,
 the helper returns `needs_user_action` (exit 3) with numbered manual steps.

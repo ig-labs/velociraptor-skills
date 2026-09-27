@@ -360,3 +360,27 @@ def test_operational_config_preserves_explicit_fetch_routes(workstation, monkeyp
     monkeypatch.setattr(legacy_cli, "run_bootstrap", bootstrap)
     assert cli.main(["config", command, "--server-profile", "lab"]) == 0
     bootstrap.assert_called_once_with(script, ["--server-profile", "lab"])
+
+
+@pytest.mark.parametrize("configured", [None, "root", "velociraptor"])
+def test_generation_account_default_preserves_explicit_setting(workstation, configured):
+    if configured is not None:
+        write_settings(workstation, {"connections": {"lab": {"run_as": configured}}})
+    snapshot = settings.resolve("lab", repo_root=workstation)
+    assert snapshot.values["run_as"] == (configured or "velociraptor")
+    assert snapshot.environment["VELO_REMOTE_RUN_AS"] == (configured or "velociraptor")
+
+    assert snapshot.environment["VRAPTOR_REMOTE_RUN_AS_DEFAULT"] == ("1" if configured is None else "0")
+
+
+@pytest.mark.parametrize("origin", ["environment", "cli"])
+def test_explicit_default_account_disables_fallback(workstation, monkeypatch, origin):
+    monkeypatch.setenv("VRAPTOR_REMOTE_RUN_AS_DEFAULT", "1")
+    overrides = None
+    if origin == "environment":
+        monkeypatch.setenv("VELO_REMOTE_RUN_AS", "velociraptor")
+    else:
+        overrides = {"run_as": "velociraptor"}
+    snapshot = settings.resolve("lab", repo_root=workstation, overrides=overrides)
+    assert snapshot.values["run_as"] == "velociraptor"
+    assert snapshot.environment["VRAPTOR_REMOTE_RUN_AS_DEFAULT"] == "0"

@@ -41,7 +41,7 @@ def test_export_reset_deploy_round_trip(workstation, capsys):
     assert exported["workstation"]["case_root"] == "~/custom-cases"
     assert exported["connections"]["second"]["api_client"] == "~/.config/second.yaml"
     assert exported["connections"]["lab"]["remote_api_config"] == "/root/api.yaml"
-    assert exported["connection_defaults"] == {"api_user": "vraptor_operator", "api_role_profile": "provisioning-admin"}
+    assert exported["connection_defaults"] == {"api_user": "vraptor_operator", "api_role_profile": "provisioning-admin", "run_as": "velociraptor"}
     assert exported["connections"]["lab"]["api_user"] == "named"
     assert "api_user" not in exported["connections"]["second"]
     assert "never-export-this" not in snapshot.read_text()

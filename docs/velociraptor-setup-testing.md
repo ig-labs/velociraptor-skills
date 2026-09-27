@@ -322,8 +322,8 @@ vraptor config fetch-client \
 ```
 
 The example `/etc/velociraptor` paths are not universal. Readable files are copied
-with SCP. Root accounts can generate the requested YAML as the current user;
-`run_as` optionally selects another datastore owner. Non-root fetches use sudo:
+with SCP. Generation defaults to the `velociraptor` service account, including
+root SSH sessions; explicit `run_as` settings or `--run-as` select another account. Non-root fetches use sudo:
 passwordless access completes automatically, while password-required access
 prompts directly in an SSH terminal and then resumes retrieval. Only the requested
 YAML is handed off with mode `0600`; neither passwords nor YAML are captured in
@@ -332,6 +332,11 @@ not present, the helper prints manual steps and waits for Continue. Noninteracti
 agents must display those fallback steps and wait. Missing-file generation still
 requires explicit provisioning flags. These fetch-only commands request neither
 generation nor deletion; `--force` replaces only the local cache.
+
+If the default `velociraptor` account is absent, the fetch helper reports this
+and selects root before generation. Explicit `run_as` settings (including
+`velociraptor`) and `--run-as` disable this fallback. Account lookup errors and
+generation failures stop without retrying as root.
 
 For service-account generation, temporary YAMLs, moves into `/etc/velociraptor/`,
 and protected retrieval/reference copies, follow the

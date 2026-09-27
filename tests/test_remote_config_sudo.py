@@ -3,6 +3,7 @@ import json
 import os
 import pty
 import select
+import shutil
 import subprocess
 import sys
 import time
@@ -29,17 +30,19 @@ if name == "ssh-keyscan":
 elif name == "ssh-keygen":
     pass
 elif name == "id":
+    if len(args) == 2 and args[0] == "-u":
+        sys.exit(int(os.environ.get("TEST_ACCOUNT_CHECK_STATUS", "0")))
     print("root" if os.environ.get("TEST_AS_ROOT") else "operator")
     if args == ["-u"]:
         # This branch is handled separately below by the SSH shim.
         raise AssertionError("unexpected local id -u")
 elif name == "ssh":
     if args[-1] == "id -u":
-        print("1000")
+        print(os.environ.get("TEST_SSH_UID", "1000"))
     elif os.environ.get("TEST_TRANSPORT_FAIL") == "1" and "sudo" in args[-1]:
         sys.exit(255)
     else:
-        sys.exit(subprocess.call(["/bin/sh", "-c", args[-1]]))
+        sys.exit(subprocess.call([os.environ["TEST_REMOTE_SHELL"], "-c", args[-1]]))
 elif name == "sudo":
     noninteractive = args[0] == "-n"
     if noninteractive:
@@ -60,20 +63,26 @@ elif name == "sudo":
         password = sys.stdin.readline().strip()
         termios.tcsetattr(0, termios.TCSANOW, old)
         assert password == "terminal-only-password"
-    status = subprocess.call(args[1:], env=dict(os.environ, TEST_AS_ROOT="1"))
+    status = subprocess.call([os.environ["TEST_REMOTE_SHELL"], *args[2:]], env=dict(os.environ, TEST_AS_ROOT="1"))
     if status == 0:
         (root / "prepared").touch()
     sys.exit(status)
 elif name in {"runuser", "su"}:
     assert os.environ.get("TEST_AS_ROOT") == "1"
     if name == "runuser":
-        assert args[:3] == ["-u", "service", "--"]
+        assert args[:3] == ["-u", os.environ.get("TEST_GENERATION_USER", "service"), "--"]
         command = args[3:]
     else:
-        assert args[:3] == ["-s", "/bin/sh", "service"]
+        assert args[:3] == ["-s", "/bin/sh", os.environ.get("TEST_GENERATION_USER", "service")]
         command = ["/bin/sh", "-c", args[-1]]
+    if os.environ.get("TEST_ACCOUNT_CHECK_STATUS") == "1":
+        sys.exit(1)
     sys.exit(subprocess.call(command, env=dict(os.environ, TEST_SERVICE="1")))
 elif name == "velociraptor":
+    if os.environ.get("TEST_REQUIRED_USER") and not os.environ.get("TEST_SERVICE"):
+        print("Velociraptor should be running as the 'service' user but you are 'root'. Please change user with sudo first.", file=sys.stderr)
+        print("credential-bearing-error", file=sys.stderr)
+        sys.exit(1)
     if os.environ.get("VELO_REMOTE_RUN_AS") == "service":
         assert os.environ.get("TEST_SERVICE") == "1"
     if os.environ.get("TEST_GENERATION_FAIL") == "1":
@@ -107,6 +116,7 @@ else:
         (tools / name).symlink_to(dispatcher)
     server = tmp_path / "server space's"
     server.mkdir()
+    (server / "server.yaml").write_text("synthetic-server-config\n")
     source = server / "retrieval.yaml"
     destination = tmp_path / "local.yaml"
     destination.write_text("old-local-secret\n")
@@ -114,7 +124,8 @@ else:
     key.touch()
     env = {k: v for k, v in os.environ.items() if not k.startswith(("VELO_", "VRAPTOR_"))}
     env.update(HOME=str(tmp_path), AI_SKILLS_REPO_ROOT=str(tmp_path), PATH=f"{tools}:{os.defpath}",
-               TEST_ROOT=str(tmp_path), VELO_REMOTE_SSH_USER="operator", VELO_REMOTE_SSH_KEY=str(key),
+               TEST_ROOT=str(tmp_path), TEST_REMOTE_SHELL=shutil.which("dash") or "/bin/sh",
+               VELO_REMOTE_SSH_USER="operator", VELO_REMOTE_SSH_KEY=str(key),
                VELO_REMOTE_RUN_AS="root", VELO_REMOTE_API_USER="test-api",
                VELO_REMOTE_API_CONFIG_PATH=str(source), VELO_REMOTE_CLIENT_CONFIG_PATH=str(source),
                VELO_REMOTE_SERVER_CONFIG_PATH=str(server / "server.yaml"),
@@ -217,10 +228,50 @@ def test_noninteractive_fallback_and_transport_failure(remote, scenario):
     assert not any(call[0] == "velociraptor" for call in calls())
 
 
-@pytest.mark.parametrize("access", ["password", "cancel", "denied"])
+@pytest.mark.parametrize("failure,message", [
+    ("wrong_user", "Set --run-as to the server's Frontend.run_as_user"),
+    ("missing_binary", "binary is unavailable"),
+    ("missing_config", "cannot read the remote server configuration"),
+    ("native_failure", "credential generation failed"),
+])
+def test_generation_failure_reports_safe_reason_without_retry(remote, failure, message):
+    root, source, destination, env, command, calls = remote
+    if failure == "wrong_user":
+        env["TEST_REQUIRED_USER"] = "service"
+    elif failure == "missing_binary":
+        env["VELO_REMOTE_BIN"] = str(root / "missing-velociraptor")
+    elif failure == "missing_config":
+        env["VELO_REMOTE_SERVER_CONFIG_PATH"] = str(source.parent / "missing.yaml")
+    else:
+        env["TEST_GENERATION_FAIL"] = "1"
+    result = subprocess.run(command(), env=env, capture_output=True, text=True, timeout=20, check=False)
+    assert result.returncode == 1
+    assert message in result.stderr
+    assert "credential-bearing-error" not in result.stdout + result.stderr
+    assert not source.exists()
+    assert destination.read_text() == "old-local-secret\n"
+    assert sum(call[0] == "sudo" for call in calls()) == 1
+    assert sum(call[0] == "velociraptor" for call in calls()) == (failure in {"wrong_user", "native_failure"})
+
+
+@pytest.mark.parametrize("kind", ["api", "client"])
+def test_explicit_service_account_satisfies_native_user_requirement(remote, kind):
+    _, source, destination, env, command, calls = remote
+    env.update(TEST_REQUIRED_USER="service", VELO_REMOTE_RUN_AS="root")
+    result = subprocess.run([*command(kind), "--run-as", "service"], env=env,
+                            capture_output=True, text=True, timeout=20, check=False)
+    assert result.returncode == 0, result.stderr
+    assert source.read_text() == destination.read_text() == "generated-secret\n"
+    assert sum(call[0] == "velociraptor" for call in calls()) == 1
+
+
+@pytest.mark.parametrize("access", ["password", "password_wrong_user", "cancel", "denied"])
 def test_sudo_terminal_authentication_and_fallback(remote, access):
     root, source, destination, env, command, calls = remote
-    env.update(TEST_SUDO=access, VRAPTOR_CONFIG_MANUAL_PROMPT="0")
+    env.update(TEST_SUDO="password" if access == "password_wrong_user" else access,
+               VRAPTOR_CONFIG_MANUAL_PROMPT="0")
+    if access == "password_wrong_user":
+        env["TEST_REQUIRED_USER"] = "service"
     result_file = root / "captured.json"
     pid, master = pty.fork()
     if pid == 0:
@@ -248,8 +299,11 @@ def test_sudo_terminal_authentication_and_fallback(remote, access):
                 break
         assert result_file.exists(), terminal.decode(errors="replace")
         status, stdout, stderr = json.loads(result_file.read_text())
-        assert status == {"password": 0, "cancel": 1, "denied": 3}[access], stderr
-        assert answered == (access == "password")
+        assert status == {"password": 0, "password_wrong_user": 1, "cancel": 1, "denied": 3}[access], stderr
+        assert answered == (access in {"password", "password_wrong_user"})
+        if access == "password_wrong_user":
+            assert "Velociraptor rejected the generation account" in stderr
+            assert "credential-bearing-error" not in stdout + stderr + terminal.decode()
         assert "sudo password:" not in stdout + stderr
         assert "terminal-only-password" not in stdout + stderr + terminal.decode()
         assert "generated-secret" not in stdout + stderr + terminal.decode()
@@ -260,7 +314,7 @@ def test_sudo_terminal_authentication_and_fallback(remote, access):
             assert destination.read_text() == "old-local-secret\n"
             assert not source.exists()
         assert sum(call[0] == "sudo" for call in calls()) == 2
-        assert sum(call[0] == "velociraptor" for call in calls()) == (1 if access == "password" else 0)
+        assert sum(call[0] == "velociraptor" for call in calls()) == (1 if access in {"password", "password_wrong_user"} else 0)
         assert any(call[0] == "ssh" and "-t" in call[1] for call in calls())
     finally:
         os.close(master)
@@ -268,3 +322,65 @@ def test_sudo_terminal_authentication_and_fallback(remote, access):
         if not done:
             os.kill(pid, 9)
             os.waitpid(pid, 0)
+
+
+@pytest.mark.parametrize("kind", ["api", "client"])
+def test_unset_run_as_generates_as_velociraptor(remote, kind):
+    _, source, destination, env, command, calls = remote
+    env.pop("VELO_REMOTE_RUN_AS")
+    env.update(TEST_REQUIRED_USER="velociraptor", TEST_GENERATION_USER="velociraptor")
+    result = subprocess.run(command(kind), env=env, capture_output=True, text=True,
+                            timeout=20, check=False)
+    assert result.returncode == 0, result.stderr
+    assert source.read_text() == destination.read_text() == "generated-secret\n"
+    assert any(call[0] == "runuser" and call[1][:2] == ["-u", "velociraptor"] for call in calls())
+
+
+@pytest.mark.parametrize("kind", ["api", "client"])
+@pytest.mark.parametrize("scenario", ["missing", "resolved_default", "explicit_env", "explicit_cli", "lookup_failure", "generation_failure"])
+def test_default_account_fallback_is_before_generation_only(remote, kind, scenario):
+    root, source, destination, env, command, calls = remote
+    env.pop("VELO_REMOTE_RUN_AS")
+    env.update(TEST_GENERATION_USER="velociraptor", TEST_ACCOUNT_CHECK_STATUS="1")
+    extra = []
+    if scenario in {"resolved_default", "explicit_env", "explicit_cli"}:
+        env["VELO_REMOTE_RUN_AS"] = "velociraptor"
+        env["VRAPTOR_REMOTE_RUN_AS_DEFAULT"] = "0" if scenario == "explicit_env" else "1"
+    if scenario == "explicit_cli":
+        extra = ["--run-as", "velociraptor"]
+    if scenario == "lookup_failure":
+        env["TEST_ACCOUNT_CHECK_STATUS"] = "255"
+    if scenario == "generation_failure":
+        env.update(TEST_ACCOUNT_CHECK_STATUS="0", TEST_GENERATION_FAIL="1")
+    manifest = root / "result.json"
+    result = subprocess.run([*command(kind), *extra, "--json-out", str(manifest)], env=env,
+                            capture_output=True, text=True, timeout=20, check=False)
+    succeeds = scenario in {"missing", "resolved_default"}
+    assert (result.returncode == 0) == succeeds, result.stderr
+    assert destination.read_text() == ("generated-secret\n" if succeeds else "old-local-secret\n")
+    assert ("using root" in result.stdout + result.stderr) == succeeds
+    names = [call[0] for call in calls()]
+    assert names.count("velociraptor") == (1 if succeeds or scenario == "generation_failure" else 0)
+    assert names.count("sudo") == (0 if scenario == "lookup_failure" else 1)
+    assert names.count("runuser") == (1 if scenario in {"explicit_env", "explicit_cli", "generation_failure"} else 0)
+    if succeeds:
+        assert json.loads(manifest.read_text())["remote_run_as"] == "root"
+    else:
+        assert not source.exists()
+    assert "credential-bearing-error" not in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("kind", ["api", "client"])
+def test_root_ssh_selects_root_when_default_service_account_is_missing(remote, kind):
+    root, source, destination, env, command, calls = remote
+    env.pop("VELO_REMOTE_RUN_AS")
+    env.update(TEST_SSH_UID="0", TEST_AS_ROOT="1", TEST_ACCOUNT_CHECK_STATUS="1")
+    manifest = root / "result.json"
+    result = subprocess.run([*command(kind), "--json-out", str(manifest)], env=env,
+                            capture_output=True, text=True, timeout=20, check=False)
+    assert result.returncode == 0, result.stderr
+    assert source.read_text() == destination.read_text() == "generated-secret\n"
+    assert json.loads(manifest.read_text())["remote_run_as"] == "root"
+    names = [call[0] for call in calls()]
+    assert names.count("velociraptor") == 1
+    assert not any(name in names for name in ("sudo", "runuser", "su"))

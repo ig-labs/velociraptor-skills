@@ -69,6 +69,7 @@ APPLICATION_DEFAULTS = MappingProxyType({
     "case_root": "~/cases", "velociraptor_bin": "~/velociraptor/velociraptor",
     "config_root": "~/.config/velociraptor", "grpc_max_message_bytes": 64 * 1024 * 1024,
     "startup_timeout_seconds": 120, "ready_timeout_seconds": 45,
+    "run_as": "velociraptor",
     "api_user": "vraptor", "api_role_profile": "provisioning-admin",
 })
 _ACTIVE: ContextVar[SettingsSnapshot | None] = ContextVar("vraptor_settings", default=None)
@@ -205,7 +206,7 @@ class SettingsSnapshot:
         for name, raw in values.items():
             _validate_value(name, raw, _FIELDS[name][2])
         return replace(self, server_profile=server_profile, values=MappingProxyType(values),
-                       sources=MappingProxyType(sources), environment=_environment(values, self.environment_base))
+                       sources=MappingProxyType(sources), environment=_environment(values, self.environment_base, sources))
 
     def apply(self, args):
         """Fill only unset parser fields; explicit operation inputs retain precedence."""
@@ -301,7 +302,7 @@ def resolve(server_profile=None, overrides=None, config_file=None, repo_root=Non
     return snapshot.select(server_profile, overrides)
 
 
-def _environment(values, baseline):
+def _environment(values, baseline, sources):
     # Children receive this resolved snapshot instead of reloading dotfiles.
     environment = dict(baseline)
     for name, raw in values.items():
@@ -311,6 +312,8 @@ def _environment(values, baseline):
     # Keep analyst file selection in its existing namespace for child processes.
     if values.get("analyst_config_file") and not environment.get("AI_SKILLS_ANALYST_AGENT_CONFIG_FILE", "").strip():
         environment["AI_SKILLS_ANALYST_AGENT_CONFIG_FILE"] = values["analyst_config_file"]
+    # Preserve default provenance across the shell-helper boundary.
+    environment["VRAPTOR_REMOTE_RUN_AS_DEFAULT"] = "1" if sources.get("run_as") == "default" else "0"
     environment["VRAPTOR_SETTINGS_RESOLVED"] = "1"
     # Internal interpreter handoff to shell helpers, not a user setting.
     environment["VRAPTOR_PYTHON"] = sys.executable

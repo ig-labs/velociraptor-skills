@@ -24,12 +24,34 @@ detect_remote_user() {
     fi
 }
 
+# Resolve a missing implicit service account before generation starts. Never
+# retry a native generation failure under another identity.
+select_remote_generation_user() {
+    local result
+    [ "${REMOTE_RUN_AS_DEFAULT:-0}" = 1 ] && [ "$REMOTE_RUN_AS" = velociraptor ] || return 0
+    if ssh "${SSH_ARGS[@]}" "$SSH_TARGET" 'id -u velociraptor >/dev/null 2>&1'; then
+        REMOTE_RUN_AS_DEFAULT=0
+        return 0
+    else
+        result=$?
+    fi
+    if [ "$result" -ne 1 ]; then
+        printf '[ERROR] Could not check the default remote generation account; no generation attempted.\n' >&2
+        return 70
+    fi
+    warn "Default generation account velociraptor is absent; using root"
+    REMOTE_RUN_AS=root
+    REMOTE_RUN_AS_DEFAULT=0
+    GENERATE_REMOTE_COMMAND="$REMOTE_GENERATION_COMMAND"
+}
+
 prepare_remote_commands() {
     local path="$1" generation="$2" missing
     REMOTE_CONFIG_KIND="${3:-api}"
     missing="if test -e $(shell_quote "$path") || test -L $(shell_quote "$path"); then exit 1; elif test -d $(shell_quote "$(remote_dirname "$path")") && test -x $(shell_quote "$(remote_dirname "$path")"); then exit 0; else exit 2; fi"
     VERIFY_MISSING_COMMAND="$missing"
     READ_REMOTE_COMMAND="test -f $(shell_quote "$path") && cat -- $(shell_quote "$path")"
+    REMOTE_GENERATION_COMMAND="$generation"
     GENERATE_REMOTE_COMMAND="$generation"
     if [ "$REMOTE_RUN_AS" != root ]; then
         GENERATE_REMOTE_COMMAND="$(remote_as_user "$generation" "$REMOTE_RUN_AS")"
@@ -61,13 +83,21 @@ build_remote_config_steps() {
         generation+=" client > $output"
     fi
     generation="  umask 077
-  config_tmp=\$(mktemp -d /tmp/velociraptor-config.XXXXXXXX)
+  command -v $(shell_quote "$REMOTE_VELOCIRAPTOR_BIN") >/dev/null 2>&1 || exit 72
+  test -r $(shell_quote "$REMOTE_SERVER_CONFIG_PATH") || exit 73
+  config_tmp=\$(mktemp -d /tmp/velociraptor-config.XXXXXXXX) || exit 77
   trap 'rm -rf -- \"\$config_tmp\"' 0
-  $generation
-  test -s $output
+  if { $generation; } >\"\$config_tmp/generation.log\" 2>&1; then
+    :
+  else
+    if LC_ALL=C grep -Fq 'Velociraptor should be running as the ' \"\$config_tmp/generation.log\"; then
+      exit 71
+    fi
+    exit 74
+  fi
+  test -s $output || exit 75
   chmod 600 $output
-  mv -- $output $(shell_quote "$installed_path")
-  rmdir -- \"\$config_tmp\""
+  mv -- $output $(shell_quote "$installed_path") || exit 76"
     if [ "${REGENERATE_REMOTE_API:-0}" -eq 1 ]; then
         command="(
   set -e
@@ -122,7 +152,7 @@ $handoff"
 
 manual_remote_config() {
     local path="$1" terminal command instructions answer account_shell handoff arg
-    local run_as="${REMOTE_RUN_AS:-root}"
+    local run_as="${REMOTE_RUN_AS:-velociraptor}"
     terminal="$(
         printf 'ssh'
         for arg in "${SSH_ARGS[@]}"; do
@@ -183,12 +213,30 @@ manual_remote_config() {
     return 3
 }
 
-# Exit 70 means the privileged body ran and failed: never retry provisioning.
+# Exit 70-79 means the privileged body ran and failed: never retry provisioning.
 # Sudo authentication failures happen before that body starts.
+report_remote_config_failure() {
+    local result="$1" message
+    case "$result" in
+        71) message="Velociraptor rejected the generation account (${REMOTE_RUN_AS:-velociraptor}). Set --run-as to the server's Frontend.run_as_user, then retry." ;;
+        72) message="Remote Velociraptor binary is unavailable in the generation account's PATH. Configure remote_bin with its absolute path." ;;
+        73) message="The generation account cannot read the remote server configuration. Check --run-as and server_config." ;;
+        74) message="Velociraptor credential generation failed. Check server configuration, datastore access and API roles; raw output is withheld because it may contain credentials." ;;
+        75) message="Velociraptor returned an empty configuration; no generated file was installed." ;;
+        76) message="Generated configuration could not be installed beside the server configuration. Check directory permissions for --run-as." ;;
+        77) message="The generation account could not create a private temporary directory." ;;
+        *) message="Remote configuration path checks, validation or ownership handoff failed." ;;
+    esac
+    printf '[ERROR] %s\n' "$message" >&2
+}
+
 sudo_remote_config() {
     local path="$1" command generation result
+    if [ "${PROVISION_API:-0}" -eq 1 ] || [ "${PROVISION_CLIENT:-0}" -eq 1 ] || [ "${REGENERATE_REMOTE_API:-0}" -eq 1 ]; then
+        select_remote_generation_user || return 70
+    fi
     build_remote_config_steps "$path" ""
-    generation="( $(remote_as_user "$CONFIG_GENERATION_STEP" "${REMOTE_RUN_AS:-root}") ) >/dev/null 2>&1"
+    generation="( $(remote_as_user "$CONFIG_GENERATION_STEP" "${REMOTE_RUN_AS:-velociraptor}") ) >/dev/null 2>&1"
     if [ "${REGENERATE_REMOTE_API:-0}" -ne 1 ]; then
         # Check as root before switching users: an inaccessible retrieval path
         # must never look absent to a less-privileged datastore owner.
@@ -204,7 +252,7 @@ else
 fi"
     fi
     command="set -e
-trap '[ \"\$?\" -eq 0 ] || exit 70' 0
+trap 'result=\$?; case \$result in 0|7[0-9]) exit \$result;; *) exit 70;; esac' 0
 $generation
 $CONFIG_HANDOFF_STEP"
     if ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "sudo -n -- sh -c $(shell_quote "$command")" >/dev/null 2>&1; then
@@ -214,7 +262,8 @@ $CONFIG_HANDOFF_STEP"
     fi
     case "$result" in
         0) ;;
-        70|255|130|137|143) return "$result" ;;
+        7[0-9]) report_remote_config_failure "$result"; return 70 ;;
+        255|130|137|143) return "$result" ;;
         *)
             # All three descriptors bypass captured helper output. The password
             # goes straight from the operator's terminal to remote sudo.
@@ -227,7 +276,8 @@ $CONFIG_HANDOFF_STEP"
                 fi
                 case "$result" in
                     0) ;;
-                    70|255|130|137|143) return "$result" ;;
+                    7[0-9]) report_remote_config_failure "$result"; return 70 ;;
+                    255|130|137|143) return "$result" ;;
                     *) manual_remote_config "$path"; return $? ;;
                 esac
             else
@@ -247,6 +297,7 @@ generate_remote_config() {
     if [ "$REMOTE_UID" != 0 ]; then
         sudo_remote_config "$1"
     else
+        select_remote_generation_user || return 70
         ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "$GENERATE_REMOTE_COMMAND"
     fi
 }

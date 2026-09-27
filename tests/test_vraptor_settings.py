@@ -527,7 +527,7 @@ def test_configure_writes_default_remote_identity(workstation, monkeypatch, caps
     assert cli.main(["setup", "configure"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["configuration"]["connection_defaults"] == {
-        "api_user": "vraptor", "api_role_profile": "provisioning-admin"}
+        "api_user": "vraptor", "api_role_profile": "provisioning-admin", "run_as": "velociraptor"}
     assert ("Remote API username [vraptor]: " in prompts) == interactive
 
 
@@ -537,7 +537,7 @@ def test_configure_explicit_identity_targets_defaults_or_named_profile(workstati
     settings.main(["configure", "--server-profile", "lab", "--api-user", "named"])
     capsys.readouterr()
     document = settings.read(settings.default_path())
-    assert document["connection_defaults"] == {"api_user": "vraptor_operator", "api_role_profile": "investigation"}
+    assert document["connection_defaults"] == {"api_user": "vraptor_operator", "api_role_profile": "investigation", "run_as": "velociraptor"}
     assert document["connections"]["lab"] == {"api_user": "named"}
 
 
