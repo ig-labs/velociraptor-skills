@@ -98,9 +98,12 @@ installer prints commands to source the saved startup file, refresh command look
 (`rehash` for zsh or `hash -r` for Bash), and verify `vraptor`. Run these in your
 existing terminal, or use the printed export with your actual checkout path.
 
-If `codex` is missing from PATH, the installer checks the macOS ChatGPT bundle
+The PATH setup output shows the existing `codex` command when one is found.
+Otherwise, it prints each ChatGPT launcher path it checks, making discovery
+failures visible. If `codex` is missing from PATH, it checks the macOS ChatGPT bundle
 at `/Applications/ChatGPT.app` and `~/Applications/ChatGPT.app` for an executable
-`Contents/Resources/codex-cli/bin/codex`. When found, the printed export includes
+`Contents/Resources/codex-cli/bin/codex` or `Contents/Resources/codex`.
+When found, the printed export includes
 both the repository and the bundled CLI directory, so one command enables
 `vraptor`, `dfir`, and `codex` in your terminal. Both directories are saved with
 individual duplicate guards for future shells. An existing `codex` on PATH is

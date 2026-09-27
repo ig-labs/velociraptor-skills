@@ -204,14 +204,17 @@ def test_unknown_shell_leaves_startup_files_alone(installer):
 
 
 @pytest.mark.parametrize("shell", ["bash", "zsh"])
-def test_bundled_codex_shares_export_and_persists_without_duplicates(installer, shell):
+@pytest.mark.parametrize("bundle_relative", [
+    "Contents/Resources/codex-cli/bin/codex", "Contents/Resources/codex",
+])
+def test_bundled_codex_shares_export_and_persists_without_duplicates(installer, shell, bundle_relative):
     repo, env, log = installer
     executable = shutil.which(shell)
     if not executable:
         pytest.skip(f"{shell} is unavailable")
     env["SHELL"] = executable
     env["CHATGPT_APP"] = str(repo.parent / "Apps with spaces" / "ChatGPT.app")
-    codex = Path(env["CHATGPT_APP"]) / "Contents/Resources/codex-cli/bin/codex"
+    codex = Path(env["CHATGPT_APP"]) / bundle_relative
     codex.parent.mkdir(parents=True)
     codex.write_text("#!/bin/sh\nexit 0\n")
     codex.chmod(0o755)

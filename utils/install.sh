@@ -54,25 +54,29 @@ print_cli_reload() {
 }
 
 configure_cli_path() {
-  local export_line entry_export path_line startup_file candidate directory app
+  local export_line entry_export path_line startup_file candidate directory app codex_command
   local already_saved path_prefix="${REPO_ROOT}" missing_prefix=""
   local path_dirs=("${REPO_ROOT}") app_candidates=()
   printf '\nPATH setup\n\n'
-  if ! command -v codex >/dev/null 2>&1; then
+  if codex_command="$(command -v codex 2>/dev/null)"; then
+    printf 'Codex CLI already on PATH:\n\n  %s\n\n' "${codex_command}"
+  else
     if [[ -n "${CHATGPT_APP:-}" ]]; then
       app_candidates=("${CHATGPT_APP}")
     else
       app_candidates=("/Applications/ChatGPT.app" "${HOME}/Applications/ChatGPT.app")
     fi
     for app in "${app_candidates[@]}"; do
-      directory="${app}/Contents/Resources/codex-cli/bin"
-      if [[ -f "${directory}/codex" && -x "${directory}/codex" ]]; then
-        directory="$(cd -- "${directory}" && pwd)"
-        path_dirs+=("${directory}")
-        path_prefix="${path_prefix}:${directory}"
-        printf 'Including ChatGPT bundled Codex CLI: %s\n\n' "${directory}"
-        break
-      fi
+      for directory in "${app}/Contents/Resources/codex-cli/bin" "${app}/Contents/Resources"; do
+        printf 'Checking ChatGPT Codex launcher:\n  %s/codex\n\n' "${directory}"
+        if [[ -f "${directory}/codex" && -x "${directory}/codex" ]]; then
+          directory="$(cd -- "${directory}" && pwd)"
+          path_dirs+=("${directory}")
+          path_prefix="${path_prefix}:${directory}"
+          printf 'Including ChatGPT bundled Codex CLI: %s\n\n' "${directory}"
+          break 2
+        fi
+      done
     done
     if [[ ${#path_dirs[@]} -eq 1 ]]; then
       printf 'Codex CLI was not found. Codex-managed AI needs codex on PATH.\n'
