@@ -37,9 +37,19 @@ prepare_remote_commands() {
 }
 
 manual_remote_config() {
-    local path="$1" terminal command instructions answer account_shell handoff
+    local path="$1" terminal command instructions answer account_shell handoff arg
     local run_as="${REMOTE_RUN_AS:-root}" installed_path filename generation output
-    terminal="$(printf 'ssh'; printf ' %q' "${SSH_ARGS[@]}" "$SSH_TARGET")"
+    terminal="$(
+        printf 'ssh'
+        for arg in "${SSH_ARGS[@]}"; do
+            if [[ "$arg" == -* ]]; then
+                printf ' \\\n  %q' "$arg"
+            else
+                printf ' %q' "$arg"
+            fi
+        done
+        printf ' \\\n  %q' "$SSH_TARGET"
+    )"
     if [ "$run_as" = root ]; then
         account_shell='sudo su'
     else
@@ -56,18 +66,40 @@ manual_remote_config() {
         filename='dfir_client.config.yaml'
     fi
     installed_path="$(remote_dirname "$REMOTE_SERVER_CONFIG_PATH")/$filename"
-    output='"$config_tmp"/'"$(shell_quote "$filename")"
-    generation="$(shell_quote "$REMOTE_VELOCIRAPTOR_BIN") --config $(shell_quote "$REMOTE_SERVER_CONFIG_PATH") config"
+    output='"$config_tmp/config.yaml"'
+    generation="$(shell_quote "$REMOTE_VELOCIRAPTOR_BIN") \\
+    --config $(shell_quote "$REMOTE_SERVER_CONFIG_PATH") \\
+    config"
     if [ "${REMOTE_CONFIG_KIND:-api}" = api ]; then
-        generation+=" api_client --name $(shell_quote "$API_USER") --role $(shell_quote "$API_ROLES") $output"
+        generation+=" api_client --name $(shell_quote "$API_USER") \\
+    --role $(shell_quote "$API_ROLES") $output"
     else
         generation+=" client > $output"
     fi
-    generation="set -e; umask 077; config_tmp=\$(mktemp -d /tmp/velociraptor-config.XXXXXXXX); $generation; test -s $output; chmod 600 $output; mv -- $output $(shell_quote "$installed_path"); rmdir -- \"\$config_tmp\""
+    generation="  umask 077
+  config_tmp=\$(mktemp -d /tmp/velociraptor-config.XXXXXXXX)
+  $generation
+  test -s $output
+  chmod 600 $output
+  mv -- $output $(shell_quote "$installed_path")
+  rmdir -- \"\$config_tmp\""
     if [ "${REGENERATE_REMOTE_API:-0}" -eq 1 ]; then
-        command="sh -c $(shell_quote "$generation")"
+        command="(
+  set -e
+$generation
+)"
     elif [ "${PROVISION_API:-0}" -eq 1 ] || [ "${PROVISION_CLIENT:-0}" -eq 1 ]; then
-        command="if [ ! -e $(shell_quote "$path") ] && [ ! -L $(shell_quote "$path") ] && [ ! -e $(shell_quote "$installed_path") ] && [ ! -L $(shell_quote "$installed_path") ]; then sh -c $(shell_quote "$generation"); fi"
+        command="(
+  set -e
+  # Reuse either existing file, including symlinks.
+  for file in $(shell_quote "$path") \\
+              $(shell_quote "$installed_path"); do
+    if [ -e \"\$file\" ] || [ -L \"\$file\" ]; then
+      exit 0
+    fi
+  done
+$generation
+)"
     else
         command="# Reuse an existing configuration. Missing files require an explicitly authorized --provision-api or --provision-client invocation."
         installed_path="$path"
@@ -80,20 +112,35 @@ sudo chmod 600 -- $(shell_quote "$path")"
         handoff="sudo install -o $(shell_quote "$REMOTE_SSH_USER") -m 600 -- $(shell_quote "$installed_path") $(shell_quote "$path")"
         # Provisioning must preserve an existing selected retrieval file too.
         if [ "${REGENERATE_REMOTE_API:-0}" -ne 1 ]; then
-            handoff="if [ ! -e $(shell_quote "$path") ] && [ ! -L $(shell_quote "$path") ]; then $handoff; else sudo chown -- $(shell_quote "$REMOTE_SSH_USER") $(shell_quote "$path"); sudo chmod 600 -- $(shell_quote "$path"); fi"
+            handoff="if [ -e $(shell_quote "$path") ] || [ -L $(shell_quote "$path") ]; then
+  sudo chown -- $(shell_quote "$REMOTE_SSH_USER") $(shell_quote "$path")
+  sudo chmod 600 -- $(shell_quote "$path")
+else
+  $handoff
+fi"
         fi
     fi
     # The operator hands back only the requested YAML, never the server config.
     instructions="$(printf '%s\n' \
         'Non-root SSH account: prepare the requested configuration in your own terminal.' \
+        '' \
+        '# 1. Connect to the server.' \
         "$terminal" \
+        '' \
+        '# 2. Open the generation shell (enter your sudo password there).' \
         "$account_shell" \
-        '# Enter the sudo password only in that terminal. Then run:' \
+        '' \
+        '# 3. Prepare the configuration. Paste this entire block.' \
         "$command" \
+        '' \
         '# Stop if generation fails; do not run the handoff commands below.' \
+        '# 4. Leave the generation shell, then prepare the download.' \
         'exit' \
         "$handoff" \
+        '' \
+        '# 5. Disconnect from the server.' \
         'exit' \
+        '' \
         'Return here and confirm Continue. If no sudo access is available, ask an administrator to prepare this file.')"
     printf '[USER ACTION REQUIRED]\n%s\n' "$instructions"
     if [ -n "${JSON_OUT:-}" ]; then

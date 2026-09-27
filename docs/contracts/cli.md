@@ -142,6 +142,8 @@ and stream protected files directly into the local temporary file. Non-root
 sessions never escalate automatically: generation/unreadable files produce
 manual SSH/generation/ownership instructions and a Continue prompt. The configured
 `run_as` selects `sudo su` for `root` or `sudo -u <user> bash` for a service account.
+Instructions use numbered steps and multiline command blocks. Paste the complete
+preparation block; its subshell stops on failure without closing the login shell.
 Both live remote and remote dead-disk share API generation; only remote dead-disk
 requires endpoint YAML. Manual generation stages private temporary output, validates
 it and moves it beside the server config, then prepares the selected retrieval copy

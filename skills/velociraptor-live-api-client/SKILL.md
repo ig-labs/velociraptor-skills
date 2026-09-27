@@ -102,6 +102,9 @@ interactive SSH, a shell selected by configured `run_as` (`sudo su` for `root`,
 `sudo -u velociraptor bash` for that service account), the selected API-user/YAML generation command, and
 ownership handoff of only that YAML to the SSH user with mode `0600`. Existing
 remote files are reused unless regeneration was explicitly requested.
+The helper prints numbered steps with multiline commands. Preserve the complete
+preparation block when showing it: the subshell stops on errors, and its existing-file
+checks prevent provisioning from replacing credentials.
 Ask the user to confirm **Continue**, and pause credential-dependent setup until
 they reply. Then retry the same setup/fetch command to retrieve the files and
 verify readiness. Do not attempt sudo automatically, collect a password, retry
