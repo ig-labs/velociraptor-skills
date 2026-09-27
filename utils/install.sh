@@ -23,11 +23,13 @@ Install vraptor plus the OpenAI, Anthropic and Claude Agent SDKs in .venv.
 In a terminal, continue into setup configure (live server + OpenAI defaults).
 Non-interactive runs install dependencies and print the configuration command.
 By default, add this checkout to PATH and persist it for your zsh or Bash shell.
+If codex is missing, include an available ChatGPT macOS bundled CLI in the same export.
 --configure     Require a terminal and run configuration after installation.
 --no-configure  Skip the configuration wizard.
 --no-path       Leave PATH and shell startup files unchanged (for example, CI).
 --path-only     Set up PATH for an existing install; skip dependencies and wizard.
 PYTHON_BIN      Select Python 3.11+ when python3 is not suitable.
+CHATGPT_APP     Override the ChatGPT.app location for bundled Codex discovery.
 HELP
       exit 0 ;;
     *) printf 'Unknown option: %s (use --help)\n' "$1" >&2; exit 2 ;;
@@ -52,15 +54,40 @@ print_cli_reload() {
 }
 
 configure_cli_path() {
-  local export_line path_line startup_file candidate already_saved=no
+  local export_line entry_export path_line startup_file candidate directory app
+  local already_saved path_prefix="${REPO_ROOT}" missing_prefix=""
+  local path_dirs=("${REPO_ROOT}") app_candidates=()
   printf '\nPATH setup\n\n'
-  printf -v export_line 'export PATH=%q:"$PATH"' "${REPO_ROOT}"
-  # Guard both the immediate export and future startup against duplicate entries.
-  case ":${PATH}:" in
-    *:"${REPO_ROOT}":*) ;;
-    *) export PATH="${REPO_ROOT}:${PATH}" ;;
-  esac
-  printf -v path_line 'case ":${PATH}:" in *:%q:*) ;; *) %s ;; esac' "${REPO_ROOT}" "${export_line}"
+  if ! command -v codex >/dev/null 2>&1; then
+    if [[ -n "${CHATGPT_APP:-}" ]]; then
+      app_candidates=("${CHATGPT_APP}")
+    else
+      app_candidates=("/Applications/ChatGPT.app" "${HOME}/Applications/ChatGPT.app")
+    fi
+    for app in "${app_candidates[@]}"; do
+      directory="${app}/Contents/Resources/codex-cli/bin"
+      if [[ -f "${directory}/codex" && -x "${directory}/codex" ]]; then
+        directory="$(cd -- "${directory}" && pwd)"
+        path_dirs+=("${directory}")
+        path_prefix="${path_prefix}:${directory}"
+        printf 'Including ChatGPT bundled Codex CLI: %s\n\n' "${directory}"
+        break
+      fi
+    done
+    if [[ ${#path_dirs[@]} -eq 1 ]]; then
+      printf 'Codex CLI was not found. Codex-managed AI needs codex on PATH.\n'
+      printf 'Install it separately if needed: https://learn.chatgpt.com/docs/codex/cli\n\n'
+    fi
+  fi
+  printf -v export_line 'export PATH=%q:"$PATH"' "${path_prefix}"
+  # Export once for this process; persist each component with its own guard.
+  for directory in "${path_dirs[@]}"; do
+    case ":${PATH}:" in
+      *:"${directory}":*) ;;
+      *) missing_prefix="${missing_prefix}${directory}:" ;;
+    esac
+  done
+  export PATH="${missing_prefix}${PATH}"
   case "${SHELL:-}" in
     */zsh|zsh) startup_file="${ZDOTDIR:-${HOME}}/.zshrc" ;;
     */bash|bash) startup_file="${HOME}/.bashrc" ;;
@@ -69,24 +96,29 @@ configure_cli_path() {
       printf 'Add the checkout using your shell configuration; for Bash/zsh:\n  %s\n' "${export_line}"
       return ;;
   esac
-  for candidate in "${path_line}" "${export_line}" "export PATH=\"${REPO_ROOT}:\$PATH\""; do
-    if [[ -f "${startup_file}" ]] && grep -Fxq -- "${candidate}" "${startup_file}"; then
-      already_saved=yes
+  for directory in "${path_dirs[@]}"; do
+    already_saved=no
+    printf -v entry_export 'export PATH=%q:"$PATH"' "${directory}"
+    printf -v path_line 'case ":${PATH}:" in *:%q:*) ;; *) %s ;; esac' "${directory}" "${entry_export}"
+    for candidate in "${path_line}" "${entry_export}" "export PATH=\"${directory}:\$PATH\""; do
+      if [[ -f "${startup_file}" ]] && grep -Fxq -- "${candidate}" "${startup_file}"; then
+        already_saved=yes
+      fi
+    done
+    if [[ "${directory}" == "${HOME}/"* && -f "${startup_file}" ]]; then
+      candidate='export PATH="$HOME/'"${directory#"${HOME}/"}"':$PATH"'
+      if grep -Fxq -- "${candidate}" "${startup_file}"; then
+        already_saved=yes
+      fi
+    fi
+    if [[ "${already_saved}" == yes ]]; then
+      printf 'PATH entry already saved in %s\n' "${startup_file}"
+    else
+      mkdir -p -- "$(dirname -- "${startup_file}")"
+      printf '\n# Velociraptor Skills CLI\n%s\n' "${path_line}" >> "${startup_file}"
+      printf 'Saved PATH entry in %s\n' "${startup_file}"
     fi
   done
-  if [[ "${REPO_ROOT}" == "${HOME}/"* && -f "${startup_file}" ]]; then
-    candidate='export PATH="$HOME/'"${REPO_ROOT#"${HOME}/"}"':$PATH"'
-    if grep -Fxq -- "${candidate}" "${startup_file}"; then
-      already_saved=yes
-    fi
-  fi
-  if [[ "${already_saved}" == yes ]]; then
-    printf 'PATH entry already saved in %s\n' "${startup_file}"
-  else
-    mkdir -p -- "$(dirname -- "${startup_file}")"
-    printf '\n# Velociraptor Skills CLI\n%s\n' "${path_line}" >> "${startup_file}"
-    printf 'Saved PATH entry in %s\n' "${startup_file}"
-  fi
   PATH_STARTUP_FILE="${startup_file}"
   printf '\nOpen a new terminal, or reload PATH in your existing terminal.\n'
   printf 'An installer subprocess cannot change its parent terminal environment.\n'

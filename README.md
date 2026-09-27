@@ -128,6 +128,12 @@ vraptor --help
 dfir --help
 ```
 
+When `codex` is missing from PATH, the installer also detects the bundled CLI
+in `/Applications/ChatGPT.app` or `~/Applications/ChatGPT.app` and includes it in
+that same export and saved PATH setup. Existing Codex commands are preserved.
+Use `CHATGPT_APP=/custom/path/ChatGPT.app` for another location. If no CLI is
+available, it prints installation guidance; it does not install Codex or sign in.
+
 An installer subprocess cannot update the parent terminal's environment.
 For an existing install, run `./utils/install.sh --path-only` to save the entry
 without reinstalling dependencies or opening the wizard. Use `--no-path` to

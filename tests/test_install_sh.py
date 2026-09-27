@@ -48,6 +48,7 @@ with open(os.environ["INSTALL_TEST_LOG"], "a") as f:
     launcher.chmod(0o755)
     log = tmp_path / "calls.jsonl"
     env = {"PATH": os.defpath, "HOME": str(tmp_path), "SHELL": "/bin/bash", "PYTHON_BIN": str(fake),
+           "CHATGPT_APP": str(tmp_path / "ChatGPT.app"),
            "INSTALL_TEST_LOG": str(log)}
     return repo, env, log
 
@@ -101,13 +102,20 @@ def test_install_and_configuration_routing(installer, terminal, flags, configure
     calls = [json.loads(line) for line in log.read_text().splitlines()]
     assert [["-m", "pip", "install", "-r", "requirements.txt"], str(repo)] in calls
     assert any(args == ["vraptor", "setup", "configure"] for args, _ in calls) == configure
-    # Reuse an existing environment, including uv-created environments without pip.
-    log.write_text("")
+
+
+def test_existing_environment_without_pip_is_reused(installer):
+    repo, env, log = installer
+    python = repo / ".venv/bin/python"
+    python.parent.mkdir(parents=True)
+    shutil.copy2(env["PYTHON_BIN"], python)
     result = run_installer(repo, {**env, "INSTALL_TEST_NO_PIP": "1"}, "--no-configure")
     assert result.returncode == 0, result.stdout + result.stderr
-    args = [json.loads(line)[0] for line in log.read_text().splitlines()]
+    calls = [json.loads(line) for line in log.read_text().splitlines()]
+    args = [command for command, _ in calls]
     assert not any(command[:2] == ["-m", "venv"] for command in args)
     assert ["-m", "ensurepip", "--upgrade"] in args
+    assert [["-m", "pip", "install", "-r", "requirements.txt"], str(repo)] in calls
 
 
 @pytest.mark.parametrize("flag,message", [
@@ -193,3 +201,78 @@ def test_unknown_shell_leaves_startup_files_alone(installer):
     assert not (repo.parent / ".bashrc").exists()
     assert not (repo.parent / ".zshrc").exists()
     assert not log.exists()
+
+
+@pytest.mark.parametrize("shell", ["bash", "zsh"])
+def test_bundled_codex_shares_export_and_persists_without_duplicates(installer, shell):
+    repo, env, log = installer
+    executable = shutil.which(shell)
+    if not executable:
+        pytest.skip(f"{shell} is unavailable")
+    env["SHELL"] = executable
+    env["CHATGPT_APP"] = str(repo.parent / "Apps with spaces" / "ChatGPT.app")
+    codex = Path(env["CHATGPT_APP"]) / "Contents/Resources/codex-cli/bin/codex"
+    codex.parent.mkdir(parents=True)
+    codex.write_text("#!/bin/sh\nexit 0\n")
+    codex.chmod(0o755)
+    startup = repo.parent / (".zshrc" if shell == "zsh" else ".bashrc")
+    original = f'# Existing settings\nexport PATH="{repo}:$PATH"\n'
+    startup.write_text(original)
+    result = run_installer(repo, env, "--path-only")
+    assert result.returncode == 0, result.stderr
+    saved = startup.read_text()
+    assert saved.startswith(original)
+    # The single printed export must make both commands discoverable.
+    exports = [line.strip() for line in result.stdout.splitlines() if line.strip().startswith("export PATH=")]
+    assert len(exports) == 1
+    check = subprocess.run(
+        [executable, "-c", exports[0] + '\ncommand -v vraptor; command -v codex'],
+        env=env, text=True, capture_output=True, check=True,
+    )
+    assert check.stdout.splitlines() == [str(repo / "vraptor"), str(codex)]
+    rerun = run_installer(repo, env, "--path-only")
+    assert rerun.returncode == 0, rerun.stderr
+    assert startup.read_text() == saved
+    check = subprocess.run(
+        [executable, "-c", '. "$1"; . "$1"; printf "%s\\n" "$PATH"; command -v codex',
+         "test", str(startup)], env=env, text=True, capture_output=True, check=True,
+    )
+    path, command = check.stdout.splitlines()
+    assert path.split(os.pathsep).count(str(codex.parent)) == 1
+    assert command == str(codex)
+    assert not log.exists()
+
+
+def test_existing_codex_is_not_replaced_by_app_bundle(installer):
+    repo, env, _ = installer
+    standalone = repo.parent / "bin/codex"
+    bundled = Path(env["CHATGPT_APP"]) / "Contents/Resources/codex-cli/bin/codex"
+    for command in (standalone, bundled):
+        command.parent.mkdir(parents=True)
+        command.write_text("#!/bin/sh\nexit 0\n")
+        command.chmod(0o755)
+    env["PATH"] = str(standalone.parent) + os.pathsep + env["PATH"]
+    result = run_installer(repo, env, "--path-only")
+    assert result.returncode == 0, result.stderr
+    startup = repo.parent / ".bashrc"
+    assert str(bundled.parent) not in startup.read_text()
+    check = subprocess.run(
+        [env["SHELL"], "-c", '. "$1"; command -v codex', "test", str(startup)],
+        env=env, text=True, capture_output=True, check=True,
+    )
+    assert check.stdout.strip() == str(standalone)
+
+
+@pytest.mark.parametrize("kind", ["absent", "not_executable", "directory"])
+def test_unusable_codex_bundle_is_not_added(installer, kind):
+    repo, env, _ = installer
+    codex = Path(env["CHATGPT_APP"]) / "Contents/Resources/codex-cli/bin/codex"
+    codex.parent.mkdir(parents=True)
+    if kind == "not_executable":
+        codex.write_text("fixture")
+    elif kind == "directory":
+        codex.mkdir()
+    result = run_installer(repo, env, "--path-only")
+    assert result.returncode == 0, result.stderr
+    assert str(codex.parent) not in (repo.parent / ".bashrc").read_text()
+    assert "Codex CLI was not found" in result.stdout

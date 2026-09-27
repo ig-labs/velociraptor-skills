@@ -14,20 +14,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @pytest.mark.parametrize(
-    ("launcher", "args", "module", "forwarded"),
+    ("launcher", "args", "forwarded"),
     [
-        ("vraptor", ["collect", "--client", "C.1"], "vraptor.cli", ["collect", "--client", "C.1"]),
-        ("dfir", ["velociraptor", "collect", "analyze", "--skip-ai"],
-         "vraptor.cli", ["collect", "analyze", "--skip-ai"]),
-        ("dfir", ["agent", "config", "--view", "defaults"],
-         "vraptor.cli", ["agent", "config", "--view", "defaults"]),
-        ("dfir", ["tools", "prep", "-t", "plaso"], "vraptor.cli", ["tools", "prep", "-t", "plaso"]),
-        ("dfir", ["setup", "init", "--id", "example-case"],
-         "vraptor.cli", ["setup", "init", "--id", "example-case"]),
+        ("vraptor", ["setup", "init", "--id", "example case"],
+         ["setup", "init", "--id", "example case"]),
+        ("dfir", ["setup", "init", "--id", "example case"],
+         ["setup", "init", "--id", "example case"]),
+        ("dfir", ["velociraptor", "setup", "init", "--id", "example case"],
+         ["setup", "init", "--id", "example case"]),
     ],
 )
 @pytest.mark.parametrize("via_path", [False, True])
-def test_launchers_preserve_dispatch_from_another_directory(tmp_path, launcher, args, module, forwarded, via_path):
+def test_launchers_preserve_dispatch_from_another_directory(tmp_path, launcher, args, forwarded, via_path):
     repo = tmp_path / "repository with spaces"
     for relative in [launcher, "utils/runtime-env.sh"]:
         target = repo / relative
@@ -39,12 +37,12 @@ def test_launchers_preserve_dispatch_from_another_directory(tmp_path, launcher, 
         '#!/bin/sh\nprintf "%s\\n" "$AI_SKILLS_REPO_ROOT" "$VELOCIRAPTOR_SKILLS_REPO_ROOT" "$PYTHONPATH" "$PWD" "$@"\n'
     )
     fake_python.chmod(0o755)
-    env = {"PATH": os.environ["PATH"], "HOME": str(tmp_path / "home")}
+    env = {"PATH": os.defpath, "HOME": str(tmp_path / "home")}
     if via_path:
         env["PATH"] = str(repo) + os.pathsep + env["PATH"]
     result = subprocess.run([launcher if via_path else str(repo / launcher), *args], cwd=tmp_path, env=env,
                             text=True, capture_output=True, check=True)
-    assert result.stdout.splitlines() == [str(repo), str(repo), str(repo / "src"), str(tmp_path), "-m", module, *forwarded]
+    assert result.stdout.splitlines() == [str(repo), str(repo), str(repo / "src"), str(tmp_path), "-m", "vraptor.cli", *forwarded]
 
 
 @pytest.mark.parametrize("command", [("vraptor",), ("dfir",), ("dfir", "velociraptor")])
@@ -115,30 +113,6 @@ def test_package_finds_public_root_without_launcher(tmp_path):
         cwd=tmp_path, env=env, text=True, capture_output=True, check=True,
     )
     assert Path(result.stdout.strip()) == ROOT
-
-
-def test_installer_resolves_editable_requirement_from_repository(tmp_path):
-    repo = tmp_path / "repository with spaces"
-    (repo / "utils").mkdir(parents=True)
-    shutil.copy2(ROOT / "utils/install.sh", repo / "utils/install.sh")
-    (repo / "requirements.txt").write_text("-e .[ai]\n")
-    fake_python = repo / ".venv/bin/python"
-    fake_python.parent.mkdir(parents=True)
-    log = tmp_path / "calls.jsonl"
-    fake_python.write_text(
-        "#!" + sys.executable + "\nimport json, os, sys\n"
-        "with open(os.environ['TEST_CALL_LOG'], 'a') as f:\n"
-        "    f.write(json.dumps([os.getcwd(), sys.argv[1:]]) + '\\n')\n"
-    )
-    fake_python.chmod(0o755)
-    subprocess.run(
-        [str(repo / "utils/install.sh")], cwd=tmp_path,
-        env={**os.environ, "PYTHON_BIN": sys.executable, "TEST_CALL_LOG": str(log),
-             "HOME": str(tmp_path / "home"), "SHELL": "/bin/bash"},
-        text=True, capture_output=True, check=True,
-    )
-    calls = [json.loads(line) for line in log.read_text().splitlines()]
-    assert calls[-1] == [str(repo), ["-m", "pip", "install", "-r", "requirements.txt"]]
 
 
 @pytest.mark.parametrize("placeholder", ["api_username", "your_api_user", "<api-user>"])
