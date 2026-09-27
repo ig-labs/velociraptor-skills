@@ -7,6 +7,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 CONFIGURE=auto
 INSTALL_PATH=yes
 PATH_ONLY=no
+PATH_STARTUP_FILE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -39,8 +40,20 @@ if [[ "${PATH_ONLY}" == yes && ( "${INSTALL_PATH}" == no || "${CONFIGURE}" == ye
   exit 2
 fi
 
+print_cli_reload() {
+  [[ -n "${PATH_STARTUP_FILE}" ]] || return 0
+  printf '\nEnable commands in your current terminal:\n\n'
+  printf '  source %q\n' "${PATH_STARTUP_FILE}"
+  case "${SHELL}" in
+    */zsh|zsh) printf '  rehash\n' ;;
+    */bash|bash) printf '  hash -r\n' ;;
+  esac
+  printf '\n  command -v vraptor\n  vraptor --help\n\n'
+}
+
 configure_cli_path() {
   local export_line path_line startup_file candidate already_saved=no
+  printf '\nPATH setup\n\n'
   printf -v export_line 'export PATH=%q:"$PATH"' "${REPO_ROOT}"
   # Guard both the immediate export and future startup against duplicate entries.
   case ":${PATH}:" in
@@ -74,15 +87,11 @@ configure_cli_path() {
     printf '\n# Velociraptor Skills CLI\n%s\n' "${path_line}" >> "${startup_file}"
     printf 'Saved PATH entry in %s\n' "${startup_file}"
   fi
+  PATH_STARTUP_FILE="${startup_file}"
+  printf '\nOpen a new terminal, or reload PATH in your existing terminal.\n'
   printf 'An installer subprocess cannot change its parent terminal environment.\n'
-  printf 'Open a new terminal, or run these commands in your existing terminal:\n'
-  printf '  source %q\n' "${startup_file}"
-  case "${SHELL}" in
-    */zsh|zsh) printf '  rehash\n' ;;
-    */bash|bash) printf '  hash -r\n' ;;
-  esac
-  printf '  command -v vraptor\n  vraptor --help\n'
-  printf 'Alternatively, enable this checkout directly in your terminal:\n  %s\n' "${export_line}"
+  print_cli_reload
+  printf 'Alternatively, enable this checkout directly in your terminal:\n\n  %s\n\n' "${export_line}"
   printf 'The root launchers select this checkout and its .venv; keep the checkout at this path.\n'
 }
 
@@ -101,39 +110,47 @@ command -v "${PYTHON_BIN}" >/dev/null 2>&1 || {
   exit 1
 }
 
+printf '\nPython virtual environment\n\n'
 CHECK_PYTHON="${REPO_ROOT}/.venv/bin/python"
 [[ -x "${CHECK_PYTHON}" ]] || CHECK_PYTHON="${PYTHON_BIN}"
 "${CHECK_PYTHON}" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else "Python 3.11 or newer is required; select it with PYTHON_BIN, or recreate an outdated .venv after preserving anything needed.")'
 
 if [[ ! -x "${REPO_ROOT}/.venv/bin/python" ]]; then
+  printf 'Creating %s/.venv\n\n' "${REPO_ROOT}"
   if ! "${PYTHON_BIN}" -m venv "${REPO_ROOT}/.venv"; then
     printf 'Could not create .venv. Install Python 3.11+ with venv/ensurepip support (python3-venv on Debian/Ubuntu), then retry.\n' >&2
     exit 1
   fi
+else
+  printf 'Reusing %s/.venv\n\n' "${REPO_ROOT}"
 fi
 
 if ! "${REPO_ROOT}/.venv/bin/python" -m pip --version >/dev/null 2>&1; then
   "${REPO_ROOT}/.venv/bin/python" -m ensurepip --upgrade
 fi
+printf '\nUpdating Python packaging tools\n\n'
 "${REPO_ROOT}/.venv/bin/python" -m pip install --upgrade pip setuptools wheel
+printf '\nInstalling Python dependencies\n\n'
 (
   cd -- "${REPO_ROOT}"
   "${REPO_ROOT}/.venv/bin/python" -m pip install -r requirements.txt
 )
 
-printf 'Installed dependencies in %s/.venv\n' "${REPO_ROOT}"
+printf '\nInstalled dependencies in %s/.venv\n\n' "${REPO_ROOT}"
 if [[ "${INSTALL_PATH}" == yes ]]; then
   configure_cli_path
 fi
 if [[ "${CONFIGURE}" == yes || ( "${CONFIGURE}" == auto && -t 0 && -t 1 ) ]]; then
-  printf '\nConfigure an existing live server and OpenAI analysis. Have your API-client YAML path and OpenAI credential environment ready.\n'
+  printf '\nConfigure an existing live server and OpenAI analysis. Have your API-client YAML path and OpenAI credential environment ready.\n\n'
   "${REPO_ROOT}/vraptor" setup configure
 else
-  printf 'Next, configure live-server access and OpenAI in a terminal: %q setup configure\n' "${REPO_ROOT}/vraptor"
+  printf '\nNext, configure live-server access and OpenAI in a terminal:\n\n  %q setup configure\n\n' "${REPO_ROOT}/vraptor"
 fi
-printf '\nInspect saved settings: %q config --server-profile "<SERVER REFERENCE>"\n' "${REPO_ROOT}/vraptor"
-printf 'Inspect AI settings: %q ai config\n' "${REPO_ROOT}/vraptor"
-printf 'Check AI dependencies and credentials offline: %q ai doctor\n' "${REPO_ROOT}/vraptor"
-printf 'Replace <SERVER REFERENCE> with a saved server name; multiple server profiles are supported.\n'
-printf 'Configuration is saved separately; a repository .env is optional.\n'
-printf 'Preview skill links with: %q --dry-run\n' "${REPO_ROOT}/utils/link-codex-skills.sh"
+printf '\nUseful commands\n\n'
+printf 'Inspect saved settings:\n\n  %q config --server-profile "<SERVER REFERENCE>"\n\n' "${REPO_ROOT}/vraptor"
+printf 'Replace <SERVER REFERENCE> with a saved server name; multiple server profiles are supported.\n\n'
+printf 'Inspect AI settings:\n\n  %q ai config\n\n' "${REPO_ROOT}/vraptor"
+printf 'Check AI dependencies and credentials offline:\n\n  %q ai doctor\n\n' "${REPO_ROOT}/vraptor"
+printf 'Configuration is saved separately; a repository .env is optional.\n\n'
+printf 'Preview skill links:\n\n  %q --dry-run\n' "${REPO_ROOT}/utils/link-codex-skills.sh"
+print_cli_reload
