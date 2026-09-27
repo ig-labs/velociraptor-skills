@@ -285,6 +285,9 @@ else
     COPY_RESULT=$?
 fi
 [ "$COPY_RESULT" -ne 3 ] || exit 3
+[ "$COPY_RESULT" -ne 70 ] || error "Remote configuration preparation or validation failed; no automatic retry"
+[ "$COPY_RESULT" -eq 0 ] || [ "${REMOTE_UID:-0}" = 0 ] ||
+    error "Remote sudo configuration retrieval failed; no automatic retry"
 if [ "$COPY_RESULT" -ne 0 ]; then
     rm -f "$LOCAL_TEMP_PATH"
     [ "$PROVISION_CLIENT" -eq 1 ] || error "Could not copy remote client configuration; creation requires explicit --provision-client"
@@ -295,6 +298,7 @@ if [ "$COPY_RESULT" -ne 0 ]; then
     copy_remote_config "$REMOTE_CLIENT_CONFIG_PATH"
 fi
 
+test -s "$LOCAL_TEMP_PATH" || error "Downloaded client configuration is empty; local cache preserved"
 mv -f "$LOCAL_TEMP_PATH" "$LOCAL_DEST_PATH"
 trap - EXIT
 chmod 600 "$LOCAL_DEST_PATH"

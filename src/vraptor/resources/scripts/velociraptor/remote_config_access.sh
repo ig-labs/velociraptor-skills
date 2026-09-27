@@ -36,25 +36,9 @@ prepare_remote_commands() {
     fi
 }
 
-manual_remote_config() {
-    local path="$1" terminal command instructions answer account_shell handoff arg
-    local run_as="${REMOTE_RUN_AS:-root}" installed_path filename generation output
-    terminal="$(
-        printf 'ssh'
-        for arg in "${SSH_ARGS[@]}"; do
-            if [[ "$arg" == -* ]]; then
-                printf ' \\\n  %q' "$arg"
-            else
-                printf ' %q' "$arg"
-            fi
-        done
-        printf ' \\\n  %q' "$SSH_TARGET"
-    )"
-    if [ "$run_as" = root ]; then
-        account_shell='sudo su'
-    else
-        account_shell="sudo -u $(shell_quote "$run_as") bash"
-    fi
+build_remote_config_steps() {
+    local path="$1" sudo_prefix="${2-sudo }"
+    local installed_path filename generation output command handoff
     # Keep service-owned configuration beside the selected server configuration.
     # The separately configured fetch path may be an operator-readable copy.
     if [ "${REMOTE_CONFIG_KIND:-api}" = api ]; then
@@ -78,6 +62,7 @@ manual_remote_config() {
     fi
     generation="  umask 077
   config_tmp=\$(mktemp -d /tmp/velociraptor-config.XXXXXXXX)
+  trap 'rm -rf -- \"\$config_tmp\"' 0
   $generation
   test -s $output
   chmod 600 $output
@@ -106,20 +91,57 @@ $generation
     fi
     # Leave the generation shell before using the SSH operator's sudo rights.
     if [ "$installed_path" = "$path" ]; then
-        handoff="sudo chown -- $(shell_quote "$REMOTE_SSH_USER") $(shell_quote "$path")
-sudo chmod 600 -- $(shell_quote "$path")"
+        handoff="${sudo_prefix}chown -- $(shell_quote "$REMOTE_SSH_USER") $(shell_quote "$path")
+${sudo_prefix}chmod 600 -- $(shell_quote "$path")"
     else
-        handoff="sudo install -o $(shell_quote "$REMOTE_SSH_USER") -m 600 -- $(shell_quote "$installed_path") $(shell_quote "$path")"
+        handoff="${sudo_prefix}install -o $(shell_quote "$REMOTE_SSH_USER") -m 600 -- $(shell_quote "$installed_path") $(shell_quote "$path")"
         # Provisioning must preserve an existing selected retrieval file too.
         if [ "${REGENERATE_REMOTE_API:-0}" -ne 1 ]; then
             handoff="if [ -e $(shell_quote "$path") ] || [ -L $(shell_quote "$path") ]; then
-  sudo chown -- $(shell_quote "$REMOTE_SSH_USER") $(shell_quote "$path")
-  sudo chmod 600 -- $(shell_quote "$path")
+  ${sudo_prefix}chown -- $(shell_quote "$REMOTE_SSH_USER") $(shell_quote "$path")
+  ${sudo_prefix}chmod 600 -- $(shell_quote "$path")
 else
   $handoff
 fi"
         fi
     fi
+    CONFIG_GENERATION_STEP="$command"
+    CONFIG_INSTALLED_PATH="$installed_path"
+    CONFIG_HANDOFF_STEP="test -s $(shell_quote "$installed_path")
+$handoff"
+    # An existing retrieval file takes precedence over the installed original.
+    if [ "${REGENERATE_REMOTE_API:-0}" -ne 1 ]; then
+        CONFIG_HANDOFF_STEP="if [ -e $(shell_quote "$path") ] || [ -L $(shell_quote "$path") ]; then
+  test -s $(shell_quote "$path")
+else
+  test -s $(shell_quote "$installed_path")
+fi
+$handoff"
+    fi
+}
+
+manual_remote_config() {
+    local path="$1" terminal command instructions answer account_shell handoff arg
+    local run_as="${REMOTE_RUN_AS:-root}"
+    terminal="$(
+        printf 'ssh'
+        for arg in "${SSH_ARGS[@]}"; do
+            if [[ "$arg" == -* ]]; then
+                printf ' \\\n  %q' "$arg"
+            else
+                printf ' %q' "$arg"
+            fi
+        done
+        printf ' \\\n  %q' "$SSH_TARGET"
+    )"
+    if [ "$run_as" = root ]; then
+        account_shell='sudo su'
+    else
+        account_shell="sudo -u $(shell_quote "$run_as") bash"
+    fi
+    build_remote_config_steps "$path"
+    command="$CONFIG_GENERATION_STEP"
+    handoff="$CONFIG_HANDOFF_STEP"
     # The operator hands back only the requested YAML, never the server config.
     instructions="$(printf '%s\n' \
         'Non-root SSH account: prepare the requested configuration in your own terminal.' \
@@ -149,22 +171,81 @@ fi"
           json_field ssh_target "$SSH_TARGET"; printf ',\n';
           json_field instructions "$instructions"; printf '\n}\n'; } > "$JSON_OUT"
     fi
-    if [ -t 0 ]; then
+    if [ "${VRAPTOR_CONFIG_MANUAL_PROMPT:-1}" = 1 ] && [ -t 0 ]; then
         read -r -p 'Configuration ready? Continue [y/N]: ' answer || return 3
         case "$answer" in
             y|Y|yes|YES)
                 # Resume retrieval only; never execute privileged commands here.
-                scp "${SCP_ARGS[@]}" "${SSH_TARGET}:${path}" "$LOCAL_TEMP_PATH" && return 0
+                scp "${SCP_ARGS[@]}" "${SSH_TARGET}:${path}" "$LOCAL_TEMP_PATH" && test -s "$LOCAL_TEMP_PATH" && return 0
                 ;;
         esac
     fi
     return 3
 }
 
+# Exit 70 means the privileged body ran and failed: never retry provisioning.
+# Sudo authentication failures happen before that body starts.
+sudo_remote_config() {
+    local path="$1" command generation result
+    build_remote_config_steps "$path" ""
+    generation="( $(remote_as_user "$CONFIG_GENERATION_STEP" "${REMOTE_RUN_AS:-root}") ) >/dev/null 2>&1"
+    if [ "${REGENERATE_REMOTE_API:-0}" -ne 1 ]; then
+        # Check as root before switching users: an inaccessible retrieval path
+        # must never look absent to a less-privileged datastore owner.
+        generation="if [ -e $(shell_quote "$path") ] || [ -L $(shell_quote "$path") ] ||
+   [ -e $(shell_quote "$CONFIG_INSTALLED_PATH") ] || [ -L $(shell_quote "$CONFIG_INSTALLED_PATH") ]; then
+  :
+else
+  test -d $(shell_quote "$(remote_dirname "$path")")
+  test -x $(shell_quote "$(remote_dirname "$path")")
+  test -d $(shell_quote "$(remote_dirname "$CONFIG_INSTALLED_PATH")")
+  test -x $(shell_quote "$(remote_dirname "$CONFIG_INSTALLED_PATH")")
+  $generation
+fi"
+    fi
+    command="set -e
+trap '[ \"\$?\" -eq 0 ] || exit 70' 0
+$generation
+$CONFIG_HANDOFF_STEP"
+    if ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "sudo -n -- sh -c $(shell_quote "$command")" >/dev/null 2>&1; then
+        result=0
+    else
+        result=$?
+    fi
+    case "$result" in
+        0) ;;
+        70|255|130|137|143) return "$result" ;;
+        *)
+            # All three descriptors bypass captured helper output. The password
+            # goes straight from the operator's terminal to remote sudo.
+            if [ -t 0 ] && ( : </dev/tty ) 2>/dev/null; then
+                printf '[INFO]  Remote configuration needs sudo; authenticate in this terminal.\n' >/dev/tty
+                if ssh -t "${SSH_ARGS[@]}" "$SSH_TARGET" "sudo -- sh -c $(shell_quote "$command")" </dev/tty >/dev/tty 2>&1; then
+                    result=0
+                else
+                    result=$?
+                fi
+                case "$result" in
+                    0) ;;
+                    70|255|130|137|143) return "$result" ;;
+                    *) manual_remote_config "$path"; return $? ;;
+                esac
+            else
+                manual_remote_config "$path"
+                return $?
+            fi
+            ;;
+    esac
+    API_CLIENT_SOURCE=remote_sudo_prepared
+    REMOTE_CONFIG_PREPARED=1
+    scp "${SCP_ARGS[@]}" "${SSH_TARGET}:${path}" "$LOCAL_TEMP_PATH" || return 1
+    test -s "$LOCAL_TEMP_PATH"
+}
+
 generate_remote_config() {
     detect_remote_user || return 1
     if [ "$REMOTE_UID" != 0 ]; then
-        manual_remote_config "$1"
+        sudo_remote_config "$1"
     else
         ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "$GENERATE_REMOTE_COMMAND"
     fi
@@ -174,12 +255,15 @@ copy_remote_config() {
     local path="$1"
     # Preserve the unprivileged fast path for readable configurations.
     if scp "${SCP_ARGS[@]}" "${SSH_TARGET}:${path}" "$LOCAL_TEMP_PATH"; then
+        test -s "$LOCAL_TEMP_PATH" || return 70
         return 0
     fi
     rm -f "$LOCAL_TEMP_PATH"
+    # A transfer failure must not run an already completed generation again.
+    [ "${REMOTE_CONFIG_PREPARED:-0}" -eq 0 ] || return 70
     detect_remote_user || return 1
     if [ "$REMOTE_UID" != 0 ]; then
-        manual_remote_config "$path"
+        sudo_remote_config "$path"
     else
         # stdout contains credentials and must go directly to the protected file.
         ssh "${SSH_ARGS[@]}" "$SSH_TARGET" "$READ_REMOTE_COMMAND" > "$LOCAL_TEMP_PATH"
@@ -190,7 +274,7 @@ preview_remote_copy() {
     printf 'scp'
     printf ' %q' "${SCP_ARGS[@]}"
     printf ' %q %q\n' "${SSH_TARGET}:$1" "$LOCAL_TEMP_PATH"
-    printf '# If SCP fails: root may stream the file; Non-root accounts receive manual instructions and a Continue prompt.\n'
+    printf '# If SCP fails: root may stream the file; non-root uses sudo, with a terminal-only password prompt or manual fallback.\n'
     printf 'ssh'
     printf ' %q' "${SSH_ARGS[@]}"
     printf ' %q %q > %q\n' "$SSH_TARGET" "$READ_REMOTE_COMMAND" "$LOCAL_TEMP_PATH"

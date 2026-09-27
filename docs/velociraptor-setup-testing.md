@@ -323,15 +323,15 @@ vraptor config fetch-client \
 
 The example `/etc/velociraptor` paths are not universal. Readable files are copied
 with SCP. Root accounts can generate the requested YAML as the current user;
-`run_as` optionally selects another datastore owner. For non-root accounts,
-generation or unreadable files produce manual terminal commands and a Continue
-prompt. The user opens a shell selected by `run_as`: `sudo su` for `root`, or
-`sudo -u velociraptor bash` for that service account. They generate YAML and hand off only
-the requested YAML with mode `0600`; setup resumes retrieval after confirmation.
-Noninteractive agents must display the steps and wait. Never request a password
-in chat or make YAML world-readable. Missing-file generation still requires
-explicit provisioning flags. These fetch-only commands request neither
-generation nor deletion.
+`run_as` optionally selects another datastore owner. Non-root fetches use sudo:
+passwordless access completes automatically, while password-required access
+prompts directly in an SSH terminal and then resumes retrieval. Only the requested
+YAML is handed off with mode `0600`; neither passwords nor YAML are captured in
+setup output. If sudo is unavailable or authentication needs a terminal that is
+not present, the helper prints manual steps and waits for Continue. Noninteractive
+agents must display those fallback steps and wait. Missing-file generation still
+requires explicit provisioning flags. These fetch-only commands request neither
+generation nor deletion; `--force` replaces only the local cache.
 
 For service-account generation, temporary YAMLs, moves into `/etc/velociraptor/`,
 and protected retrieval/reference copies, follow the
@@ -561,10 +561,12 @@ Offline regression checks from the `ai_skills` checkout:
 
 ```sh
 .venv/bin/python -m pytest tests/test_remote_config_privileges.py \
+  tests/test_remote_config_sudo.py \
   tests/test_velociraptor_live_api_client_sh.py tests/test_vraptor_setup.py \
   tests/test_engagement_state.py
 ```
 
 The privilege tests execute root commands through fake SSH tools, test quoted
-paths and non-root manual handoff, and verify a terminal waits for Continue.
+paths, automatic sudo preparation, terminal-only authentication, and manual fallback.
+They also verify credential preservation and that failed generation is not retried.
 They do not prove that a live deployment permits API provisioning.

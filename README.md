@@ -145,6 +145,11 @@ Keep the checkout at that location; update `PATH` if you move it. If another
 installation exists, use `command -v vraptor` and `command -v dfir` to check which
 commands your shell selects. Skill linking remains a separate step above.
 
+Remote credential fetches use root or sudo automatically. If sudo needs a password,
+enter it directly in your terminal; retrieval resumes without pasted shell commands.
+Generation requires `--provision-api` or `--provision-client`. Manual instructions
+remain available when sudo or an interactive terminal is unavailable.
+
 ## vraptor CLI
 
 ```sh

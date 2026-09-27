@@ -137,20 +137,22 @@ commands validate the selected mapping; unscoped commands require all mappings
 ready. Legacy single-mapping state and runtime paths remain supported.
 
 Remote credential access uses SCP first. Root SSH sessions may generate YAML
-as the current root user or an explicitly configured `run_as` datastore owner,
-and stream protected files directly into the local temporary file. Non-root
-sessions never escalate automatically: generation/unreadable files produce
-manual SSH/generation/ownership instructions and a Continue prompt. The configured
-`run_as` selects `sudo su` for `root` or `sudo -u <user> bash` for a service account.
-Instructions use numbered steps and multiline command blocks. Paste the complete
-preparation block; its subshell stops on failure without closing the login shell.
-Both live remote and remote dead-disk share API generation; only remote dead-disk
-requires endpoint YAML. Manual generation stages private temporary output, validates
-it and moves it beside the server config, then prepares the selected retrieval copy
-with mode `0600`. Existing configured paths remain supported.
-Without a terminal, fetch helpers exit 3 and write `status=needs_user_action`
-plus instructions to `--json-out`; agents must show the steps and wait for the
-user before retrying. A confirmation retries copying, not privileged execution.
+as root or an explicitly configured `run_as` datastore owner, and stream protected
+files into the local temporary file. Non-root sessions try noninteractive sudo;
+when authentication is required, interactive invocations open an SSH terminal
+for sudo's password prompt. Passwords bypass captured setup output. Generation
+runs as `run_as`, stages private output, validates it, and prepares only the
+requested YAML for mode-0600 SCP retrieval. Successful sudo preparation resumes
+automatically, without a Continue prompt. Failed preparation is not retried.
+`--force` refreshes the local cache; generation requires `--provision-api` or
+`--provision-client`, and remote API replacement requires `--regenerate-remote-api`.
+
+If sudo is unavailable, or needs a password without a terminal, fetch helpers
+exit 3 and write `status=needs_user_action` plus numbered manual steps to
+`--json-out`. Agents must show the steps and wait for Continue before retrying.
+In the manual fallback, `run_as` selects `sudo su` for root or
+`sudo -u <user> bash` for a service account. Both live remote and remote dead-disk
+share API generation; only remote dead-disk requires endpoint YAML.
 
 `setup export --output SNAPSHOT.toml` saves effective workstation settings and
 named connections, with local home paths expressed as `~`. API/client YAML, SSH

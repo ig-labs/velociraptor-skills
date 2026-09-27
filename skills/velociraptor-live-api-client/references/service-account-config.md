@@ -4,7 +4,15 @@ Both `live-remote` and `remote-deaddisk` use the same API identity and API-clien
 YAML procedure. Only remote dead-disk additionally needs an endpoint YAML to
 enroll its mapped client; do not generate an endpoint YAML for live API access.
 
-Use for explicitly authorized generation or replacement. Substitute the SSH host,
+Prefer `vraptor config fetch-api --server-profile NAME --provision-api --force`
+with the configured SSH connection. The helper uses root or sudo, prompts for a
+sudo password directly in the terminal when necessary, then fetches the YAML
+automatically. Use `fetch-client --provision-client` for endpoint YAML. `--force`
+refreshes the local copy only; remote API replacement requires
+`--regenerate-remote-api`.
+
+The manual sequence below is the fallback when sudo is unavailable or an agent
+cannot open an interactive terminal. Use for explicitly authorized generation or replacement. Substitute the SSH host,
 key, login user, configured generation user (`run_as`), API identity and
 retrieval paths for the selected deployment. Confirm the active server config
 path first; `/etc/velociraptor/server.config.yaml` is the example here.

@@ -327,9 +327,10 @@ Local GUI access is loopback-only and intended for testing, not production use.
 ### Remote dead-disk client
 
 Use the same API-account/YAML provisioning and retrieval procedure as live
-remote, including role selection and root/service-account handoff. The additional
-credential is the matching endpoint YAML, needed to enroll the mapped client.
-See [shared manual generation](../velociraptor-live-api-client/references/service-account-config.md).
+remote, including role selection and automatic root/sudo preparation. Passwords
+are entered only in the operator's terminal; manual handoff is the fallback.
+The additional credential is the matching endpoint YAML, needed to enroll the mapped client.
+See [shared generation and manual fallback](../velociraptor-live-api-client/references/service-account-config.md).
 
 ```bash
 dfir setup start --mode remote-deaddisk --id ir1234 --server-profile lab \

@@ -116,6 +116,8 @@ def test_manual_remote_preparation_requires_continue(workstation, monkeypatch, c
     def fetch(command, **kwargs):
         calls.append(command)
         if len(calls) == 1:
+            assert kwargs["stdin"] is (None if interactive else setup.subprocess.DEVNULL)
+            assert kwargs["env"]["VRAPTOR_CONFIG_MANUAL_PROMPT"] == "0"
             manifest = Path(command[command.index("--json-out") + 1])
             manifest.write_text(json.dumps({"status": "needs_user_action", "instructions": instructions}))
             return Mock(returncode=3)

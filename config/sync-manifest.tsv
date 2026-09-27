@@ -119,6 +119,7 @@ tests/test_file_hashing.py	tests/test_file_hashing.py	file
 tests/test_investigation_workspace.py	tests/test_investigation_workspace.py	file
 tests/test_linux_host_profile.py	tests/test_linux_host_profile.py	file
 tests/test_remote_config_privileges.py	tests/test_remote_config_privileges.py	file
+tests/test_remote_config_sudo.py	tests/test_remote_config_sudo.py	file
 tests/test_setup_config_transfer.py	tests/test_setup_config_transfer.py	file
 tests/test_token_budget.py	tests/test_token_budget.py	file
 tests/test_vraptor_lifecycle.py	tests/test_vraptor_lifecycle.py	file

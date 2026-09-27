@@ -96,21 +96,21 @@ an explicit `run_as` can select another datastore owner. Existing readable files
 are copied with SCP. Root can also stream a protected file into a local
 mode-0600 temporary file without displaying it.
 
-For non-root SSH accounts, generation or an unreadable remote YAML returns
-`needs_user_action` (fetch-helper exit 3). Show the supplied terminal commands:
-interactive SSH, a shell selected by configured `run_as` (`sudo su` for `root`,
-`sudo -u velociraptor bash` for that service account), the selected API-user/YAML generation command, and
-ownership handoff of only that YAML to the SSH user with mode `0600`. Existing
-remote files are reused unless regeneration was explicitly requested.
-The helper prints numbered steps with multiline commands. Preserve the complete
-preparation block when showing it: the subshell stops on errors, and its existing-file
-checks prevent provisioning from replacing credentials.
-Ask the user to confirm **Continue**, and pause credential-dependent setup until
-they reply. Then retry the same setup/fetch command to retrieve the files and
-verify readiness. Do not attempt sudo automatically, collect a password, retry
-without confirmation, or mark the setup ready while waiting. Direct terminal
-invocations provide a `Configuration ready? Continue [y/N]` prompt; noninteractive
-agents must present that prompt to the user themselves.
+For non-root SSH accounts, the fetch helper tries noninteractive sudo. If sudo
+requires authentication and the invocation has a terminal, SSH opens a remote
+terminal and sudo prompts there directly. The helper prepares only the requested
+YAML with mode `0600`, retrieves it through SCP, and resumes automatically.
+Generation still requires the provisioning flag; `--force` refreshes only the
+local cache. The configured `run_as` selects the datastore owner for generation.
+Passwords and generated YAML must never enter chat or captured setup output.
+A failed privileged preparation is reported without automatically retrying it.
+
+If sudo is unavailable, or requires a password without an interactive terminal,
+the helper returns `needs_user_action` (exit 3) with numbered manual steps.
+Show those steps and wait for **Continue** before retrying the same fetch/setup
+command. Preserve complete command blocks and existing-file checks. Direct
+terminal invocations provide the Continue prompt; noninteractive agents must
+present it themselves. Do not mark setup ready while waiting.
 `--api-role-profile investigation|provisioning-admin` selects the expected role
 set. `--dry-run` does not create directories, change cached-file permissions or
 write manifests. `--output-path`, `--json-out`, and `--dry-run` provide explicit destinations,

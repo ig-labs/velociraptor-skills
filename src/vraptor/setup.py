@@ -234,8 +234,11 @@ def _fetch(args, snapshot, candidates, replacements, cleanup):
             command.append("--force")
         if provision:
             command.append("--provision-api" if field == "api_client" else "--provision-client")
-        completed = subprocess.run(command, env=dict(snapshot.environment), capture_output=True, text=True,
-                                   stdin=subprocess.DEVNULL)
+        # SSH/sudo owns terminal authentication; captured output never contains
+        # passwords. Keep the fallback Continue prompt in this parent process.
+        fetch_environment = {**snapshot.environment, "VRAPTOR_CONFIG_MANUAL_PROMPT": "0"}
+        completed = subprocess.run(command, env=fetch_environment, capture_output=True, text=True,
+                                   stdin=None if sys.stdin.isatty() else subprocess.DEVNULL, check=False)
         if completed.returncode == 3:
             manifest = staged.with_suffix(".status.json")
             manual = json.loads(manifest.read_text()) if manifest.is_file() else {}
@@ -245,8 +248,8 @@ def _fetch(args, snapshot, candidates, replacements, cleanup):
             if sys.stdin.isatty():
                 print(instructions, flush=True)
                 if input("Configuration ready? Continue [y/N]: ").strip().lower() in {"y", "yes"}:
-                    completed = subprocess.run(command, env=dict(snapshot.environment), capture_output=True,
-                                               text=True, stdin=subprocess.DEVNULL)
+                    completed = subprocess.run(command, env=fetch_environment, capture_output=True,
+                                               text=True, stdin=subprocess.DEVNULL, check=False)
             if completed.returncode == 3:
                 raise RuntimeError(instructions + "\nPaused for user confirmation; retry the same setup command after Continue.")
         if completed.returncode:

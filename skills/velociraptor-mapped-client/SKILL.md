@@ -160,8 +160,10 @@ Do not request local GUI workspace initialization for a remote mapped client.
 
 API-account and API-YAML setup is identical to live remote. Reuse the shared
 [generation and retrieval procedure](../velociraptor-live-api-client/references/service-account-config.md):
-`run_as=root` uses `sudo su` for manual handoff, while a configured service account
-uses `sudo -u <user> bash`. Only remote dead-disk additionally needs endpoint YAML.
+fetch helpers use root or sudo and resume automatically after any terminal sudo
+prompt. The configured `run_as` selects the generation account. When sudo is
+unavailable, use the supplied manual handoff and Continue prompt. Only remote
+dead-disk additionally needs endpoint YAML.
 
 Reuse existing verified files when available. Fetch existing remote files only
 when requested, using an explicit server address and configured SSH identity:

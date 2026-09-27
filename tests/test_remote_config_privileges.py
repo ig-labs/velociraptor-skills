@@ -1,4 +1,4 @@
-"""Root generates credentials; non-root stops at an explicit manual handoff."""
+"""Root generation and manual fallback when non-root sudo is unavailable."""
 import json
 import os
 from pathlib import Path
@@ -42,7 +42,7 @@ elif name == "scp":
 elif name == "ssh":
     sys.exit(subprocess.call(["/bin/sh", "-c", args[-1]]))
 elif name == "sudo":
-    assert args[:2] == ["-n", "su"]
+    assert args[:2] == ["-n", "--"]
     if os.environ["TEST_DENIED"] == "1":
         print("sudo: a password is required", file=sys.stderr)
         sys.exit(1)
@@ -104,7 +104,8 @@ else:
         manual = json.loads((tmp_path / "status.json").read_text())
         assert manual["status"] == "needs_user_action"
         assert "600" in manual["instructions"]
-        assert not any(call[0] in {"sudo", "su", "runuser"} for call in calls)
+        assert sum(call[0] == "sudo" for call in calls) == 1
+        assert not any(call[0] in {"su", "runuser"} for call in calls)
         assert destination.read_text() == "old-cache\n"
         assert not any(call[0] == "velociraptor" for call in calls)
         assert source.exists() == existing
