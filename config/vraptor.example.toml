@@ -1,0 +1,56 @@
+# Optional operational settings. Native credential contents stay outside this file.
+# vraptor setup configure --template config/vraptor.example.toml
+schema_version = 1
+
+[workstation]
+case_root = "~/cases"
+# Executable path used by both tools prep and investigation setup.
+binary = "~/velociraptor/velociraptor"
+# config_root = "~/.config/velociraptor"
+
+[connection_defaults]
+api_user = "vraptor"
+api_role_profile = "provisioning-admin"
+# Optional shared SSH acquisition settings; named connections override these.
+# ssh_user = "operator"
+# ssh_key = "~/.ssh/velociraptor"
+# server_config = "/etc/velociraptor/server.config.yaml"
+# remote_client_config = "/etc/velociraptor/client.config.yaml"
+# remote_bin = "velociraptor"
+# run_as = "velociraptor"
+
+[api]
+grpc_max_message_bytes = 67108864
+
+# [credentials]
+# env_file = "~/.config/vraptor/credentials.env"
+
+# Optional reference to a shared analyst configuration; settings stay in that file.
+# [analyst]
+# config_file = "~/.config/vraptor/analyst-agents.toml"
+
+# Existing API YAML is sufficient for remote live work. Offline mappings also
+# require the matching endpoint client configuration. These paths can point to
+# a common configuration directory shared by several investigations.
+# Case-owned runtime defaults to <case-root>/<id>/runtime/velociraptor/.
+# [connections.lab]
+# org_id = "root"
+# api_client = "~/.config/velociraptor/lab_api_client.yaml"
+# client_config = "~/.config/velociraptor/lab_client.config.yaml"
+# api_role_profile = "investigation"
+
+# Advanced lifecycle overrides are optional.
+# [local_server]
+# api_user = "vraptor"
+# frontend_port = 8000
+# api_port = 8001
+# gui_port = 8889
+
+[mapping]
+startup_timeout_seconds = 120
+ready_timeout_seconds = 45
+# poll_seconds = 15
+# stale_seconds = 600
+# failure_threshold = 3
+# max_restarts = 5
+# restart_window_seconds = 600

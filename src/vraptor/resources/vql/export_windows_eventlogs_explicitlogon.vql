@@ -1,0 +1,16 @@
+SELECT EventTime,
+       EventID,
+       EventRecordID,
+       SubjectUserName,
+       SubjectDomainName,
+       TargetUserName,
+       TargetDomainName,
+       TargetServerName,
+       ProcessName,
+       EventData,
+       Message
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.EventLogs.ExplicitLogon'
+)

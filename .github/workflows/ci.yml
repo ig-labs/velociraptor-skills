@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: ./utils/install.sh --no-configure
+      - run: ./.venv/bin/python -m pip install -e '.[ai,azure,anthropic,claude,test]'
+      - name: Install native Velociraptor for offline VQL tests
+        env:
+          VELO_LOCAL_VERSION_TAG: v0.77.2
+        run: |
+          export VELO_BIN="$RUNNER_TEMP/velociraptor/velociraptor"
+          printf 'VELO_BIN=%s\n' "$VELO_BIN" >> "$GITHUB_ENV"
+          ./vraptor tools prep -t velociraptor
+          "$VELO_BIN" version
+          "$VELO_BIN" query 'SELECT 1 AS Ready FROM scope()' --format jsonl
+      - run: ./utils/validate-public-export.py
+      - run: ./.venv/bin/python -m pytest tests

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Velociraptor Host Analysis"
+  short_description: "Analyze one endpoint by client or artifact"
+  default_prompt: "Use $velociraptor-host-analysis to run evidence-backed analysis for one Velociraptor client, collection lane, or explicit artifact."

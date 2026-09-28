@@ -1,0 +1,54 @@
+LET MaxHostnames = HOST_LIMIT
+LET GoldenRules <= parse_json_array(data=gunzip(string=base64decode(string=AutorunsTestReviewGzip)))
+LET Ready <= len(list=GoldenRules) = RULE_COUNT
+SELECT "ready" AS _Review, len(list=GoldenRules) AS Rules, Ready FROM scope()
+LET Counts <= dict(SourceRows=0, EligibleRows=0, MatchedRows=0, ResidualRows=0, GroupCount=0)
+LET Bump(Name) = set(item=Counts, field=Name, value=get(item=Counts, field=Name) + 1)
+LET NormalizeText(Value) = lowcase(string=if(condition=Value, then=Value, else=""))
+LET NormalizePath(Value) = regex_transform(source=NormalizeText(Value=Value), map=dict(
+    `(?-i)%localappdata%`='''c:\users\user\appdata\local''',
+    `(?-i)%appdata%`='''c:\users\user\appdata\roaming''',
+    `(?-i)%userprofile%`='''c:\users\user''',
+    `(?-i)c:\\\\users\\\\[^\\\\]+`='''c:\users\user''',
+    `(?-i)c:\\\\documents and settings\\\\[^\\\\]+`='''c:\users\user''',
+    `(?-i)s-1-5-21-(?:[0-9]+-){3}[0-9]+`='''sid''',
+    `(?-i)%systemroot%`='''c:\windows''',
+    `(?-i)%windir%`='''c:\windows''',
+    `(?-i)^\\\\systemroot\\\\`='''c:\windows\'''
+), key="autoruns-regex-review-lowercase-v1")
+LET HostSamples <= dict()
+LET SampleFor(Key) = get(item=if(condition=get(item=HostSamples, field=Key),
+    then=HostSamples, else=set(item=HostSamples, field=Key, value=dict(Names=dict()))), field=Key)
+LET KeepHost(State, Name) = if(
+    condition=Name AND len(list=State.Names) < MaxHostnames AND NOT get(item=State.Names, field=Name),
+    then=set(item=State, field="Names", value=set(item=State.Names, field=Name, value=TRUE)), else=State)
+LET enabled_rows = SELECT
+    if(condition=Category, then=Category, else="") AS Category,
+    get(item=scope(), field="Image Path") AS ImagePath,
+    get(item=scope(), field="Launch String") AS LaunchString,
+    Signer, get(item=scope(), field="Fqdn") AS Fqdn
+FROM SOURCE_QUERY
+WHERE Ready AND Bump(Name="SourceRows")
+    AND Enabled = "enabled" AND (ImagePath OR LaunchString)
+    AND NOT ImagePath =~ '^File not found:' AND Bump(Name="EligibleRows")
+LET normalized_rows = SELECT Category, NormalizePath(Value=ImagePath) AS ImagePath,
+    NormalizePath(Value=LaunchString) AS LaunchString,
+    NormalizeText(Value=Signer) AS Signer, NormalizeText(Value=Fqdn) AS Hostname
+FROM enabled_rows
+LET filtered_rows = SELECT * FROM normalized_rows
+WHERE if(condition=any(items=GoldenRules,
+    filter="rule=>Category =~ rule.Category AND ImagePath =~ rule.ImagePath AND LaunchString =~ rule.LaunchString AND Signer =~ rule.Signer"),
+    then=if(condition=Bump(Name="MatchedRows"), then=FALSE),
+    else=if(condition=Bump(Name="ResidualRows"), then=TRUE))
+LET keyed_rows = SELECT *, serialize(item=dict(Category=Category, ImagePath=ImagePath,
+    LaunchString=LaunchString, Signer=Signer), format="json") AS StackKey FROM filtered_rows
+LET stacks = SELECT Category, ImagePath, LaunchString, Signer, count() AS TotalRows,
+    KeepHost(State=SampleFor(Key=StackKey), Name=Hostname) AS HostSample
+FROM keyed_rows GROUP BY StackKey
+SELECT "stack" AS _Review, Category, ImagePath, LaunchString, Signer, TotalRows,
+    if(condition=HostSample.Names, then=items(item=HostSample.Names)._key, else=array()) AS ExampleHosts
+FROM stacks WHERE Bump(Name="GroupCount") ORDER BY TotalRows DESC
+SELECT "summary" AS _Review, Counts.SourceRows AS SourceRows, Counts.EligibleRows AS EligibleRows,
+    Counts.MatchedRows AS MatchedRows, Counts.ResidualRows AS ResidualRows, Counts.GroupCount AS GroupCount
+FROM scope()
+

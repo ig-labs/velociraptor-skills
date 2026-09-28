@@ -1,0 +1,115 @@
+{
+  "version": 7,
+  "canonical_skill": "velociraptor-hunting",
+  "runtime_command": "./dfir hunt",
+  "resource_ownership_contract": "config/skill-resource-ownership.json",
+  "source_of_truth": "Velociraptor server hunt state and result rows",
+  "capabilities": [
+    {
+      "id": "schema-v5-secure-credential-engagement-readiness",
+      "mode": "live",
+      "reference": "skills/velociraptor-engagement-setup/SKILL.md"
+    },
+    {
+      "id": "bounded-evidence-free-operation-logging",
+      "mode": "live-and-snapshot",
+      "reference": "src/vraptor/resources/contracts/velociraptor-persistence-policy.json"
+    },
+    {
+      "id": "auto-authorized-normal-operations-explicit-force-and-template-create-gates",
+      "mode": "live-and-explicit-extraction",
+      "reference": "docs/reference/velociraptor-operation-authorization.md"
+    },
+    {
+      "id": "server-wide-artifact-first-hunt-discovery-classification-ranking",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/SKILL.md"
+    },
+    {
+      "id": "native-hunt-create-current-case-compatible-reuse",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/SKILL.md"
+    },
+    {
+      "id": "windows-grouped-and-targeted-hunting",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/references/windows-hunt-orchestration.md"
+    },
+    {
+      "id": "detectraptor-priority-review",
+      "mode": "live-or-explicit-extraction",
+      "reference": "docs/reference/detectraptor-analysis-contract.md"
+    },
+    {
+      "id": "shared-detectraptor-semantics",
+      "mode": "live-or-explicit-extraction",
+      "reference": "src/vraptor/resources/contracts/detectraptor-analysis-contract.json"
+    },
+    {
+      "id": "missing-client-retry",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/references/windows-hunt-orchestration.md"
+    },
+    {
+      "id": "bounded-live-analysis",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/references/live-analysis.md"
+    },
+    {
+      "id": "automatic-resumable-terminal-flow-analysis",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/SKILL.md"
+    },
+    {
+      "id": "multi-flow-source-paging-and-frozen-chunks",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/SKILL.md"
+    },
+    {
+      "id": "separate-target-and-result-review-coverage",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/SKILL.md"
+    },
+    {
+      "id": "analysis-hunt-markdown-memory",
+      "mode": "live",
+      "reference": "docs/contracts/cli.md"
+    },
+    {
+      "id": "executable-persistence-and-closure-policy",
+      "mode": "live-and-explicit-extraction",
+      "reference": "src/vraptor/resources/contracts/velociraptor-persistence-policy.json"
+    },
+    {
+      "id": "exact-suspicious-drilldown",
+      "mode": "live",
+      "reference": "skills/velociraptor-hunting/references/live-analysis.md"
+    },
+    {
+      "id": "explicit-snapshot-export-download",
+      "mode": "explicit-extraction",
+      "reference": "skills/velociraptor-hunting/references/extracted-evidence-analysis.md"
+    },
+    {
+      "id": "offline-extracted-evidence-review",
+      "mode": "offline",
+      "reference": "skills/velociraptor-hunting/references/extracted-evidence-analysis.md"
+    },
+    {
+      "id": "cross-artifact-correlation",
+      "mode": "live-or-offline",
+      "reference": "docs/reference/detectraptor-analysis-contract.md"
+    },
+    {
+      "id": "detectraptor-rule-uplift",
+      "mode": "live-or-offline",
+      "reference": "docs/reference/detectraptor-analysis-contract.md"
+    },
+    {
+      "id": "verified-stop",
+      "mode": "operator-mutation",
+      "reference": "skills/velociraptor-hunting/SKILL.md"
+    }
+  ],
+  "retirement_status": "All compatibility skill names were retired after capability parity validation."
+}

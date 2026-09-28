@@ -1,0 +1,2 @@
+# Preserve GoldenDB CSV bytes and accept its CSV-writer CRLF line endings.
+src/vraptor/resources/golden/autoruns-golden.csv whitespace=cr-at-eol

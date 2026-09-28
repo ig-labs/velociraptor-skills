@@ -216,3 +216,42 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Velociraptor local state and credentials
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+.env
+.DS_Store
+*.egg-info/
+build/
+dist/
+/tools/
+*.yaml.tmp
+*_api_client.yaml
+api_client.yaml
+client.config.yaml
+server.config.yaml
+
+# Private keys, endpoint configuration and local evidence
+.env.*
+*.env
+!/config/example.env
+*.pem
+*.key
+*.p12
+*.pfx
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+/cases/
+/evidence/
+/artifacts/
+
+# Local public-export audit records (metadata only; never publish).
+/.local/
+
+# Local repository synchronization baseline.
+/.sync-state.json

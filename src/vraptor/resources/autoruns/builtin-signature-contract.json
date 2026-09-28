@@ -1,0 +1,183 @@
+{
+  "schema": 1,
+  "contract_id": "builtin-autorunsc-verified-v1",
+  "provenance": {
+    "binary_version": "name: velociraptor\nversion: 0.77.2\ncommit: c0c9dd609\nbuild_time: \"2026-08-10T01:08:23Z\"\ncompiler: go1.25.3\nsystem: darwin\narchitecture: arm64",
+    "binary_sha256": "3ec2df0c19726b92e27c51ec4b6239aee3e4e40425de39781859eb200987070e",
+    "export_query": "SELECT * FROM artifact_definitions(names=[\"Windows.Sysinternals.Autoruns\", \"Generic.Utils.FetchBinary\"])",
+    "signature_switch_source": "https://learn.microsoft.com/en-us/sysinternals/downloads/autoruns",
+    "signature_marker_source": "https://www.microsoftpressstore.com/articles/article.aspx?p=2762082&seqNum=1",
+    "csv_signer_source": "https://www.microsoftpressstore.com/articles/article.aspx?p=2762082&seqNum=4",
+    "compiler_source": "https://github.com/Velocidex/velociraptor/blob/master/services/launcher/compiler.go"
+  },
+  "definition": {
+    "name": "Windows.Sysinternals.Autoruns",
+    "implied_permissions": [
+      "EXECVE"
+    ],
+    "resources": {},
+    "tools": [
+      {
+        "name": "Autorun_386",
+        "url": "https://live.sysinternals.com/tools/autorunsc.exe",
+        "serve_locally": true
+      },
+      {
+        "name": "Autorun_amd64",
+        "url": "https://live.sysinternals.com/tools/autorunsc64.exe",
+        "serve_locally": true
+      }
+    ],
+    "precondition": "SELECT OS From info() where OS = 'windows'",
+    "parameters": [
+      {
+        "name": "All",
+        "default": "Y",
+        "type": "bool"
+      },
+      {
+        "name": "Boot execute",
+        "type": "bool"
+      },
+      {
+        "name": "Codecs",
+        "type": "bool"
+      },
+      {
+        "name": "Appinit DLLs",
+        "type": "bool"
+      },
+      {
+        "name": "Explorer addons",
+        "type": "bool"
+      },
+      {
+        "name": "Sidebar gadgets (Vista and higher)",
+        "type": "bool"
+      },
+      {
+        "name": "Image hijacks",
+        "type": "bool"
+      },
+      {
+        "name": "Internet Explorer addons",
+        "type": "bool"
+      },
+      {
+        "name": "Known DLLs",
+        "type": "bool"
+      },
+      {
+        "name": "Logon startups (this is the default)",
+        "type": "bool"
+      },
+      {
+        "name": "WMI entries",
+        "type": "bool"
+      },
+      {
+        "name": "Winsock protocol and network providers",
+        "type": "bool"
+      },
+      {
+        "name": "Office addins",
+        "type": "bool"
+      },
+      {
+        "name": "Printer monitor DLLs",
+        "type": "bool"
+      },
+      {
+        "name": "LSA security providers",
+        "type": "bool"
+      },
+      {
+        "name": "Autostart services and non-disabled drivers",
+        "type": "bool"
+      },
+      {
+        "name": "Scheduled tasks",
+        "type": "bool"
+      },
+      {
+        "name": "Winlogon entries",
+        "type": "bool"
+      },
+      {
+        "name": "Verify digital signatures",
+        "default": "Y",
+        "type": "bool"
+      },
+      {
+        "name": "ToolInfo",
+        "type": "hidden"
+      }
+    ],
+    "type": "client",
+    "sources": [
+      {
+        "query": "LET Flags = '''Option,Name\n*,All\nb,Boot execute\nc,Codecs\nd,Appinit DLLs\ne,Explorer addons\ng,Sidebar gadgets (Vista and higher)\nh,Image hijacks\ni,Internet Explorer addons\nk,Known DLLs\nl,Logon startups (this is the default)\nm,WMI entries\nn,Winsock protocol and network providers\no,Office addins\np,Printer monitor DLLs\nr,LSA security providers\ns,Autostart services and non-disabled drivers\nt,Scheduled tasks\nw,Winlogon entries\n'''\n\nLET Options = '''Option,Name\n-s,Verify digital signatures\n'''\n\n-- The flags actually selected\nLET flags = SELECT Option FROM parse_csv(accessor=\"data\", filename=Flags)\n  WHERE get(field=Name)\n\n-- The options actually selected\nLET options = SELECT Option FROM parse_csv(accessor=\"data\", filename=Options)\n  WHERE get(field=Name)\n\nLET os_info <= SELECT Architecture FROM info()\n\n// Get the path to the binary.\nLET bin <= SELECT * FROM Artifact.Generic.Utils.FetchBinary(\n        ToolName= \"Autorun_\" + os_info[0].Architecture,\n        ToolInfo=ToolInfo)\n\n// Call the binary and return all its output in a single row.\nLET output = SELECT * FROM execve(argv=[bin[0].OSPath,\n      '-nobanner', '-accepteula', '-t', '-a',\n      join(array=flags.Option, sep=\"\"),\n      join(array=options.Option, sep=\" \"),\n      '-c', -- CSV output\n      '-h', -- Also calculate hashes\n      '*'   -- All user profiles.\n], length=10000000)\n\n// Parse the CSV output and return it as rows. We can filter this further.\nSELECT * FROM if(condition=bin,\nthen={\n  SELECT * FROM foreach(\n    row=output,\n    query={\n       SELECT * FROM parse_csv(filename=utf16(string=Stdout),\n                               accessor=\"data\")\n    })\n})\n",
+        "queries": [
+          "LET Flags = '''Option,Name\n*,All\nb,Boot execute\nc,Codecs\nd,Appinit DLLs\ne,Explorer addons\ng,Sidebar gadgets (Vista and higher)\nh,Image hijacks\ni,Internet Explorer addons\nk,Known DLLs\nl,Logon startups (this is the default)\nm,WMI entries\nn,Winsock protocol and network providers\no,Office addins\np,Printer monitor DLLs\nr,LSA security providers\ns,Autostart services and non-disabled drivers\nt,Scheduled tasks\nw,Winlogon entries\n'''",
+          "LET Options = '''Option,Name\n-s,Verify digital signatures\n'''",
+          "LET flags = SELECT Option FROM parse_csv(accessor=\"data\", filename=Flags) WHERE get(field=Name)",
+          "LET options = SELECT Option FROM parse_csv(accessor=\"data\", filename=Options) WHERE get(field=Name)",
+          "LET os_info <= SELECT Architecture FROM info()",
+          "LET bin <= SELECT * FROM Artifact.Generic.Utils.FetchBinary(ToolName=\"Autorun_\" + os_info[0].Architecture, ToolInfo=ToolInfo)",
+          "LET output = SELECT * FROM execve(argv=[bin[0].OSPath, '-nobanner', '-accepteula', '-t', '-a', join(array=flags.Option, sep=\"\"), join(array=options.Option, sep=\" \"), '-c', '-h', '*'], length=10000000)",
+          "SELECT * FROM if(condition=bin, then={ SELECT * FROM foreach(row=output, query={ SELECT * FROM parse_csv(filename=utf16(string=Stdout), accessor=\"data\") }) })"
+        ]
+      }
+    ]
+  },
+  "dependency": {
+    "name": "Generic.Utils.FetchBinary",
+    "type": "client",
+    "parameters": [
+      {
+        "name": "ToolName",
+        "default": "Autorun_amd64"
+      },
+      {
+        "name": "IsExecutable",
+        "type": "bool",
+        "default": "Y"
+      },
+      {
+        "name": "SleepDuration",
+        "type": "int",
+        "default": "20"
+      },
+      {
+        "name": "ToolInfo",
+        "type": "hidden"
+      },
+      {
+        "name": "TemporaryOnly",
+        "type": "bool"
+      },
+      {
+        "name": "IgnoreErrors",
+        "type": "bool"
+      }
+    ],
+    "sources": [
+      {
+        "queries": [
+          "LET S = scope()",
+          "LET HASH_MAX_SIZE <= S.HASH_MAX_SIZE || 1000000000",
+          "LET ParseUrls(Url) = parse_json_array(data=Url || '[]')",
+          "LET args <= dict(ToolHash=get(field=\"Tool_\" + ToolName + \"_HASH\"), ToolFilename=get(field=\"Tool_\" + ToolName + \"_FILENAME\"), ToolURL=get(field=\"Tool_\" + ToolName + \"_URL\"), ToolURLs=ParseUrls(Url=get(field=\"Tool_\" + ToolName + \"_URLs\")))",
+          "LET _ <= if(condition=NOT args.ToolFilename, then=log(level=\"ERROR\", message=\"Tool %v not configured by the server. Did you define it as an artifact tool? %v\", args=[ToolName, args]))",
+          "LET TempDir <= tempdir(remove_last=TRUE)",
+          "LET binpath <= if(condition=TemporaryOnly, then=TempDir, else=dirname(path=TempDir))",
+          "LET ToolPath <= path_join(components=[binpath, args.ToolFilename || \"Unknown\"])",
+          "LET download_multiple = SELECT * FROM if(condition=args.ToolURLs  AND version(plugin=\"http_client\") > 2  AND log(message=\"URLs for %v are at %v. The tool has a hash of %v\", args=[args.ToolFilename, args.ToolURLs, args.ToolHash])  AND args.ToolHash, then={ SELECT hash(path=Content) AS Hash, args.ToolFilename AS Name, \"Downloaded\" AS DownloadStatus, copy(filename=Content, dest=ToolPath, permissions=if(condition=IsExecutable, then=\"x\")) AS OSPath FROM http_client(url=args.ToolURLs, tempfile_extension=\".tmp\") WHERE log(message=format(format=\"downloaded hash of %v: %v, expected %v\", args=[Content, Hash.SHA256, args.ToolHash]))  AND Hash.SHA256 = args.ToolHash })",
+          "LET download_single = SELECT * FROM if(condition=log(message=\"URL for \" + args.ToolFilename + \" is at \" + args.ToolURL + \" and has hash of \" + args.ToolHash)  AND args.ToolHash  AND args.ToolURL, then={ SELECT hash(path=Content) AS Hash, args.ToolFilename AS Name, \"Downloaded\" AS DownloadStatus, copy(filename=Content, dest=ToolPath, permissions=if(condition=IsExecutable, then=\"x\")) AS OSPath FROM http_client(url=args.ToolURL, tempfile_extension=\".tmp\") WHERE log(message=format(format=\"downloaded hash of %v: %v, expected %v\", args=[Content, Hash.SHA256, args.ToolHash]))  AND Hash.SHA256 = args.ToolHash }, else={ SELECT * FROM scope() WHERE NOT log(level=\"ERROR\", message=\"No valid setup - is tool \" + ToolName + \" configured in the server inventory?\") })",
+          "LET existing = SELECT OSPath, hash(path=OSPath) AS Hash, Name, \"Cached\" AS DownloadStatus FROM stat(filename=ToolPath) WHERE log(message=format(format=\"Local hash of %v: %v, expected %v\", args=[OSPath, Hash.SHA256, args.ToolHash]))  AND Hash.SHA256 = args.ToolHash",
+          "SELECT *, OSPath AS FullPath FROM switch(b=existing, c={ SELECT rand(range=SleepDuration) AS timeout FROM scope() WHERE args  AND args.ToolURL  AND log(message=format(format='Sleeping %v Seconds', args=[timeout]))  AND sleep(time=timeout)  AND FALSE }, d=download_multiple, e=download_single, f={ SELECT * FROM scope() WHERE if(condition=NOT IgnoreErrors, then=log(message=\"tool %v not available!\", level=\"ERROR\", args=ToolName))  AND FALSE })"
+        ]
+      }
+    ]
+  }
+}

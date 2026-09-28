@@ -1,0 +1,586 @@
+{
+  "schema_version": 1,
+  "canonical_skill": "velociraptor-host-analysis",
+  "source_of_truth": "Connected Velociraptor server artifact inventory and saved client flows",
+  "modes": {
+    "triage": {
+      "required_capabilities": [
+        "identity",
+        "users",
+        "groups",
+        "recent_logins",
+        "cron",
+        "services"
+      ],
+      "optional_capabilities": [
+        "authorized_keys",
+        "ssh_logins",
+        "live_process",
+        "live_network"
+      ],
+      "requires_time_bounds": false,
+      "requires_focus": false
+    },
+    "standard": {
+      "required_capabilities": [
+        "identity",
+        "users",
+        "groups",
+        "recent_logins",
+        "cron",
+        "services",
+        "authorized_keys",
+        "bash_history",
+        "root_users",
+        "interactive_users",
+        "mounts",
+        "suid"
+      ],
+      "optional_capabilities": [
+        "ssh_logins",
+        "packages",
+        "live_process",
+        "live_network",
+        "arp"
+      ],
+      "requires_time_bounds": false,
+      "requires_focus": false
+    },
+    "deep": {
+      "required_capabilities": [
+        "identity",
+        "users"
+      ],
+      "optional_capabilities": [],
+      "requires_time_bounds": false,
+      "requires_focus": true
+    },
+    "timeline": {
+      "required_capabilities": [
+        "identity",
+        "journal"
+      ],
+      "optional_capabilities": [
+        "ssh_logins",
+        "file_timeline"
+      ],
+      "requires_time_bounds": true,
+      "requires_focus": false
+    }
+  },
+  "focuses": {
+    "persistence": {
+      "required_capabilities": [
+        "cron",
+        "services",
+        "authorized_keys",
+        "suid"
+      ],
+      "optional_capabilities": [
+        "immutable_files"
+      ]
+    },
+    "execution": {
+      "required_capabilities": [
+        "bash_history",
+        "journal"
+      ],
+      "optional_capabilities": [
+        "live_process",
+        "yara_process"
+      ]
+    },
+    "authentication": {
+      "required_capabilities": [
+        "recent_logins",
+        "ssh_logins",
+        "authorized_keys"
+      ],
+      "optional_capabilities": [
+        "root_users",
+        "interactive_users",
+        "private_keys"
+      ]
+    },
+    "web-server": {
+      "required_inputs": [
+        "server_role",
+        "application_context",
+        "document_root",
+        "log_timezone",
+        "log_format"
+      ],
+      "required_capabilities": [
+        "web_log_inventory",
+        "web_logs",
+        "web_files"
+      ],
+      "optional_capabilities": [
+        "journal",
+        "ssh_logins",
+        "live_process",
+        "live_network"
+      ]
+    },
+    "container": {
+      "required_capabilities": [
+        "docker_info",
+        "docker_version"
+      ],
+      "optional_capabilities": [
+        "journal",
+        "live_process",
+        "live_network"
+      ]
+    },
+    "filesystem": {
+      "required_capabilities": [
+        "file_search"
+      ],
+      "optional_capabilities": [
+        "anomalous_files",
+        "immutable_files"
+      ]
+    }
+  },
+  "capabilities": {
+    "identity": {
+      "purpose": "System, OS, interface, and client identity",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Generic.Client.Info"
+        }
+      ],
+      "volatility": "mixed",
+      "limitations": "Use the LinuxInfo source for Linux-specific detail and keep client identity authoritative."
+    },
+    "users": {
+      "purpose": "Local account inventory",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.Users"
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Account presence does not establish interactive use."
+    },
+    "groups": {
+      "purpose": "Local group membership",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.Groups"
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Correlate privileged groups with account and authentication evidence."
+    },
+    "recent_logins": {
+      "purpose": "WTMP-backed login and logout history",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.LastUserLogin"
+        }
+      ],
+      "volatility": "historical",
+      "limitations": "WTMP retention, rotation, tampering, and container boundaries limit coverage."
+    },
+    "ssh_logins": {
+      "purpose": "Historical SSH authentication from auth logs",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Syslog.SSHLogin"
+        }
+      ],
+      "volatility": "historical",
+      "limitations": "Auth-log parsing is format and retention dependent and has no native time-bound parameter; deterministically post-filter bounded investigations and treat zero rows as no proof of no SSH activity."
+    },
+    "authorized_keys": {
+      "purpose": "SSH authorized-key persistence and access review",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Ssh.AuthorizedKeys",
+          "fixed_env": {
+            "AlsoUpload": "N"
+          }
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "A key is not unauthorized without owner, scope, provenance, and expected-use context."
+    },
+    "private_keys": {
+      "purpose": "Targeted SSH private-key exposure review",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Ssh.PrivateKeys"
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Sensitive deep-only evidence; do not upload key material by default."
+    },
+    "bash_history": {
+      "purpose": "Shell-history lead review",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.BashHistory"
+        }
+      ],
+      "volatility": "historical",
+      "limitations": "History may be disabled, truncated, edited, shell-specific, or missing timestamps."
+    },
+    "cron": {
+      "purpose": "Cron and at persistence",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.Crontab"
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Validate commands, owners, included scripts, symlinks, and package provenance."
+    },
+    "services": {
+      "purpose": "Systemd service state",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.Services"
+        }
+      ],
+      "volatility": "live",
+      "limitations": "Systemctl output is live and may not cover non-systemd init systems or disabled unit files."
+    },
+    "suid": {
+      "purpose": "Setuid and setgid executable review",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.SUID"
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Compare against distro/package baselines; SUID presence alone is not malicious."
+    },
+    "immutable_files": {
+      "purpose": "Targeted immutable-file review",
+      "selection": "first_available",
+      "required_inputs": [
+        "path_glob"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Forensics.ImmutableFiles",
+          "parameter_map": {
+            "path_glob": "SearchFilesGlob"
+          },
+          "fixed_env": {
+            "OneFilesystem": "Y",
+            "DoNotFollowSymlinks": "Y"
+          }
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Ext4-specific low-level parsing and bounded paths are required."
+    },
+    "root_users": {
+      "purpose": "Sudo-group account review",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Users.RootUsers"
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Also review sudoers files and distro-specific privilege mechanisms where relevant."
+    },
+    "interactive_users": {
+      "purpose": "Interactive-shell account review",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Users.InteractiveUsers"
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "An interactive shell does not establish recent use."
+    },
+    "mounts": {
+      "purpose": "Mounted filesystem and namespace context",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Mounts"
+        }
+      ],
+      "volatility": "live",
+      "limitations": "Container and namespace mounts may differ from the host view."
+    },
+    "live_process": {
+      "purpose": "Current process and executable state",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.Pslist"
+        }
+      ],
+      "volatility": "live",
+      "limitations": "Current snapshot only; not historical execution proof."
+    },
+    "live_network": {
+      "purpose": "Current listening and established network state",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Network.NetstatEnriched"
+        }
+      ],
+      "volatility": "live",
+      "limitations": "Current snapshot only; absence does not exclude earlier connections."
+    },
+    "arp": {
+      "purpose": "Current ARP table context",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Proc.Arp"
+        }
+      ],
+      "volatility": "live",
+      "limitations": "Current local-neighbor cache only."
+    },
+    "packages": {
+      "purpose": "Distro-specific installed package inventory",
+      "selection": "first_applicable",
+      "candidates": [
+        {
+          "artifact": "Linux.Debian.Packages",
+          "applicability": "debian"
+        },
+        {
+          "artifact": "Linux.RHEL.Packages",
+          "applicability": "rhel"
+        },
+        {
+          "artifact": "Linux.SuSE.Packages",
+          "applicability": "suse"
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Select only the target distro; package presence is not execution evidence."
+    },
+    "journal": {
+      "purpose": "Time-bounded systemd journal review",
+      "selection": "first_available",
+      "required_inputs": [
+        "date_after",
+        "date_before"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Forensics.Journal",
+          "parameter_map": {
+            "date_after": "DateAfter",
+            "date_before": "DateBefore"
+          },
+          "fixed_env": {
+            "AlsoUpload": "N"
+          }
+        }
+      ],
+      "volatility": "historical",
+      "limitations": "Journal retention, forwarding, namespaces, and missing persistent journals limit coverage."
+    },
+    "file_timeline": {
+      "purpose": "Time-bounded file metadata around an interval",
+      "selection": "first_available",
+      "required_inputs": [
+        "date_after",
+        "date_before",
+        "path_glob"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Search.FileFinder",
+          "parameter_map": {
+            "date_after": "MoreRecentThan",
+            "date_before": "ModifiedBefore",
+            "path_glob": "SearchFilesGlob"
+          },
+          "fixed_env": {
+            "Calculate_Hash": "Y",
+            "Upload_File": "N",
+            "LocalFilesystemOnly": "Y",
+            "DoNotFollowSymlinks": "Y"
+          }
+        }
+      ],
+      "volatility": "historical",
+      "limitations": "Bounds apply to modification time, not a complete filesystem timeline."
+    },
+    "file_search": {
+      "purpose": "Targeted file metadata and hash search",
+      "selection": "first_available",
+      "required_inputs": [
+        "path_glob"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Search.FileFinder",
+          "parameter_map": {
+            "path_glob": "SearchFilesGlob",
+            "date_after": "MoreRecentThan",
+            "date_before": "ModifiedBefore"
+          },
+          "fixed_env": {
+            "Calculate_Hash": "Y",
+            "Upload_File": "N",
+            "LocalFilesystemOnly": "Y",
+            "DoNotFollowSymlinks": "Y"
+          }
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Keep path globs bounded; metadata and hash presence do not establish execution."
+    },
+    "anomalous_files": {
+      "purpose": "Targeted hidden, large, and SUID file leads",
+      "selection": "first_available",
+      "required_inputs": [
+        "path_glob"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Detection.AnomalousFiles",
+          "parameter_map": {
+            "path_glob": "PathsToSearch"
+          }
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Anomaly criteria are broad leads; never treat hidden or large files as malicious by default."
+    },
+    "yara_process": {
+      "purpose": "Targeted process-memory YARA follow-up",
+      "selection": "first_available",
+      "required_inputs": [
+        "yara_rule"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Detection.Yara.Process",
+          "parameter_map": {
+            "yara_rule": "YaraRule"
+          },
+          "fixed_env": {
+            "UploadHits": "N",
+            "ContextBytes": "256"
+          }
+        }
+      ],
+      "volatility": "live",
+      "limitations": "Lead-driven only; validate rule quality and do not upload process memory by default."
+    },
+    "web_logs": {
+      "purpose": "Bounded web, proxy, WAF, PHP, or application log search",
+      "selection": "first_available",
+      "required_inputs": [
+        "log_glob",
+        "search_regex",
+        "date_after",
+        "date_before",
+        "estimated_log_bytes",
+        "max_log_bytes"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Sys.LogHunter",
+          "parameter_map": {
+            "log_glob": "TargetFiles",
+            "search_regex": "SearchRegex"
+          }
+        }
+      ],
+      "volatility": "historical",
+      "limitations": "The artifact has no time parameters; deterministically post-filter to the requested interval and record preflight row/byte estimates."
+    },
+    "web_log_inventory": {
+      "purpose": "Preflight log-file coverage and byte volume before LogHunter",
+      "selection": "first_available",
+      "required_inputs": [
+        "log_glob"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Search.FileFinder",
+          "parameter_map": {
+            "log_glob": "SearchFilesGlob"
+          },
+          "fixed_env": {
+            "Calculate_Hash": "N",
+            "Upload_File": "N",
+            "LocalFilesystemOnly": "Y",
+            "DoNotFollowSymlinks": "Y"
+          }
+        }
+      ],
+      "volatility": "snapshot",
+      "limitations": "Sum returned file sizes and record retained/rotated/compressed coverage; this preflight does not estimate matching rows."
+    },
+    "web_files": {
+      "purpose": "Web-root metadata, hashes, and changed-file review",
+      "selection": "first_available",
+      "required_inputs": [
+        "web_root",
+        "date_after",
+        "date_before"
+      ],
+      "candidates": [
+        {
+          "artifact": "Linux.Search.FileFinder",
+          "parameter_map": {
+            "web_root": "SearchFilesGlob",
+            "date_after": "MoreRecentThan",
+            "date_before": "ModifiedBefore"
+          },
+          "fixed_env": {
+            "Calculate_Hash": "Y",
+            "Upload_File": "N",
+            "LocalFilesystemOnly": "Y",
+            "DoNotFollowSymlinks": "Y"
+          }
+        }
+      ],
+      "volatility": "historical",
+      "limitations": "Use an exact bounded web-root glob and compare hashes with trusted package or vendor baselines."
+    },
+    "docker_info": {
+      "purpose": "Docker daemon, container, image, and driver context",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Applications.Docker.Info"
+        }
+      ],
+      "volatility": "live",
+      "limitations": "Requires Docker socket access and reflects collection-time daemon state."
+    },
+    "docker_version": {
+      "purpose": "Docker daemon and API version context",
+      "selection": "first_available",
+      "candidates": [
+        {
+          "artifact": "Linux.Applications.Docker.Version"
+        }
+      ],
+      "volatility": "live",
+      "limitations": "Version context does not prove container activity."
+    }
+  }
+}

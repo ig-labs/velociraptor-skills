@@ -1,0 +1,14 @@
+SELECT EventTime,
+       Channel,
+       EventID,
+       DomainName,
+       UserName,
+       LogonType,
+       SourceIP,
+       Description,
+       EventRecordID
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.EventLogs.RDPAuth'
+)

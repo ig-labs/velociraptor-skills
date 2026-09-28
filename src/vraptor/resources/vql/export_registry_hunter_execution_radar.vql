@@ -1,0 +1,17 @@
+/*
+# Category Program Execution - RADAR
+*/
+
+LET RADAR = SELECT Description, OSPath AS Key, Mtime, Details
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.Registry.Hunter/Results'
+)
+WHERE Category = 'Program Execution' AND Description =~ 'RADAR'
+
+SELECT *
+FROM foreach(row=RADAR, query={
+  SELECT *
+  FROM foreach(row=Details.Programs)
+})

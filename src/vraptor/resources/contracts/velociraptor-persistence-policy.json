@@ -1,0 +1,107 @@
+{
+  "version": 5,
+  "default_raw_result_action": "deny",
+  "compact_markdown_max_bytes": 524288,
+  "live_analysis_extensions": [
+    ".csv",
+    ".json",
+    ".jsonl",
+    ".md"
+  ],
+  "coverage_states": [
+    "complete",
+    "partial",
+    "unknown",
+    "failed",
+    "not_applicable"
+  ],
+  "persistence_classes": {
+    "compact_state": {
+      "raw_rows": false,
+      "requires_source_ids": true
+    },
+    "complete_required_aggregate": {
+      "raw_rows": false,
+      "requires_source_ids": true,
+      "requires_complete_accounting": true
+    },
+    "bounded_review_queue": {
+      "raw_rows": false,
+      "requires_source_ids": true,
+      "requires_bounded": true
+    },
+    "bounded_validation_debug": {
+      "raw_rows": false,
+      "requires_source_ids": true,
+      "requires_bounded": true,
+      "model_output": false,
+      "prompts": false,
+      "raw_provider_payloads": false,
+      "raw_stderr": false,
+      "runtime_files": false,
+      "safe_provider_metadata": true,
+      "safe_configuration_provenance": true,
+      "maximum_attempt_records": 512,
+      "maximum_bytes": 1048576
+    },
+    "bounded_agent_runtime_events": {
+      "raw_rows": false,
+      "requires_source_ids": true,
+      "requires_bounded": true,
+      "model_output": false,
+      "prompts": false,
+      "raw_provider_payloads": false,
+      "raw_stderr": false,
+      "safe_provider_metadata": true,
+      "maximum_events": 4096,
+      "maximum_bytes": 1048576
+    },
+    "bounded_velociraptor_operation_log": {
+      "raw_rows": false,
+      "requires_source_ids": true,
+      "requires_bounded": true,
+      "allowlisted_fields_only": true,
+      "model_output": false,
+      "prompts": false,
+      "raw_provider_payloads": false,
+      "raw_stderr": false,
+      "raw_vql": false,
+      "credential_material": false,
+      "maximum_events": 4096,
+      "maximum_bytes": 1048576,
+      "maximum_files_per_engagement": 4
+    },
+    "exact_suspicious_context": {
+      "raw_rows": true,
+      "requires_source_ids": true,
+      "requires_exact": true,
+      "requires_finding_ids": true
+    },
+    "immutable_evidence_export": {
+      "raw_rows": true,
+      "requires_source_ids": true,
+      "requires_explicit_export": true
+    },
+    "interoperability_export": {
+      "raw_rows": true,
+      "requires_source_ids": true,
+      "requires_explicit_export": true
+    },
+    "raw_result_export": {
+      "raw_rows": true,
+      "denied_in_live_analysis": true
+    }
+  },
+  "closure_blockers": [
+    "source_non_terminal",
+    "target_scope_incomplete",
+    "result_review_incomplete",
+    "sampled",
+    "truncated",
+    "token_limited",
+    "group_truncated",
+    "provisional_tail",
+    "failed_chunk",
+    "synthesis_failed"
+  ]
+}

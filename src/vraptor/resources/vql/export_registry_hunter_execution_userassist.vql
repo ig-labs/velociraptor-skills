@@ -1,0 +1,25 @@
+/*
+# Category Program Execution - UserAssist
+*/
+
+LET UserAssist = SELECT Description, OSPath, Mtime, Details
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.Registry.Hunter/Results'
+)
+WHERE Category = 'Program Execution' AND Description =~ 'UserAssist'
+  AND NOT Details.filename =~ '^UEME_*'
+
+SELECT regex_replace(source=OSPath, re='''HKEY_USERS\\|\\Software.+$''', replace='') AS User,
+  filename AS Program,
+  NumberOfExecutions,
+  if(condition=LastExecutionTime, then=LastExecutionTime, else=Null) AS LastExecutionTime,
+  get(member='Stat') AS Stat,
+  get(member='Hashes') AS Hashes,
+  get(member='Magic') AS Magic,
+  get(member='Signatures') AS Signatures
+FROM foreach(row=UserAssist, query={
+  SELECT OSPath, *
+  FROM foreach(row=Details)
+})

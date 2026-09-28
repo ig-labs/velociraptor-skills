@@ -1,0 +1,8 @@
+Name,Tag,URL
+The Velociraptor Sigma Project,Extras,https://sigma.velocidex.com/Velociraptor.Sigma.Artifacts.zip
+Artifact Exchange,Exchange,https://github.com/Velocidex/velociraptor-docs/raw/gh-pages/exchange/artifact_exchange_v2.zip
+Rapid7Labs,Exchange,https://github.com/rapid7/Rapid7-Labs/raw/main/Vql/release/Rapid7LabsVQL.zip
+The Registry Hunter,Extras,https://registry-hunter.velocidex.com/Windows.Registry.Hunter.zip
+The SQLiteHunter,Extras,https://sqlitehunter.velocidex.com/SQLiteHunter.zip
+The Triage Artifacts,Extras,https://triage.velocidex.com/artifacts/Velociraptor_Triage_v0.1.zip
+DetectRaptor,DetectRaptor,https://github.com/mgreen27/DetectRaptor/releases/download/DetectRaptor/DetectRaptorVQL.zip

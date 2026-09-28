@@ -1,0 +1,18 @@
+SELECT EntryNumber,
+       ParentEntryNumber,
+       InUse,
+       OSPath,
+       FileSize,
+       Created0x10,
+       Created0x30,
+       LastModified0x10,
+       LastModified0x30,
+       LastRecordChange0x10,
+       LastRecordChange0x30,
+       LastAccess0x10,
+       LastAccess0x30
+FROM source(
+  client_id=ClientId,
+  flow_id=FlowId,
+  artifact='Windows.NTFS.MFT'
+)

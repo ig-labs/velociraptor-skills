@@ -1,0 +1,87 @@
+// Aggregate all eligible identities, exclude high counts, then match retained stacks.
+// Production matching is mandatory; edit vql/autoruns_test for experiments.
+LET ApplyMatching = TRUE
+LET DedupSize = 100000
+// Query-local experiment: keep materialized key rows in RAM up to this limit.
+LET VQL_MATERIALIZE_ROW_LIMIT <= 100000
+LET DedupTimeout = 86400
+LET MaxHostnames = HOST_LIMIT
+LET MaxTotalRows = TOTAL_ROWS_LIMIT
+LET GoldenRules <= parse_json_array(data=gunzip(string=base64decode(string=AutorunsTestReviewGzip)))
+LET Ready <= len(list=GoldenRules) = RULE_COUNT
+SELECT "ready" AS _Review, len(list=GoldenRules) AS Rules, Ready FROM scope()
+LET Counts <= dict(SourceRows=0, EligibleRows=0, EligibleGroups=0,
+    HighCountExcludedRows=0, HighCountExcludedGroups=0,
+    MatchedRows=0, MatchedGroups=0, ResidualRows=0, GroupCount=0)
+LET Bump(Name) = set(item=Counts, field=Name, value=get(item=Counts, field=Name) + 1)
+NORMALIZATION_FUNCTIONS
+LET SampleHost(State, Name) = if(
+    condition=Name AND len(list=State.Names) < MaxHostnames AND NOT get(item=State.Names, field=Name),
+    then=set(item=State, field="Names", value=set(item=State.Names, field=Name, value=TRUE)), else=State)
+LET enabled_rows = SELECT
+    if(condition=Category, then=Category, else="") AS Category,
+    get(item=scope(), field="Image Path") AS ImagePath,
+    get(item=scope(), field="Launch String") AS LaunchString,
+    Signer, get(item=scope(), field="Fqdn") AS Fqdn
+FROM SOURCE_QUERY
+WHERE Ready AND Bump(Name="SourceRows")
+    AND Enabled = "enabled" AND (ImagePath OR LaunchString)
+    AND NOT ImagePath =~ '^File not found:' AND Bump(Name="EligibleRows")
+LET normalized_rows = SELECT Category, NormalizePath(Value=ImagePath) AS ImagePath,
+    NormalizePath(Value=LaunchString) AS LaunchString,
+    NormalizeText(Value=Signer) AS Signer, NormalizeText(Value=Fqdn) AS Hostname
+FROM enabled_rows
+// Count every occurrence before dedup suppression; sample hosts while count-eligible.
+// State is retained for ALL distinct eligible identities, including eventual matches.
+LET DedupState <= dict()
+LET StateFor(Key) = get(item=if(condition=get(item=DedupState, field=Key),
+    then=DedupState, else=set(item=DedupState, field=Key,
+        value=dict(TotalRows=0, Names=dict(), Emitted=FALSE))), field=Key)
+// Counts only increase: once over the cutoff this group cannot become eligible.
+// Release its samples exactly once, then keep counting without sampling.
+// With a zero cutoff (unlimited), retain the normal bounded host sample.
+LET CountAndSample(State, Name) = set(item=State, field="TotalRows", value=State.TotalRows + 1)
+    AND if(condition=MaxTotalRows > 0 AND State.TotalRows > MaxTotalRows,
+        then=if(condition=State.TotalRows = MaxTotalRows + 1,
+            then=set(item=State, field="Names", value=dict()), else=State),
+        else=SampleHost(State=State, Name=Name))
+LET keyed_rows = SELECT *, serialize(item=dict(Category=Category, ImagePath=ImagePath,
+    LaunchString=LaunchString, Signer=Signer), format="json") AS StackKey FROM normalized_rows
+// The <= barrier drains the full source before totals or samples are read.
+// Only keys are materialized: disk-backed representatives cannot freeze early counts.
+LET deduplicated_keys <= SELECT StackKey FROM dedup(key="StackKey", size=DedupSize,
+    timeout=DedupTimeout, query={
+        SELECT StackKey FROM keyed_rows
+        WHERE CountAndSample(State=StateFor(Key=StackKey), Name=Hostname)
+    })
+// dedup is an expiring LRU. Guard re-emitted keys after eviction/expiry so counts
+// are published once even when the materialized key list contains repeats.
+LET EmitOnce(State) = if(condition=State.Emitted, then=FALSE,
+    else=set(item=State, field="Emitted", value=TRUE))
+LET completed_groups = SELECT parse_json(data=StackKey) AS Identity,
+    get(item=DedupState, field=StackKey) AS Aggregate
+FROM deduplicated_keys WHERE EmitOnce(State=get(item=DedupState, field=StackKey))
+LET stacks = SELECT Identity.Category AS Category, Identity.ImagePath AS ImagePath,
+    Identity.LaunchString AS LaunchString, Identity.Signer AS Signer,
+    Aggregate.TotalRows AS TotalRows,
+    if(condition=Aggregate.Names, then=items(item=Aggregate.Names)._key, else=array()) AS ExampleHosts
+FROM completed_groups
+LET AddCount(Name, Value) = set(item=Counts, field=Name, value=get(item=Counts, field=Name) + Value)
+// Filter complete counts before entering the matcher; zero means unlimited.
+LET count_eligible = SELECT * FROM stacks
+WHERE Bump(Name="EligibleGroups") AND if(condition=MaxTotalRows > 0 AND TotalRows > MaxTotalRows,
+    then=if(condition=AddCount(Name="HighCountExcludedRows", Value=TotalRows)
+        AND Bump(Name="HighCountExcludedGroups"), then=FALSE), else=TRUE)
+LET retained = SELECT * FROM count_eligible
+WHERE if(condition=ApplyMatching AND any(items=GoldenRules,
+    filter="rule=>NormalizeText(Value=Category) =~ rule.Category AND ImagePath =~ rule.ImagePath AND LaunchString =~ rule.LaunchString AND Signer =~ rule.Signer"),
+    then=if(condition=AddCount(Name="MatchedRows", Value=TotalRows)
+        AND Bump(Name="MatchedGroups"), then=FALSE),
+    else=if(condition=AddCount(Name="ResidualRows", Value=TotalRows), then=TRUE))
+SELECT "stack" AS _Review, Category, ImagePath, LaunchString, Signer, TotalRows, ExampleHosts
+FROM retained WHERE Bump(Name="GroupCount") ORDER BY TotalRows DESC
+SELECT "summary" AS _Review, Counts.SourceRows AS SourceRows, Counts.EligibleRows AS EligibleRows,
+    Counts.EligibleGroups AS EligibleGroups, Counts.HighCountExcludedRows AS HighCountExcludedRows,
+    Counts.HighCountExcludedGroups AS HighCountExcludedGroups, Counts.MatchedGroups AS MatchedGroups,
+    Counts.MatchedRows AS MatchedRows, Counts.ResidualRows AS ResidualRows, Counts.GroupCount AS GroupCount
+FROM scope()

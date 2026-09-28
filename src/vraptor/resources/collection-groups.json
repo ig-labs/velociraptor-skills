@@ -1,0 +1,534 @@
+{
+  "schema_version": 1,
+  "policy_id": "public-ir-collection-groups",
+  "target_modes": [
+    "live",
+    "mapped-disk"
+  ],
+  "requirements": [
+    "core",
+    "recommended",
+    "optional"
+  ],
+  "cost_classes": [
+    "low",
+    "medium",
+    "high"
+  ],
+  "scope_gates": [
+    "none",
+    "time-bounds",
+    "bounded-search-root",
+    "explicit-target"
+  ],
+  "groups": {
+    "signal-triage": {
+      "purpose": "Fast lead finding across event logs, execution traces, browser activity, downloads, remote-management tooling, and selected process-memory detections.",
+      "analysis_profile": "detectraptor-host",
+      "artifacts": [
+        {
+          "id": "event-log-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.Evtx"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "public-ip-context",
+          "alternatives": ["Windows.Detection.PublicIP"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "low"
+        },
+        {
+          "id": "mft-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.MFT"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "psreadline-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.Powershell.PSReadline"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "application-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.Applications"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "remote-management-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.LolRMM"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "amcache-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.Amcache"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "binary-rename-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.BinaryRename"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "web-history-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.Webhistory"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "process-memory-yara",
+          "alternatives": ["DetectRaptor.Windows.Detection.YaraProcessWin"],
+          "requirement": "optional",
+          "applicability": ["live"],
+          "cost": "medium"
+        },
+        {
+          "id": "browser-extension-detections",
+          "alternatives": ["DetectRaptor.Generic.Detection.BrowserExtensions"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "zone-identifier-detections",
+          "alternatives": ["DetectRaptor.Windows.Detection.ZoneIdentifier"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        }
+      ]
+    },
+    "volatile-state": {
+      "purpose": "Live process, connection, DNS cache, and interactive-user state that is lost or stale after shutdown.",
+      "analysis_profile": "volatile-state",
+      "artifacts": [
+        {
+          "id": "process-list",
+          "alternatives": ["Windows.System.Pslist"],
+          "requirement": "core",
+          "applicability": ["live"],
+          "cost": "low"
+        },
+        {
+          "id": "network-connections",
+          "alternatives": ["Windows.Network.NetstatEnriched"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "low"
+        },
+        {
+          "id": "dns-cache",
+          "alternatives": ["Windows.System.DNSCache"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "low"
+        },
+        {
+          "id": "logged-in-users",
+          "alternatives": ["Windows.Sys.LoggedInUsers"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "low"
+        }
+      ]
+    },
+    "execution-history": {
+      "purpose": "Independent execution traces suitable for corroborating program presence and likely execution without overclaiming any one artifact.",
+      "analysis_profile": "execution-history",
+      "artifacts": [
+        {
+          "id": "amcache",
+          "alternatives": ["Windows.Detection.Amcache", "DetectRaptor.Windows.Detection.Amcache"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "prefetch",
+          "alternatives": ["Windows.Forensics.Prefetch"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "bam",
+          "alternatives": ["Windows.Forensics.Bam"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "recent-file-cache",
+          "alternatives": ["Windows.Forensics.RecentFileCache"],
+          "requirement": "optional",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "forensic-timeline",
+          "alternatives": ["Windows.Forensics.Timeline"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "srum",
+          "alternatives": ["Windows.Forensics.SRUM"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "appcompat-pca",
+          "alternatives": ["Windows.System.AppCompatPCA"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "userassist",
+          "alternatives": ["Windows.Registry.UserAssist"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        }
+      ]
+    },
+    "identity-state": {
+      "purpose": "Local identities, privilege membership, hidden accounts, and live user sessions.",
+      "analysis_profile": "identity-state",
+      "artifacts": [
+        {
+          "id": "local-users",
+          "alternatives": ["Windows.Sys.AllUsers"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "local-administrators",
+          "alternatives": ["Windows.System.LocalAdmins"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "low"
+        },
+        {
+          "id": "hidden-users",
+          "alternatives": ["Windows.Registry.HiddenUsers"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "active-user-sessions",
+          "alternatives": ["Windows.Sys.LoggedInUsers"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "low"
+        }
+      ]
+    },
+    "persistence-state": {
+      "purpose": "Services, scheduled tasks, startup entries, WMI persistence, and broad ASEP inventory with target-aware applicability.",
+      "analysis_profile": "persistence-state",
+      "artifacts": [
+        {
+          "id": "services",
+          "alternatives": ["Windows.System.Services"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "scheduled-tasks",
+          "alternatives": ["Windows.System.TaskScheduler"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "startup-items",
+          "alternatives": ["Windows.Sys.StartupItems"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "hidden-scheduled-tasks",
+          "alternatives": ["IG.Windows.Registry.HiddenTasks", "Windows.Registry.TaskCache.HiddenTasks"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "permanent-wmi-events",
+          "alternatives": ["Windows.Persistence.PermanentWMIEvents"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "low"
+        },
+        {
+          "id": "autoruns",
+          "alternatives": ["IG.Windows.Sysinternals.Autoruns", "Windows.Sysinternals.Autoruns"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "medium"
+        },
+        {
+          "id": "suspicious-wmi-consumers",
+          "alternatives": ["Windows.Analysis.SuspiciousWMIConsumers"],
+          "requirement": "recommended",
+          "applicability": ["live"],
+          "cost": "low"
+        },
+        {
+          "id": "wmi-providers",
+          "alternatives": ["Windows.System.WMIProviders"],
+          "requirement": "optional",
+          "applicability": ["live"],
+          "cost": "low"
+        }
+      ]
+    },
+    "authentication-lateral": {
+      "purpose": "Interactive and explicit logons, RDP, remote mounts, service-mediated execution, and optional site-owned authentication summaries.",
+      "analysis_profile": "authentication-lateral",
+      "artifacts": [
+        {
+          "id": "rdp-authentication",
+          "alternatives": ["Windows.EventLogs.RDPAuth"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "explicit-logons",
+          "alternatives": ["Windows.EventLogs.ExplicitLogon"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "remote-mounts",
+          "alternatives": ["Windows.Registry.MountPoints2"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "service-mediated-execution",
+          "alternatives": ["Windows.EventLogs.ServiceCreationComspec"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "kerberos-authentication-summary",
+          "alternatives": ["IG.Windows.EventLogs.Kerberos"],
+          "requirement": "optional",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "ntlm-authentication-summary",
+          "alternatives": ["IG.Windows.EventLogs.NTLM"],
+          "requirement": "optional",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "logon-event-summary",
+          "alternatives": ["IG.Windows.EventLogs.LogonEvents"],
+          "requirement": "optional",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        }
+      ]
+    },
+    "script-execution": {
+      "purpose": "PowerShell command-history, script-block, and module evidence separated from generic execution traces.",
+      "analysis_profile": "script-execution",
+      "artifacts": [
+        {
+          "id": "psreadline-history",
+          "alternatives": ["DetectRaptor.Windows.Detection.Powershell.PSReadline"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "powershell-script-blocks",
+          "alternatives": ["Windows.EventLogs.PowershellScriptblock", "IG.Windows.EventLogs.PowershellScriptblock"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "powershell-modules",
+          "alternatives": ["IG.Windows.EventLogs.PowershellModule"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        }
+      ]
+    },
+    "defense-evasion": {
+      "purpose": "Event-log tampering, boot changes, vulnerable drivers, and library-search manipulation indicators.",
+      "analysis_profile": "defense-evasion",
+      "artifacts": [
+        {
+          "id": "cleared-event-logs",
+          "alternatives": ["Windows.EventLogs.Cleared"],
+          "requirement": "core",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "event-log-modifications",
+          "alternatives": ["Windows.EventLogs.Modifications"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "bootloaders",
+          "alternatives": ["Windows.System.Bootloaders"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "malicious-drivers",
+          "alternatives": ["DetectRaptor.Windows.Detection.LolDriversMalicious"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "vulnerable-drivers",
+          "alternatives": ["DetectRaptor.Windows.Detection.LolDriversVulnerable"],
+          "requirement": "recommended",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        },
+        {
+          "id": "library-search-environment",
+          "alternatives": ["DetectRaptor.Windows.Detection.HijackLibsEnv"],
+          "requirement": "optional",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "low"
+        },
+        {
+          "id": "library-search-filesystem",
+          "alternatives": ["DetectRaptor.Windows.Detection.HijackLibsMFT"],
+          "requirement": "optional",
+          "applicability": ["live", "mapped-disk"],
+          "cost": "medium"
+        }
+      ]
+    }
+  },
+  "bundles": {
+    "ir-standard-live": {
+      "target_mode": "live",
+      "purpose": "Standard Windows incident-response collection for a running endpoint.",
+      "groups": [
+        "signal-triage",
+        "volatile-state",
+        "execution-history",
+        "identity-state",
+        "persistence-state",
+        "authentication-lateral",
+        "script-execution",
+        "defense-evasion"
+      ]
+    },
+    "ir-standard-disk": {
+      "target_mode": "mapped-disk",
+      "purpose": "Standard Windows incident-response collection for a mapped dead disk, with volatile-only sources recorded as not applicable.",
+      "groups": [
+        "signal-triage",
+        "volatile-state",
+        "execution-history",
+        "identity-state",
+        "persistence-state",
+        "authentication-lateral",
+        "script-execution",
+        "defense-evasion"
+      ]
+    }
+  },
+  "followups": {
+    "account-changes": {
+      "route": "bounded-timeline",
+      "cost": "medium",
+      "scope_gate": "time-bounds",
+      "required_inputs": ["date-after", "date-before", "event-id-or-ioc-filter"],
+      "reason": "Account and group-change claims require bounded security-event review and outcome validation."
+    },
+    "timeline": {
+      "route": "collection-type:timeline",
+      "cost": "high",
+      "scope_gate": "time-bounds",
+      "required_inputs": ["date-after-or-date-before"],
+      "reason": "Full MFT and EVTX collection is intentionally time bounded."
+    },
+    "staging-exfiltration": {
+      "route": "collection-type:exfiltration",
+      "cost": "high",
+      "scope_gate": "time-bounds",
+      "required_inputs": ["date-after", "date-before", "path-or-ioc-filter"],
+      "reason": "Large MFT, EVTX, SRUM, and Prefetch collection should follow a concrete staging or transfer hypothesis."
+    },
+    "remote-tool-sessions": {
+      "route": "explicit-artifact",
+      "cost": "medium",
+      "scope_gate": "explicit-target",
+      "required_inputs": ["tool-family-or-path", "time-window"],
+      "reason": "Session-specific remote-management artifacts are useful only after a product or path lead exists."
+    },
+    "malware-deep": {
+      "route": "explicit-artifact",
+      "cost": "high",
+      "scope_gate": "bounded-search-root",
+      "required_inputs": ["path-hash-name-or-yara-rule", "bounded-search-root"],
+      "reason": "BinaryHunter, FileFinder, and wide YARA searches are high-cost and question triggered."
+    },
+    "web-server": {
+      "route": "explicit-artifact",
+      "cost": "medium",
+      "scope_gate": "explicit-target",
+      "required_inputs": ["server-role", "log-or-web-root"],
+      "reason": "Web-server evidence is role specific and should not run on every endpoint."
+    },
+    "domain-controller": {
+      "route": "explicit-artifact",
+      "cost": "high",
+      "scope_gate": "time-bounds",
+      "required_inputs": ["confirmed-domain-controller-role", "time-window"],
+      "reason": "Directory-service and broad authentication collection is role specific and potentially high volume."
+    }
+  },
+  "prohibited_baseline_artifacts": [
+    "Windows.Registry.Hunter[all]",
+    "Windows.NTFS.MFT",
+    "Windows.EventLogs.EvtxHunter",
+    "Windows.Search.BinaryHunter",
+    "Windows.Search.FileFinder",
+    "Generic.Detection.Yara.Glob"
+  ]
+}
