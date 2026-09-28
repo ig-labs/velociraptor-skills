@@ -115,7 +115,7 @@ vraptor setup migrate --server-profile "<SERVER REFERENCE>"
 vraptor setup migrate --server-profile "<SERVER REFERENCE>" --write
 
 vraptor setup start --mode live-remote --id live01 --server-profile "<SERVER REFERENCE>" \
-  --api-client /configs/lab.yaml --hostname host01
+  --api-client /configs/lab.yaml
 vraptor setup start --mode remote-deaddisk --id disk01 --server-profile "<SERVER REFERENCE>" \
   --api-client /configs/lab.yaml --client-config /configs/lab_client.yaml \
   --evidence-path /evidence/disk.E01
@@ -133,6 +133,14 @@ SSH using an explicit/configured `--server-ip`; `--provision-api` and
 `--provision-client` separately permit generation of missing remote files.
 `--regenerate-remote-api` explicitly replaces the selected remote API YAML.
 `--force` refreshes the local copy when acquisition is enabled.
+
+Live setup defaults to server readiness with no hostname prompt; an empty client
+inventory does not block verified API access and authorization. Explicit host,
+client or label selectors still require visibility. Resume retains saved checks;
+an explicit selection replaces the old one, and `--environment-only-ok` clears
+saved target checks. This flag remains compatible but is unnecessary for a new
+server-only setup. Live readiness is site-wide; later commands select their own
+authorized scope.
 
 Dead-disk setup accepts `--mapping-id NAME` to add several images to one
 investigation. Its mappings share the case's server/organization/API identity

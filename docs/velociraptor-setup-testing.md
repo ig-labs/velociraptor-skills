@@ -423,8 +423,10 @@ Pass criteria:
 - No local server or mapping runtime is created. `status` reports no owned
   mapping or local server, so there is nothing for `setup stop` to stop.
 
-`--environment-only-ok` may test API access and visibility when no target has
-been chosen, but does not pass the exact live-endpoint test above. `status` has
+Omitting target selectors verifies server readiness by default, including when
+the visible inventory is empty. `--environment-only-ok` remains supported and
+clears saved target checks. Neither passes the exact live-endpoint test above.
+`status` has
 `api_checked=false`; use `resume` for fresh API readiness checks. Neither endpoint
 visibility nor a saved ready status alone proves current endpoint connectivity.
 For the selected Windows test endpoint, run the collection checks in section 7.

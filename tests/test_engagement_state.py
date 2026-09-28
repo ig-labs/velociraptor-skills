@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import yaml
 from cryptography import x509
@@ -13,6 +14,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
 from vraptor import readiness_state as engagement_state
+from vraptor import readiness, setup
 from vraptor.hunt import command as hunt_workflow
 
 
@@ -182,6 +184,94 @@ class EngagementStateTest(unittest.TestCase):
             )
 
             self.assertEqual(actual["engagement_fingerprint"], state["engagement_fingerprint"])
+
+    def test_live_server_readiness_records_empty_or_visible_inventory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            api = self.write_api(root)
+            provisioning = self.live_state(api)["readiness"]["api_user_provisioning"]
+            for flags in ([], ["--environment-only-ok"]):
+                for rows in ([], [{"client_id": "C.1", "Hostname": "host1"}]):
+                    with self.subTest(flags=flags, visible=bool(rows)):
+                        args = setup.parser().parse_args([
+                            "start", "--mode", "live-remote", "--id", "EXAMPLE38",
+                            "--server-profile", "lab7", "--api-client", str(api), *flags])
+                        with patch.object(readiness, "verify_api_reachable", return_value=True), \
+                             patch.object(readiness, "verify_api_authorization", return_value=dict(provisioning)), \
+                             patch.object(readiness, "remote_query", return_value=rows) as query:
+                            state = readiness._command_live_remote(args, root / "leaf.json")
+                        query.assert_called_once()
+                        self.assertEqual(state["status"], "ready")
+                        self.assertEqual(state["readiness"]["target_visible"], bool(rows))
+                        self.assertEqual(state["readiness"]["matched_client_count"], len(rows))
+                        path = engagement_state.state_path(root, "EXAMPLE38")
+                        engagement_state.publish(path, state)
+                        engagement_state.validate(path=path, engagement_id="EXAMPLE38",
+                                                  server_profile="lab7", api_client=api)
+
+    def test_server_only_readiness_keeps_fail_closed_checks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            api = self.write_api(root)
+            path = engagement_state.state_path(root, "EXAMPLE38")
+            mutations = [
+                (lambda s: s["readiness"].update(server_reachable=False), "server verification"),
+                (lambda s: s["readiness"]["scope"].update(verification_method="hostname"), "target verification"),
+                (lambda s: s["readiness"]["api_user_provisioning"].update(effective_permissions=[]), "administrator capability"),
+                (lambda s: s["server"].update(fingerprint="other"), "server fingerprint"),
+            ]
+            for mutate, error in mutations:
+                with self.subTest(error=error):
+                    state = self.live_state(api)
+                    state["readiness"]["scope"] = {"type": "site", "verification_method": "environment_only"}
+                    state["readiness"]["target_visible"] = False
+                    mutate(state)
+                    engagement_state.publish(path, state)
+                    with self.assertRaisesRegex(RuntimeError, error):
+                        engagement_state.validate(path=path, engagement_id="EXAMPLE38",
+                                                  server_profile="lab7", api_client=api)
+
+    def test_explicit_live_target_still_requires_visibility(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            api = self.write_api(root)
+            provisioning = self.live_state(api)["readiness"]["api_user_provisioning"]
+            for flags in (["--hostname", "missing"], ["--client-id", "C.missing"],
+                          ["--host-label", "missing"], ["--exclude-host-label", "excluded"]):
+                with self.subTest(flags=flags):
+                    args = setup.parser().parse_args([
+                        "start", "--mode", "live-remote", "--id", "EXAMPLE38",
+                        "--server-profile", "lab7", "--api-client", str(api), *flags])
+                    with patch.object(readiness, "verify_api_reachable", return_value=True), \
+                         patch.object(readiness, "verify_api_authorization", return_value=dict(provisioning)), \
+                         patch.object(readiness, "remote_query", return_value=[]), \
+                         self.assertRaisesRegex(RuntimeError, "not visible|no clients were visible"):
+                        readiness._command_live_remote(args, root / "leaf.json")
+                    visible = [{"client_id": "C.present", "Hostname": "present", "Labels": ["missing"]}]
+                    with patch.object(readiness, "verify_api_reachable", return_value=True), \
+                         patch.object(readiness, "verify_api_authorization", return_value=dict(provisioning)), \
+                         patch.object(readiness, "remote_query", return_value=visible):
+                        state = readiness._command_live_remote(args, root / "leaf.json")
+                    self.assertTrue(state["readiness"]["target_visible"])
+                    self.assertNotEqual(state["readiness"]["scope"]["verification_method"], "environment_only")
+
+    def test_default_live_setup_propagates_connection_and_inventory_failures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            api = self.write_api(root)
+            provisioning = self.live_state(api)["readiness"]["api_user_provisioning"]
+            args = setup.parser().parse_args([
+                "start", "--mode", "live-remote", "--id", "EXAMPLE38",
+                "--server-profile", "lab7", "--api-client", str(api)])
+            for failed_check in ("validate_api_client_security", "verify_api_reachable",
+                                 "verify_api_authorization", "remote_query"):
+                with self.subTest(failed_check=failed_check), \
+                     patch.object(readiness, "verify_api_reachable", return_value=True), \
+                     patch.object(readiness, "verify_api_authorization", return_value=dict(provisioning)), \
+                     patch.object(readiness, "remote_query", return_value=[]), \
+                     patch.object(readiness, failed_check, side_effect=RuntimeError("check failed")), \
+                     self.assertRaisesRegex(RuntimeError, "check failed"):
+                    readiness._command_live_remote(args, root / "leaf.json")
 
     def test_readiness_age_and_legacy_expiry_do_not_invalidate_state(self):
         with tempfile.TemporaryDirectory() as directory:

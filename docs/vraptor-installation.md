@@ -496,14 +496,13 @@ configuration checks.
 
 | Workflow | Mode | Required resources |
 | --- | --- | --- |
-| Live endpoints on an existing server | `live-remote` | API-client YAML and a client/hostname/label scope; no local native binary |
+| Existing live server or endpoints | `live-remote` | API-client YAML; optional client/hostname/label verification; no local native binary |
 | Local evidence mapped to a remote server | `remote-deaddisk` | API-client YAML, matching endpoint-client YAML, native binary and evidence |
 | Local evidence with a managed local server | `local-deaddisk` | Native binary and evidence; setup manages local server credentials |
 
 ```sh
 # Live remote: the selected server reference has its existing API-client YAML.
-vraptor setup start --mode live-remote --id live01 --server-profile "<SERVER REFERENCE>" \
-  --hostname host01
+vraptor setup start --mode live-remote --id live01 --server-profile "<SERVER REFERENCE>"
 
 # Map local evidence to a remote server; use its matching endpoint config.
 vraptor setup start --mode remote-deaddisk --id disk01 --server-profile "<SERVER REFERENCE>" \
@@ -513,6 +512,11 @@ vraptor setup start --mode remote-deaddisk --id disk01 --server-profile "<SERVER
 vraptor setup start --mode local-deaddisk --id local01 \
   --evidence-path /evidence/disk.E01
 ```
+
+Live setup defaults to server readiness for maintenance and hunt review, even
+when the client inventory is empty. Add a hostname, client ID or label selector
+only when you want to require target visibility. Resume retains saved checks;
+`--environment-only-ok` clears them for server-only verification.
 
 `setup start` creates/reuses the investigation directory and records verified
 readiness in `<case-root>/<id>/engagement.json`. To prepare only the folder

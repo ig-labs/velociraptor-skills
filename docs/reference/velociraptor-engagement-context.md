@@ -25,14 +25,21 @@ API-client YAML.
   --server-profile "<SERVER REFERENCE>" \
   --id ir1234 \
   --api-client /secure/lab_api_client.yaml \
-  --case-root "$HOME/cases" \
-  --environment-only-ok
+  --case-root "$HOME/cases"
 ```
 
 This connects to the selected deployment and writes readiness and later hunt or
 collection state under `$HOME/cases/ir1234`. A transient investigation server
 does not need a permanent named connection in user settings. Its concrete
 credential/server binding is retained in `engagement.json`.
+
+Live setup defaults to server readiness without a hostname prompt. API security,
+connectivity and authorization must pass; client visibility is recorded but an
+empty inventory is allowed. Explicit hostname, client ID or label selectors
+require target visibility without restricting later site-wide operations.
+`resume` retains saved verification choices; an explicit new selector replaces
+the old selection. The compatible `--environment-only-ok` flag clears saved
+target checks. Dead-disk modes remain bound to their evidence and mapped clients.
 
 ## Readiness contract
 
@@ -46,6 +53,12 @@ Case-bound live commands require
   readiness checks
 - API certificate validity and file-security metadata, plus verified
   server-side roles and effective permissions for live readiness
+
+For live server-only readiness, `readiness.scope.verification_method` is
+`environment_only`. `target_visible=false` and `matched_client_count=0` report
+an empty visible inventory without invalidating server readiness. A positive
+count from this bounded check is not a fleet census. Explicit target checks and
+dead-disk readiness continue to require `target_visible=true`.
 
 The manifest is authoritative after setup. A supplied server profile must
 match it, and an explicit API client must match its recorded credential and

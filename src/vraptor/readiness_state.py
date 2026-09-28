@@ -406,9 +406,14 @@ def validate(
         failures.append("Velociraptor org does not match readiness")
 
     readiness = dict(payload.get("readiness") or {})
-    if not readiness.get("server_reachable") or not readiness.get("target_visible"):
-        failures.append("server or target verification is false")
     mode = str(payload.get("mode") or "")
+    scope = dict(readiness.get("scope") or {})
+    environment_only = (mode == "live_remote" and scope.get("type") == "site"
+                        and scope.get("verification_method") == "environment_only")
+    if not readiness.get("server_reachable"):
+        failures.append("server verification is false")
+    if not environment_only and not readiness.get("target_visible"):
+        failures.append("target verification is false")
     if mode == "live_remote":
         provisioning = dict(readiness.get("api_user_provisioning") or {})
         roles = {str(role) for role in provisioning.get("roles") or []}

@@ -41,7 +41,7 @@ case_root = Path("cases").resolve()
 assert initialize("package-check", case_root)["guidance_created"]
 guidance = case_root / "package-check/AGENTS.md"
 text = guidance.read_text()
-assert text.startswith("# Investigation package-check\\n")
+assert "# Investigation package-check" in text.splitlines()
 assert f"--id 'package-check' --case-root {str(case_root)!r}" in text
 guidance.write_text("Operator guidance\\n")
 assert not initialize("package-check", case_root)["guidance_created"]

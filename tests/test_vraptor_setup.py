@@ -32,6 +32,48 @@ def ready(args):
             "mode": setup.MODES[args.mode], "connection": {"server_profile": args.server_profile}}
 
 
+@pytest.mark.parametrize("interactive", [False, True])
+def test_live_setup_without_target_does_not_prompt_and_resumes(workstation, monkeypatch, interactive):
+    api = workstation / "api.yaml"
+    api.touch()
+    monkeypatch.setattr(setup.sys.stdin, "isatty", lambda: interactive)
+    monkeypatch.setattr("builtins.input", Mock(side_effect=AssertionError("No target prompt")))
+    verify = Mock(side_effect=ready)
+    monkeypatch.setattr(readiness, "command_live_remote", verify)
+    assert invoke(workstation, "start", "--mode", "live-remote", "--api-client", str(api)) == 0
+    assert invoke(workstation, "resume") == 0
+    assert verify.call_count == 2
+    assert not any(getattr(verify.call_args.args[0], name) for name in setup.LIVE_SCOPE)
+
+
+def test_explicit_live_scope_replaces_saved_selection(workstation, monkeypatch):
+    api = workstation / "api.yaml"
+    api.touch()
+    verify = Mock(side_effect=ready)
+    monkeypatch.setattr(readiness, "command_live_remote", verify)
+    assert invoke(workstation, "start", "--mode", "live-remote", "--api-client", str(api),
+                  "--hostname", "host1") == 0
+    selections = [
+        ("--host-label", "group1", "--exclude-host-label", "excluded"),
+        ("--exclude-host-label", "different"),
+        ("--client-id", "C.other"),
+        ("--environment-only-ok",),
+        ("--hostname", "host2"),
+    ]
+    for flags in selections:
+        assert invoke(workstation, "resume", *flags) == 0
+        expected = vars(setup.parser().parse_args(["resume", *flags]))
+        actual = saved(workstation)["setup"]
+        assert {key: actual[key] for key in setup.LIVE_SCOPE} == {
+            key: expected[key] for key in setup.LIVE_SCOPE}
+        assert invoke(workstation, "resume") == 0
+        assert saved(workstation)["setup"] == actual
+    verify.reset_mock()
+    assert invoke(workstation, "resume", "--hostname", "host3", "--client-id", "C.other") == 1
+    verify.assert_not_called()
+    assert saved(workstation)["setup"] == actual
+
+
 def test_existing_remote_yaml_skips_acquisition_and_resume_pins_connection(workstation, monkeypatch):
     root = workstation
     api = root / "provided.yaml"

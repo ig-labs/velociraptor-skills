@@ -25,6 +25,7 @@ SAVED = ("mode", "engagement_id", "case_root", "server_profile", "api_client",
 SHARED = ("mode", "engagement_id", "case_root", "server_profile", "api_client",
           "client_config", "velociraptor_bin", "api_role_profile", "org_id",
           "local_server_workspace", "local_server_options")
+LIVE_SCOPE = ("hostname", "client_id", "host_label", "exclude_host_label", "environment_only_ok")
 
 
 def mapping_records(payload):
@@ -116,7 +117,9 @@ def parser():
         result.add_argument("--" + flag, type=int)
     result.add_argument("--host-label", action="append")
     result.add_argument("--exclude-host-label", action="append")
-    for flag in ("environment-only-ok", "fetch-config", "provision-api", "provision-client",
+    result.add_argument("--environment-only-ok", action="store_true", default=None,
+                        help="Use server readiness without a target (the live default); clear saved target checks.")
+    for flag in ("fetch-config", "provision-api", "provision-client",
                  "force", "regenerate-remote-api", "stop-server"):
         result.add_argument("--" + flag, action="store_true", default=None)
     return result
@@ -134,8 +137,8 @@ def _required(args, name, prompt):
 def _scope(args):
     selections = (bool(args.hostname), bool(args.client_id),
                   bool(args.host_label or args.exclude_host_label), bool(args.environment_only_ok))
-    if sum(selections) != 1:
-        raise ValueError("Select one live scope: --hostname, --client-id, --host-label, or --environment-only-ok.")
+    if sum(selections) > 1:
+        raise ValueError("Select at most one live scope: --hostname, --client-id, --host-label, or --environment-only-ok.")
 
 
 def _check_binding(previous, args, metadata=None):
@@ -267,8 +270,6 @@ def start(args, snapshot, previous, state_path, *, records=None):
     args.server_profile = args.server_profile or ("local" if args.mode == "local-deaddisk" else args.engagement_id)
     safe_component(args.server_profile, label="server profile")
     if args.mode == "live-remote":
-        if not any((args.hostname, args.client_id, args.host_label, args.environment_only_ok)) and sys.stdin.isatty():
-            _required(args, "hostname", "Live hostname")
         _scope(args)
     else:
         _required(args, "evidence_path", "Windows image or mounted Windows directory")
@@ -383,7 +384,11 @@ def main(argv=None):
         case = readiness_state.load(state_path) if state_path.exists() else {}
         previous = select_mapping(args, case)
         records = mapping_records(case) if args.mapping_id else None
+        replace_live_scope = args.mode == "live-remote" and any(
+            getattr(args, name, None) for name in LIVE_SCOPE)
         for name, value in previous.get("setup", {}).items():
+            if replace_live_scope and name in LIVE_SCOPE:
+                continue
             if name in SAVED and getattr(args, name, None) is None:
                 setattr(args, name, value)
         if args.action == "resume" and not previous.get("setup"):

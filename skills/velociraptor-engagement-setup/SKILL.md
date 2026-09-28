@@ -30,8 +30,9 @@ and configuration work needs no additional approval prompt.
 ## Inputs and workspace
 
 Use the investigation ID, an optional investigations parent (`--case-root`,
-otherwise saved settings, legacy `CASE_ROOT`, or `~/cases`), and the selected server profile. Ask for a
-missing target or deployment rather than guessing. Preserve the ID's spelling.
+otherwise saved settings, legacy `CASE_ROOT`, or `~/cases`), and the selected server profile.
+Ask for a missing deployment rather than guessing; request a target only when
+the operation requires one. Preserve the ID's spelling.
 
 Initialize once at the beginning of work:
 
@@ -278,12 +279,20 @@ than blindly resubmitting a collection.
 
 ```bash
 dfir setup start --mode live-remote --id ir1234 --server-profile lab \
-  --api-client /configs/lab_api_client.yaml --hostname host01
+  --api-client /configs/lab_api_client.yaml
 ```
 
-Use `--host-label` and optional `--exclude-host-label` for fleet scope instead of
-a hostname. Use `--environment-only-ok` only when no specific target is available;
-it proves API reachability and at least one visible client, not intended scope.
+Without target selectors, live setup verifies server readiness for maintenance
+and hunt review; do not ask for a hostname unless the work requires one. An empty
+client inventory is recorded and does not block server readiness. API query or
+authorization failures still block readiness.
+
+Optionally add `--hostname`, `--client-id`, or `--host-label` with optional
+`--exclude-host-label` to require target visibility. These checks do not restrict
+later site-wide work; each operation selects its authorized host or hunt scope.
+Resume retains saved target checks. An explicit selection replaces the previous
+selection; use the compatible `--environment-only-ok` flag to clear saved target
+checks and return to server-only verification. Dead-disk bindings are unchanged.
 
 Existing API YAML connects directly. For remote credential acquisition, supply
 `--server-ip` and explicitly select `--fetch-config`. Generation of missing
@@ -294,7 +303,7 @@ API credentials additionally requires `--provision-api`. Endpoint YAML and
 Never handle SSH passphrases in chat. Setup verifies certificate lifetime,
 private-key presence, ownership,
 private file mode, a real API query, server-side roles/effective permissions, and
-hostname or label visibility.
+any explicitly requested hostname, client ID or label visibility.
 
 `--api-role-profile provisioning-admin` is the current default and requires
 `administrator,api` plus effective administration capability. An explicitly

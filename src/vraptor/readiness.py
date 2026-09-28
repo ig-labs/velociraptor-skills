@@ -467,6 +467,7 @@ def verify_any_client_visible(config_path: Path, *, use_local_cli: bool) -> dict
             "client_id": "",
             "hostname": "",
             "last_seen": "",
+            "scope_type": "environment_only",
         }
     row = rows[0]
     return {
@@ -1042,15 +1043,10 @@ def _command_live_remote(
             raise RuntimeError(
                 "Fetched remote API client but no clients were visible for the requested live label scope."
             )
-    elif args.environment_only_ok:
-        target = verify_any_client_visible(api_client_path, use_local_cli=False)
-        if not target["target_visible"]:
-            raise RuntimeError("Fetched remote API client but no clients were visible through the remote Velociraptor API.")
     else:
-        raise RuntimeError(
-            "Live remote readiness requires --hostname, --host-label/--exclude-host-label, "
-            "or --environment-only-ok so the verification scope is explicit."
-        )
+        # Client visibility is diagnostic for server work; an empty inventory
+        # does not invalidate verified API access and authorization.
+        target = verify_any_client_visible(api_client_path, use_local_cli=False)
     target_verification_seconds = time.monotonic() - target_verification_started
     setup_timing = {
         "fetch_seconds": round(fetch_seconds, 3),
@@ -1215,7 +1211,7 @@ def build_parser() -> argparse.ArgumentParser:
     live_cmd.add_argument(
         "--environment-only-ok",
         action="store_true",
-        help="Allow readiness to stop at API reachability plus any visible client when no hostname or label scope is available yet.",
+        help="Compatibility flag: without a target, live setup defaults to server readiness; an empty client inventory is allowed.",
     )
     return parser
 

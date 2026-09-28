@@ -57,6 +57,12 @@ connection per command with `--server-profile "<SERVER REFERENCE>"` (or the
 `--server` alias). `./vraptor config` lists saved references in `connections`.
 See [multiple-server configuration](CONFIG.md#multiple-server-connections).
 
+For server maintenance or hunt review, use
+`vraptor setup start --mode live-remote --id ir1234 --server-profile "<SERVER REFERENCE>"`.
+Live setup defaults to server readiness; no hostname or visible client is
+required. Optional hostname, client ID or label selectors add target verification.
+Resume retains saved selectors; `--environment-only-ok` clears them.
+
 Use `./utils/install.sh --no-configure` to skip the wizard during upgrades;
 add `--no-path` for dependency-only installation or CI. Non-interactive runs also
 skip the wizard. Run bare

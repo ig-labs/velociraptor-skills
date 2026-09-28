@@ -21,8 +21,14 @@ For an existing deployment, provide the API-client YAML to shared setup:
 
 ```bash
 vraptor setup start --mode live-remote --id ir1234 \
-  --api-client /secure/lab_api_client.yaml --hostname host01
+  --api-client /secure/lab_api_client.yaml
 ```
+
+Live setup defaults to server readiness for maintenance and hunt review. No
+hostname or visible client is required; empty inventory is recorded separately
+from API access and authorization. Optional host/client/label selectors require
+target visibility without restricting later site-wide work. Resume preserves
+saved selectors; `--environment-only-ok` clears them for server-only work.
 
 The YAML supplies the connection and certificate/private-key material. SSH access
 and remote provisioning are optional. Keep credentials in native protected files;
