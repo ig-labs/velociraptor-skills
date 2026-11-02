@@ -21,12 +21,26 @@ from vraptor.artifacts.persistence import authorize_persistence
 from vraptor.analyze.limits import MAX_CORRECTION_ATTEMPTS
 
 _active: ContextVar[PromptDump | None] = ContextVar("chunk_prompt_dump", default=None)
+_failed: ContextVar[FailedChunkEvidence | None] = ContextVar(
+    "failed_chunk_evidence", default=None
+)
 
 
 def _write_new(path: Path, data: bytes) -> None:
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "wb") as stream:
         stream.write(data)
+
+
+def _new_debug_directory(case_dir: Path, name: str) -> Path:
+    root = case_dir.resolve()
+    for part in ("debug", name):
+        root = root / part
+        if root.is_symlink():
+            raise ValueError("Chunk debug output directories must not be symlinks")
+        root.mkdir(mode=0o700, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-")
+    return Path(mkdtemp(prefix=stamp, dir=root))
 
 
 class PromptDump:
@@ -64,16 +78,7 @@ class PromptDump:
                 bounded=True,
             )
             if self.directory is None:
-                root = self.case_dir.resolve()
-                for part in ("debug", "chunk-prompts"):
-                    root = root / part
-                    if root.is_symlink():
-                        raise ValueError(
-                            "Chunk prompt output directories must not be symlinks"
-                        )
-                    root.mkdir(mode=0o700, exist_ok=True)
-                stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-")
-                self.directory = Path(mkdtemp(prefix=stamp, dir=root))
+                self.directory = _new_debug_directory(self.case_dir, "chunk-prompts")
             name = f"chunk-{len(self.records) + 1:03d}.prompt.txt"
             data = prompt.encode("utf-8")
             record = {
@@ -117,7 +122,8 @@ class PromptDump:
     ) -> None:
         with self._lock:
             record = self.records[index]
-            if not 1 <= attempt <= MAX_CORRECTION_ATTEMPTS + 1 or any(
+            # One first attempt, the correction ceiling and one repair call.
+            if not 1 <= attempt <= MAX_CORRECTION_ATTEMPTS + 2 or any(
                 item["attempt"] == attempt for item in record["attempts"]
             ):
                 raise ValueError(
@@ -198,15 +204,106 @@ class PromptDump:
             )
 
 
+class FailedChunkEvidence:
+    """Explicit export of prompts, raw responses and validator messages for failed chunks only."""
+
+    def __init__(self, case_dir: Path):
+        self.case_dir = case_dir
+        self.directory: Path | None = None
+        self.records: list[dict[str, Any]] = []
+        self._lock = threading.Lock()
+
+    def save(
+        self,
+        *,
+        key: str,
+        prompts: list[str],
+        record: dict[str, Any],
+        source_ids: list[str],
+    ) -> dict[str, Any]:
+        authorization = authorize_persistence(
+            "interoperability_export",
+            source_ids=source_ids,
+            raw_rows=True,
+            explicit_export=True,
+            bounded=True,
+        )
+        with self._lock:
+            if self.directory is None:
+                self.directory = _new_debug_directory(self.case_dir, "failed-chunks")
+            prefix = f"failed-{len(self.records) + 1:03d}"
+            files: list[dict[str, Any]] = []
+            history = list(record.get("attempt_history") or [])
+            for attempt, prompt in enumerate(prompts, start=1):
+                item = dict(history[attempt - 1]) if attempt <= len(history) else {}
+                for kind, text in (
+                    ("prompt", prompt),
+                    ("response", str(dict(item.get("run") or {}).get("output") or "")),
+                    ("error", str(item.get("error") or "")),
+                ):
+                    if not text:
+                        continue
+                    name = f"{prefix}.attempt-{attempt:03d}.{kind}.txt"
+                    data = text.encode("utf-8")
+                    _write_new(self.directory / name, data)
+                    files.append(
+                        {
+                            "attempt": attempt,
+                            "kind": kind,
+                            "file": name,
+                            "sha256": hashlib.sha256(data).hexdigest(),
+                            "bytes": len(data),
+                        }
+                    )
+            reference = {"directory": str(self.directory), "files": files}
+            self.records.append({"key": key, **reference, "persistence": authorization})
+            return reference
+
+    def finish(self) -> None:
+        if self.directory is not None:
+            manifest = {
+                "schema_version": 1,
+                "capture_stage": "failed_chunk",
+                "note": "Raw responses are untrusted model output. Prompts contain evidence rows.",
+                "chunks": self.records,
+            }
+            _write_new(
+                self.directory / "manifest.json",
+                (json.dumps(manifest, indent=2) + "\n").encode("utf-8"),
+            )
+            print(
+                f"Failed chunk evidence: saved {len(self.records)} chunks in {self.directory}",
+                file=sys.stderr,
+                flush=True,
+            )
+
+
 @contextmanager
-def session(case_dir: Path, limit: int = 0) -> Iterator[PromptDump]:
+def session(
+    case_dir: Path, limit: int = 0, *, keep_failed: bool = False,
+) -> Iterator[PromptDump]:
     dump = PromptDump(case_dir, limit)
+    evidence = FailedChunkEvidence(case_dir) if keep_failed else None
     token = _active.set(dump if limit else None)
+    failed_token = _failed.set(evidence)
     try:
         yield dump
     finally:
         _active.reset(token)
+        _failed.reset(failed_token)
         dump.finish()
+        if evidence is not None:
+            evidence.finish()
+
+
+def capture_failed_chunk(
+    *, key: str, prompts: list[str], record: dict[str, Any], source_ids: list[str],
+) -> dict[str, Any] | None:
+    """Save one failed chunk's raw inputs and outputs only when explicitly requested."""
+    evidence = _failed.get()
+    if evidence is None:
+        return None
+    return evidence.save(key=key, prompts=prompts, record=record, source_ids=source_ids)
 
 
 def capture(prompt: str, *, plan: dict, chunk: dict, csv_evidence: str) -> None:

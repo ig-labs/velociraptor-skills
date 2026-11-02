@@ -9,7 +9,7 @@
 .codex/agents/hunt-agent.toml	sha256:95b3b16a7e0e553ca6b511858aef307992451d9f6c5cdb83d1108041e1203e35;mode:100644	Public Codex hunt agent adaptation.
 docs/model-execution.md	sha256:fe002f482668b4388ae9f2fbd3624f466c433634d1f988fbf27f3bf37f347cf9;mode:100644	AI setup defaults kept per repository (owner decision 2026-10-30).
 skills/velociraptor-engagement-setup/references/configuration.md	sha256:54e9a0a8ba0b20d01d53dde1d29af0a94808a99f8f6f158f264f69003760e4b2;mode:100644	AI setup defaults kept per repository (owner decision 2026-10-30).
-skills/velociraptor-host-analysis/SKILL.md	sha256:f37f1a5a9f2d2054ff463021c985cbc000f88b8784828497fe6100e699546dd1;mode:100644	The incident-response guidebook PDF is not exported.
+skills/velociraptor-host-analysis/SKILL.md	sha256:c8817ffe9a0c37e5aba6ab0cbaafea643caca715cec543953fda751d37bcbb43;mode:100644	The incident-response guidebook PDF is not exported.
 skills/velociraptor-mapped-client/SKILL.md	sha256:8dbefa9a45703ecfda49030d6c586677733b214e5772f576ed1eca9c4a055574;mode:100644	AI setup defaults kept per repository (owner decision 2026-10-30).
 src/vraptor/agent/manage.py	sha256:4326514784c7f8692d976c1f943f0256dfd223a4b91e18acfed0232310037321;mode:100644	AI setup defaults kept per repository (owner decision 2026-10-30).
 src/vraptor/settings.py	sha256:832f59a2ff5d25bf2ab62a51bbf4688d1202b7b25d76e9e1db29e338133b281f;mode:100644	AI setup defaults kept per repository (owner decision 2026-10-30).

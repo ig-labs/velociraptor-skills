@@ -253,9 +253,21 @@ this inspection without model calls. Follow the shared
 [prompt export contract](../../docs/reference/chunk-prompt-debug.md).
 Queued/running
 status is in-memory only. A failed component does not block sibling artifacts and
-remains terminal until explicitly selected for reanalysis. Use repeatable
-`--reset-artifact NAME --request-id REQUEST_ID` or
-`--reset-analysis --request-id REQUEST_ID`; neither option recollects evidence.
+remains terminal until explicitly selected for reanalysis. Use
+`--retry-failed --request-id REQUEST_ID` to resume it with accepted chunks reused,
+or repeatable `--reset-artifact NAME --request-id REQUEST_ID` or
+`--reset-analysis --request-id REQUEST_ID` to discard accepted work; none of these
+recollects evidence. A chunk whose correction attempts all fail validation is
+recorded, then gets one AI repair call in the same run (at most 4 per run;
+`--chunk-repair-limit 0` disables). A repaired chunk is published but labelled
+`accepted after AI repair ... verify these rows in Velociraptor`; report that
+label with any finding from those rows. A chunk that still fails is named in the summary
+(for example `chunk 71/71 rows 6901-7000 ... failed after 3 attempts`) and recorded
+value-free in the request's `analysis/failed-chunks.json`. After the operator reviews
+those rows, `--waive-failed-chunk KEY --waive-reason TEXT` publishes the accepted
+chunks with the gap named; never waive a chunk without that review. See
+[chunk repair](../../docs/reference/analysis-recovery.md#repair-a-chunk-after-its-correction-attempts) and
+[failed-chunk review](../../docs/reference/analysis-recovery.md#review-chunks-that-fail-every-attempt).
 
 The response includes structured `analysis_result` for automation and a bounded Markdown `chat_summary` with status, assessment, findings, finding-linked context, limitations, and next action; chat/GUI callers surface it without another model call.
 
@@ -274,7 +286,8 @@ See [report-contract.md](references/report-contract.md).
 - Stop if the configured read-only analyst runner is unavailable.
 - Mark failed collection or analysis tasks as coverage failures.
 - Use the configured validation-correction budget (two extra attempts by default),
-  separately from transport retries. Stop when that budget is exhausted; follow
+  separately from transport retries. When it is exhausted, the runtime makes one
+  bounded AI repair call; do not add further attempts by hand. Follow
   the shared [recovery contract](../../docs/reference/analysis-recovery.md)
   to resume failed work without discarding accepted results.
 - Distinguish completed candidate analysis from final review. Claim a completed

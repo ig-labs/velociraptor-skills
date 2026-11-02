@@ -163,8 +163,10 @@ representative events with timestamp, endpoint, user, channel/event ID, and
 source reference. The Markdown never embeds the full payload or every event;
 the interesting-context ledger remains the complete hydrated result. Direct
 partition findings remain visible in progressive failed-run reports even when
-they did not require exact-payload hydration. A cumulative-synthesis exception
-must publish the report and both DetectRaptor ledgers with terminal `failed`
+they did not require exact-payload hydration. A partition chunk that fails
+every attempt is recorded value-free in `hunt-failed-chunks.json`, and the
+error names the file and chunk IDs. A cumulative-synthesis exception must
+publish the report and both DetectRaptor ledgers with terminal `failed`
 status while retaining the prior canonical checkpoint and resumable completed
 partitions.
 
