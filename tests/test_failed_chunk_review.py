@@ -186,6 +186,25 @@ def test_a_failure_after_the_input_changed_marks_the_waiver_lapsed(tmp_path):
     assert "lapsed_at" not in ledger.entries()[key]["decision"]
 
 
+def test_a_waiver_lapses_only_on_a_changed_input_and_survives_the_repair_record(tmp_path):
+    ledger = recovery.FailedChunkLedger(tmp_path / "failed-chunks.json", SCOPE)
+    key = _record(ledger)
+    ledger.waive(key, "Benign installer noise")
+    _record(ledger)
+    assert "lapsed_at" not in ledger.entries()[key]["decision"]
+
+    ledger.waive(key, "Benign installer noise")
+    changed = _failure(key.split(":", 1)[1], input_sha256="b" * 64)
+    for repair in ({"outcome": "pending"}, {"outcome": "failed"}):
+        ledger.record_failure(
+            key, {**changed, "repair": repair},
+            identity={"artifact": "Artifact.0"}, budget={}, next_steps={},
+        )
+    entry = ledger.entries()[key]
+    assert (entry["failure_count"], entry["repair"]["outcome"]) == (3, "failed")
+    assert recovery.failed_chunk_summary(key, entry)["waiver"] == "lapsed"
+
+
 def test_replanned_artifact_supersedes_chunks_it_no_longer_has(tmp_path):
     ledger = recovery.FailedChunkLedger(tmp_path / "failed-chunks.json", SCOPE)
     kept = _record(ledger, "Artifact.0:artifact-task-1-chunk-0")
@@ -798,22 +817,41 @@ def _rare_partition_fails():
 def test_detectraptor_partition_completed_in_a_failed_run_updates_the_record(tmp_path):
     api, artifact, scope = _detectraptor_hunt()
     path = tmp_path / "analysis" / coordinator.FAILED_CHUNKS_FILENAME
+    state_path = tmp_path / "analysis" / "hunt-analysis-state.json"
     with _rare_partition_fails():
-        for runner in (_HuntRunner(repair="PRIVATE_MODEL_OUTPUT"), _HuntRunner(broken=False)):
-            with pytest.raises(RuntimeError, match="partition stage failed|failed closed"):
-                _analyze_hunt(tmp_path, api, artifact, runner=runner, time_scope=scope)
+        # Run 1: the Rare stage fails and a Common chunk fails every attempt. The
+        # chunk is recorded against Common and the error names both failures.
+        with pytest.raises(
+            RuntimeError,
+            match=r"^Hunt analysis failed closed: .* DetectRaptor partition Rare also "
+            r"failed: partition stage failed$",
+        ):
+            _analyze_hunt(tmp_path, api, artifact,
+                          runner=_HuntRunner(repair="PRIVATE_MODEL_OUTPUT"), time_scope=scope)
+        run = json.loads(state_path.read_text())["runs"][-1]
+        [chunk_id] = run["failed_chunk_ids"]
+        assert run["active_detection"] == "Common"
+        assert len(run["failed_partition_ids"]) == 2
+        assert run["partition_id"] in run["failed_partition_ids"]
+        rerun = json.loads(path.read_text())["chunks"][chunk_id]["next"]["rerun"]
+        assert "reuses completed ones" in rerun
+        # Run 2: Common is accepted; only the Rare stage failure remains.
+        with pytest.raises(RuntimeError, match=r"^partition stage failed$"):
+            _analyze_hunt(tmp_path, api, artifact, runner=_HuntRunner(broken=False), time_scope=scope)
+        assert json.loads(state_path.read_text())["runs"][-1]["active_detection"] == "Rare"
     # The second run completed that partition; later runs reuse it without outcomes.
     [entry] = json.loads(path.read_text())["chunks"].values()
     assert entry["resolution"] == {"by": "acceptance"}
 
     path.unlink()
-    with _rare_partition_fails(), pytest.raises(RuntimeError, match="partition stage failed"):
+    with _rare_partition_fails(), pytest.raises(RuntimeError, match=r"^partition stage failed$"):
         _analyze_hunt(tmp_path / "repaired", api, artifact, time_scope=scope)
     ledger = json.loads((tmp_path / "repaired" / "analysis" / coordinator.FAILED_CHUNKS_FILENAME).read_text())
     [(chunk_id, entry)] = ledger["chunks"].items()
     assert entry["resolution"]["by"] == "repair"
     state = json.loads((tmp_path / "repaired" / "analysis" / "hunt-analysis-state.json").read_text())
     assert state["runs"][-1]["repaired_chunk_ids"] == [chunk_id]
+
 
 def _pending_then(ledger, key, repair, *, history_tail=(), evidence=None):
     failure = _failure(key.split(":", 1)[1])

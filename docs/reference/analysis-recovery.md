@@ -163,8 +163,11 @@ error names the record file and chunk IDs, and the run record carries
 Hunt chunks get the same repair call. Their record is written when the analysis
 run ends, and a run with repaired chunks lists them in `repaired_chunk_ids`. A
 failed DetectRaptor EVTX partition chunk ends the run with `failure_stage`
-`detectraptor_partition` and the same error, record and run fields; the rerun
-reviews that partition again and reuses completed partitions. Specialized
+`detectraptor_partition` and the same error, record and run fields. The run
+names the partition that holds the chunk; when several partitions failed,
+`failed_partition_ids` lists them and the error also names another partition's
+own failure. The rerun reviews failed partitions again and reuses completed
+ones. Specialized
 generic stack and Autoruns reviews (live `hunt analyze` stack and Autoruns
 workflows, and `--profile autoruns`) keep their one-retry part review with no
 repair call or `hunt-failed-chunks.json` entry: a failed stack part fails the

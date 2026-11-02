@@ -1925,6 +1925,10 @@ def _record_hunt_failed_chunks(
     outcomes: Iterable[Mapping[str, Any]],
     manifests: Mapping[str, Mapping[str, Any]],
     budget: Mapping[str, int],
+    rerun: str = (
+        "Rerun the same hunt analysis command; hunt analysis has no "
+        "chunk-level resume and reviews every chunk again."
+    ),
 ) -> None:
     """Record failed and repaired hunt chunks value-free; resolve accepted ones."""
     accepted = {
@@ -1948,10 +1952,7 @@ def _record_hunt_failed_chunks(
                 "chunk_id": chunk_id,
             },
             budget=dict(budget),
-            next_steps={
-                "rerun": "Rerun the same hunt analysis command; hunt analysis has no "
-                "chunk-level resume and reviews every chunk again.",
-            },
+            next_steps={"rerun": rerun},
             evidence=outcome.get("evidence"),
         )
     for chunk_id in sorted(accepted):
@@ -5853,7 +5854,6 @@ async def _analyze_hunt_flows_locked(
             peak_active_partition_count
         )
         if failures:
-            failed_partition, failure = failures[0]
             # Chunks of every partition reviewed in this run; completed partitions
             # are reused without their outcomes on the next run.
             reviewed_partitions = [
@@ -5875,6 +5875,12 @@ async def _analyze_hunt_flows_locked(
                 for item in partition_outcomes
                 if str(item.get("status") or "") == "accepted" and item.get("repair")
             )
+            chunk_failures = [item for item in failures if isinstance(item[1], DetectRaptorChunkError)]
+            other_failures = [item for item in failures if not isinstance(item[1], DetectRaptorChunkError)]
+            # Failed chunk IDs are recorded against the partition that holds them.
+            failed_partition, failure = (
+                chunk_failures[0] if failed_partition_chunks and chunk_failures else failures[0]
+            )
             failed_chunks_path = analysis_root / FAILED_CHUNKS_FILENAME
             if (
                 failed_partition_chunks
@@ -5893,6 +5899,10 @@ async def _analyze_hunt_flows_locked(
                         "validation_correction_attempts": analysis_configuration.validation_correction_attempts,
                         "provider_max_retries": spec.max_retries,
                     },
+                    rerun=(
+                        "Rerun the same hunt analysis command; it reviews failed "
+                        "DetectRaptor partitions again and reuses completed ones."
+                    ),
                 )
             completed_at = flow_analysis.now_utc()
             active = status_state.setdefault("active_analysis", {})
@@ -5940,6 +5950,15 @@ async def _analyze_hunt_flows_locked(
                         ),
                         **(
                             {
+                                "failed_partition_ids": [
+                                    partition.partition_id for partition, _ in failures
+                                ],
+                            }
+                            if len(failures) > 1
+                            else {}
+                        ),
+                        **(
+                            {
                                 "failed_chunks_file": str(failed_chunks_path),
                                 "repaired_chunk_ids": repaired_partition_chunks[
                                     :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
@@ -5964,9 +5983,15 @@ async def _analyze_hunt_flows_locked(
             write_state(state_path, status_state)
             persist_detectraptor_outputs(run_status="failed")
             if failed_partition_chunks:
-                raise _failed_closed_error(
-                    failed_chunks_path, failed_partition_chunks
-                ) from failure
+                error = _failed_closed_error(failed_chunks_path, failed_partition_chunks)
+                if other_failures:
+                    # Keep another partition's own failure visible beside the chunk failure.
+                    other_partition, other = other_failures[0]
+                    error = RuntimeError(
+                        f"{error} DetectRaptor partition {other_partition.detection} also "
+                        f"failed: {str(other)[:MAX_FAILED_CHUNK_ERROR_CHARS]}"
+                    )
+                raise error from failure
             raise failure
 
         evtx_interesting_context.sort(
