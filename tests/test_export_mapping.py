@@ -28,9 +28,15 @@ def test_detection_and_encoded_paths(tmp_path):
         detect(tmp_path, "windows-directory")
 
 
-@pytest.mark.parametrize("problem", ["size", "sparse", "symlink", "duplicate"])
+@pytest.mark.parametrize("problem", ["size", "sparse", "symlink", "duplicate", "non-windows"])
 def test_invalid_export(tmp_path, problem):
     source, row = fixture(tmp_path)
+    if problem == "non-windows":
+        # The upload exists with the right size, so only the drive check can reject it.
+        linux = tmp_path / "uploads/auto/etc/passwd"
+        linux.parent.mkdir(parents=True)
+        linux.write_bytes(b"evidence")
+        row["_Components"] = ["uploads", "auto", "etc", "passwd"]
     if problem == "size":
         source.write_bytes(b"x")
     if problem == "sparse":
@@ -40,7 +46,7 @@ def test_invalid_export(tmp_path, problem):
         source.symlink_to(tmp_path / "uploads.json")
     text = json.dumps(row) + "\n"
     (tmp_path / "uploads.json").write_text(text * (2 if problem == "duplicate" else 1))
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="Unsupported drive" if problem == "non-windows" else None):
         inventory(tmp_path)
 
 

@@ -16,7 +16,7 @@ retry; use exact existing requests and hunts when collection reuse is required.
 | Generic live hunt (stream) | Projected, time-filtered evidence is streamed through token chunk planning. Counts, source aliases and policy provenance are written to `analysis/analysis-preparation.json`; raw evidence stays transient. DetectRaptor EVTX retains detection partitioning and `--detection-regex` selection. |
 | Specialized live hunt (stack) | Existing deterministic reduction, stack outputs and bounded review items; no AI classification or finding consolidation. Uses curated stacks or the existing bounded fallback; AI field selection is disabled. Existing saved findings can remain in cumulative reports. |
 | Host / collection | Existing collection resolution and deterministic evidence preparation, followed by request-local `analysis/analysis-plan.json`. No AI checkpoint or cumulative AI report is advanced. The older `--plan-only` remains available for this same preparation path. |
-| Snapshot / `hunt analyze-saved` | These workflows already perform deterministic preparation without model execution. `--skip-ai` is accepted for command consistency. Existing explicit snapshot/export persistence settings still apply. |
+| Snapshot / `hunt analyze-saved` | These workflows already perform deterministic preparation without model execution. `--skip-ai` is accepted for command consistency. Existing explicit snapshot/export persistence settings still apply. Snapshot results report `status: prepared`, and `vraptor analyze --from` exits 2 with or without `--skip-ai`. |
 
 Results carry `ai_review_status: skipped` and `review_complete: false`.
 Preparation is not a clean finding or completed AI review, even when zero rows

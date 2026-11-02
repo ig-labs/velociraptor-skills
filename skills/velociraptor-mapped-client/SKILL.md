@@ -24,7 +24,8 @@ scripts under this skill directory.
 ## Required Inputs
 
 - an existing E01/raw image, mounted Windows volume, extracted Velociraptor
-  export, or Velociraptor KapeFiles collection ZIP
+  export, or Velociraptor KapeFiles collection ZIP; collections map Windows
+  drive uploads only, and results-only collector ZIPs are rejected
 - a working local Velociraptor executable, selected in operational TOML,
   with `VELO_BIN`, or with `--velociraptor-bin`; install it when missing with
   `vraptor tools prep -t velociraptor`
@@ -53,9 +54,10 @@ full copy of uploaded files. The source folder is never rewritten.
 The mapper checks uploaded sizes, hashes copied content, and probes reads for each
 accessor and drive. Resume checks the source inventory, remap hash and working-copy
 hashes. It rejects sparse/incomplete uploads, symlinks, duplicate virtual paths,
-unsupported accessors and VSS paths. An existing manual remap is not replaced;
-use a separate mapping workspace. Failed preparation can retain an incomplete
-view for inspection; inspect it before choosing a fresh workspace to retry.
+unsupported accessors, non-Windows (Linux/macOS) paths and VSS paths. An existing
+manual remap is not replaced; use a separate mapping workspace. Failed preparation
+can retain an incomplete view for inspection; inspect it before choosing a fresh
+workspace to retry.
 
 Only collected files are visible. Filesystem timestamps reflect extraction and
 are not original forensic timestamps. Available standard SYSTEM, SOFTWARE, SAM
@@ -66,7 +68,9 @@ Amcache hives are not mapped. Missing artifacts remain coverage gaps.
 
 Use `--evidence-type velociraptor-kapefiles-zip` (or `auto`) for a collection
 ZIP containing `uploads.json`, or an AES-protected Velociraptor `data.zip`
-container. The mapper mounts drive roots through the native `collector`
+container. A ZIP without `uploads.json` or without uploaded files, such as a
+results-only offline collector, is rejected, as are non-Windows drive paths.
+The mapper mounts drive roots through the native `collector`
 accessor and standard system registry hives through `raw_reg`; no extraction,
 import, or evidence working copy is needed. VQL probes verify each accessor/drive
 before the existing client/supervisor lifecycle starts. Source SHA-256, remap

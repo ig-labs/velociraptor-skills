@@ -1081,7 +1081,10 @@ def build_parser() -> argparse.ArgumentParser:
     remote_disk_cmd.add_argument(
         "--evidence-path",
         required=True,
-        help="Local E01/raw image or mounted Windows directory to expose read-only.",
+        help=(
+            "Local E01/raw image, mounted Windows directory, or Windows Velociraptor "
+            "collection folder or ZIP to expose read-only; the layout is auto-detected."
+        ),
     )
     remote_disk_cmd.add_argument(
         "--api-client",

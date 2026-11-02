@@ -74,9 +74,11 @@ the existing defaults. `analyze --help` lists this shared option group.
 Machine output is JSON with `--json` (analysis) or the retained `--format json`.
 Progress and deprecation messages go to stderr. Analysis exits 0 for completed
 work, 1 for runtime/transport failure, and 2 for incomplete review, including
-`--skip-ai` host or hunt preparation (`review_complete=false`; host status is `planned`). Argparse
-also uses 2 for invalid arguments. Inspect the result status, not the exit code
-alone. Legacy routes retain their existing exit/status behavior.
+`--skip-ai` host or hunt preparation and `--from` snapshot replay, which never
+runs AI (`review_complete=false`; host status is `planned`, hunt and snapshot
+status `prepared`). Argparse also uses 2 for invalid arguments. Inspect the
+result status, not the exit code alone. Legacy routes keep their exit codes;
+legacy `hunt analyze --snapshot` still exits 0 and reports `status: prepared`.
 
 Operational commands own one logger from dispatch to termination. Nested legacy
 routes reuse it; `summarize` and `ai test` use the same accounting as analysis.

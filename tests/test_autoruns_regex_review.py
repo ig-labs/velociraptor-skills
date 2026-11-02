@@ -16,6 +16,7 @@ from vraptor.analyze import source as review_source
 
 ROOT = Path(__file__).resolve().parents[1]
 BINARY = Path(resolve_velociraptor_binary(None, Path(__file__).resolve().parents[1]))
+requires_velociraptor = unittest.skipUnless(BINARY.is_file(), "Local Velociraptor binary unavailable")
 
 
 def configuration():
@@ -30,6 +31,8 @@ def production_configuration():
 
 
 def execute(rows, cap=20, config=None, **query_options):
+    if not BINARY.is_file():
+        raise unittest.SkipTest("Local Velociraptor binary unavailable")
     source = review_source.ReviewSource("test", "test", "IG.Windows.Sysinternals.Autoruns",
         "foreach(row=parse_json_array(data=gunzip(string=base64decode(string=TestRowsGzip))))", {})
     query, env, _ = review.build_query(config or configuration(), source=source, max_hostnames=cap, **query_options)

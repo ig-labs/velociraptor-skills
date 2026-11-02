@@ -2837,6 +2837,10 @@ def command_analyze_snapshot(
         output_root = snapshot_path.parent
     return {
         "action": "hunt_snapshot_analyzed",
+        # Snapshot replay prepares evidence only; it never runs AI review.
+        "status": "prepared",
+        "ai_review_status": "skipped",
+        "review_complete": False,
         "group": "",
         "hunt_count": len(results),
         "task_mode": task_mode,
@@ -2878,9 +2882,15 @@ def analysis_chat_summary_for_response(item: dict[str, Any]) -> str:
         ).strip()
     hunt_id = str(item.get("hunt_id") or "snapshot")
     status = str(item.get("status") or "complete")
+    stage = (
+        f"- Analysis: {analysis_summary.analysis_stage(item, status)}\n"
+        if item.get("ai_review_status") == "skipped"
+        else ""
+    )
     return (
         f"## Hunt {hunt_id} analysis summary\n\n"
         f"- Status: `{status}`\n"
+        f"{stage}"
         "- Detailed structured results are present in the command response."
     )
 

@@ -266,6 +266,12 @@ def manifest_with_path(path: Path | None) -> dict[str, Any] | None:
         return None
     payload = read_json_object(path, "Manifest")
     payload.setdefault("manifest_file", str(path))
+    # A relative output file belongs to the manifest folder, not the process CWD.
+    for key in ("exported_files", "downloaded_files"):
+        for item in payload.get(key) or []:
+            value = str(item.get("output_file") or "").strip() if isinstance(item, dict) else ""
+            if value and not Path(value).expanduser().is_absolute():
+                item["output_file"] = str(path.parent / value)
     return payload
 
 
@@ -2284,6 +2290,7 @@ def analyze_snapshot(
         write_json(model_review_manifest_path, model_review_manifest)
 
     summary = {
+        "status": "prepared",
         "ai_review_status": "skipped",
         "review_complete": False,
         "analysis_version": STACK_ANALYSIS_VERSION,

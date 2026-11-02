@@ -2049,6 +2049,62 @@ class HuntAnalysisTest(unittest.TestCase):
                     )
                 )
 
+    def test_relative_manifest_output_file_resolves_from_the_manifest_folder(self):
+        module = self.module
+        with tempfile.TemporaryDirectory() as tmpdir, tempfile.TemporaryDirectory() as elsewhere:
+            root = Path(tmpdir)
+            exports_dir = root / "IR6302" / "hunts" / "H.6302" / "exports"
+            csv_path = exports_dir / "Windows.EventLogs.EvtxHunter_full.csv"
+            self.write_csv(
+                csv_path,
+                [{"EventTime": "2026-06-01T07:00:00Z", "Provider": "Provider", "EventID": "1"}],
+            )
+            export_manifest_path = exports_dir / "velociraptor-hunting-export.json"
+            args = module.argparse.Namespace(
+                state_file=None,
+                export_manifest=str(export_manifest_path),
+                hunt_id=None,
+                download_manifest=None,
+                investigation_id=None,
+                case_root=str(root),
+                target=None,
+                artifact=[],
+                sample_limit=10,
+            )
+            results = []
+            # The process CWD must not decide which file a saved manifest names.
+            with contextlib.chdir(elsewhere):
+                for output_file in (csv_path.name, f"../../H.6303/exports/{csv_path.name}"):
+                    export_manifest_path.write_text(
+                        json.dumps(
+                            {
+                                "investigation_id": "IR6302",
+                                "hunt_id": "H.6302",
+                                "requested_artifacts": ["Windows.EventLogs.EvtxHunter"],
+                                "exported_files": [
+                                    {
+                                        "artifact": "Windows.EventLogs.EvtxHunter",
+                                        "artifact_name": "Windows.EventLogs.EvtxHunter",
+                                        "row_count": 1,
+                                        "output_file": output_file,
+                                    }
+                                ],
+                            }
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
+                    try:
+                        results.append(module.command_analyze(args))
+                    except RuntimeError as exc:
+                        results.append(str(exc))
+
+        accepted, rejected = results
+        self.assertIsInstance(accepted, dict, accepted)
+        self.assertEqual(Path(accepted["artifacts"][0]["source_file"]), csv_path.resolve())
+        self.assertEqual(accepted["artifacts"][0]["review_row_count_csv"], 1)
+        self.assertIn("is outside the expected hunt", rejected)
+
     def test_headerless_csv_falls_back_to_jsonl(self):
         module = self.module
         with tempfile.TemporaryDirectory() as tmpdir:

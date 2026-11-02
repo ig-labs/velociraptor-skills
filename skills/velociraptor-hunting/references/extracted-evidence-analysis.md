@@ -25,13 +25,18 @@ vraptor hunt snapshot \
   --hunt-id H.1234
 
 vraptor hunt analyze \
-  --snapshot /path/to/hunt-reviews/H.1234/snapshots/<snapshot>/snapshot.json \
+  --snapshot ~/cases/IR1234/hunts/H.1234/snapshots/<utc>-<fingerprint>/snapshot.json \
   --artifact-reference /path/to/site/artifact-profiles.json
 ```
 
+Use the exact `snapshots[].snapshot` path that `hunt snapshot` returns;
+`~/cases/IR1234/hunts/H.1234/latest.json` records the newest one.
+
 Chunk output is the default. It normalizes, deduplicates, accounts for evidence,
 and returns canonical token-bounded CSV chunk paths without writing derived
-analysis files.
+analysis files. Snapshot analysis never runs AI: results report
+`status: prepared`, `ai_review_status: skipped` and `review_complete: false`,
+and `vraptor analyze --from` exits 2.
 
 Request derived output only when reusable derived products are required:
 
@@ -78,6 +83,9 @@ vraptor hunt analyze-saved \
 
 A saved state file or explicit hunt directory may also identify the durable
 manifests. Do not use transient latest-action fields as evidence identity.
+A relative `output_file` resolves from the manifest's folder. Export-manifest
+files must stay under that hunt's `exports/` folder and download-manifest files
+under its `downloads/` folder.
 
 ## Review Method
 
@@ -112,7 +120,8 @@ not replace the immutable source export.
 
 ## Outputs
 
-Snapshot evidence remains under:
+Here `<hunt_root>` is `<case_root>/<id>/hunts/<hunt_id>` and `<snapshot_dir>`
+is `<hunt_root>/snapshots/<utc>-<fingerprint>`. Snapshot evidence remains under:
 
 ```text
 <snapshot_dir>/chunks/<artifact>/<client-or-host>/<sha256>.csv
@@ -121,10 +130,10 @@ Snapshot evidence remains under:
 Derived products may be written under:
 
 ```text
-<snapshot_dir>/analysis/
-<hunt_root>/analysis-cache/by-chunk/
+<snapshot_dir>/analysis-v8/
+<hunt_root>/analysis-cache/by-chunk/v8/
 ```
 
-Saved-manifest compatibility review writes under `<hunt_dir>/review/`.
+Saved-manifest compatibility review writes under `<hunt_root>/review/`.
 Unknown artifacts remain reviewable as chunks but receive
 `no_artifact_profile`; do not invent generic stack fields.

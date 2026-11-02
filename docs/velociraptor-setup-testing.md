@@ -54,12 +54,15 @@ Both local-server and remote-server mapped-client workflows support these inputs
 |---|---|---|
 | Windows disk image | `windows-disk` | Supported Windows disk image |
 | Windows folder / mounted volume | `windows-directory` | Windows directory tree |
-| Extracted Velociraptor KapeFiles collection | `velociraptor-export` | Extracted collection with `uploads.json` |
-| Velociraptor KapeFiles zip | `velociraptor-kapefiles-zip` | Collection ZIP, optionally AES-protected `data.zip` |
+| Extracted Velociraptor KapeFiles collection | `velociraptor-export` | Extracted Windows collection with `uploads.json` |
+| Velociraptor KapeFiles zip | `velociraptor-kapefiles-zip` | Windows collection ZIP with `uploads.json`, optionally AES-protected `data.zip` |
 
-`auto` detects supported collection folders and ZIP containers. These are input
-variants of the two offline deployment workflows, not additional server modes.
-Use a distinct mapping ID/workspace for each input binding.
+`auto` detects supported collection folders and ZIP containers. Collections map
+Windows drive uploads only; Linux/macOS collections and results-only collector
+ZIPs are rejected. `setup start` accepts `--evidence-type`; the lower-level
+`setup remote-deaddisk` auto-detects and `setup local-deaddisk` only verifies.
+These are input variants of the two offline deployment workflows, not additional
+server modes. Use a distinct mapping ID/workspace for each input binding.
 
 For ZIP acceptance, verify file enumeration, actual content reads, registry
 reads, client identity, heartbeat, supervisor health and same-identity resume.

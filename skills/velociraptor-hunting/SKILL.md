@@ -363,7 +363,7 @@ rejected with `--snapshot`. See the
 [query deadline contract](../../docs/reference/velociraptor-logging.md#optional-live-analysis-query-deadline).
 
 ```bash
-vraptor hunt analyze --id IR1234 --hunt-id H.1234 \
+vraptor hunt analyze --id IR1234 --hunt-id H.1234 --profile autoruns \
   --artifact IG.Windows.Sysinternals.Autoruns --query-timeout-seconds 1800
 ```
 
