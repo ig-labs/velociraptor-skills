@@ -168,6 +168,22 @@ def test_waiver_needs_a_reason_and_lapses_when_the_input_changes(tmp_path):
     assert entry["status"] == "failed" and entry["decision"]["revoked_at"]
 
 
+def test_a_failure_after_the_input_changed_marks_the_waiver_lapsed(tmp_path):
+    ledger = recovery.FailedChunkLedger(tmp_path / "failed-chunks.json", SCOPE)
+    key = _record(ledger)
+    ledger.waive(key, "Benign installer noise")
+    _record(ledger, input_sha256="b" * 64)
+    entry = ledger.entries()[key]
+    assert entry["status"] == "failed" and entry["decision"]["lapsed_at"]
+    assert entry["decision"]["input_sha256"] == "a" * 64
+    line = summary.failed_chunk_line(recovery.failed_chunk_summary(key, entry))
+    assert line.endswith(f"An earlier waiver lapsed: the chunk input changed. Key `{key}`.")
+    ledger.waive(key, "Reviewed again")
+    ledger.revoke_waivers()
+    _record(ledger)
+    assert "lapsed_at" not in ledger.entries()[key]["decision"]
+
+
 def test_replanned_artifact_supersedes_chunks_it_no_longer_has(tmp_path):
     ledger = recovery.FailedChunkLedger(tmp_path / "failed-chunks.json", SCOPE)
     kept = _record(ledger, "Artifact.0:artifact-task-1-chunk-0")
@@ -784,7 +800,9 @@ def test_ledger_pairs_only_a_pending_record_with_its_own_repair_result(tmp_path)
     _pending_then(ledger, key, {"outcome": "pending"})
     _pending_then(ledger, key, None)
     entry = ledger.entries()[key]
-    assert entry["failure_count"] == 3 and entry["evidence"] is None
+    # A later failure without an export keeps the pointer to the earlier one.
+    assert entry["failure_count"] == 3
+    assert entry["evidence"] == {"directory": "/case/debug/run1", "failure": 1}
     _pending_then(ledger, key, {"outcome": "pending"})
     ledger.resolve(key)
     entry = ledger.entries()[key]

@@ -92,6 +92,9 @@ accepted repair is resolved in that record and labelled `accepted after AI
 repair` in coverage and limitations. For a chunk that still fails, after operator review,
 `--waive-failed-chunk KEY --waive-reason TEXT` accepts the gap, and
 `--keep-failed-chunk-evidence` explicitly retains its prompts and raw responses.
+A waiver lapses when the chunk's rendered input changes, for example with a new
+question; the chunk is sent again, and if it fails the summary says `An earlier
+waiver lapsed` and the rows need a new operator review.
 Explicit `--reset-artifact` or `--reset-analysis` instead discards accepted work. These are local analysis operations and do not
 recollect. See [correction and recovery](../../../docs/reference/analysis-recovery.md)
 for diagnostics and the request-owned retention contract.

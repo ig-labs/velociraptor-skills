@@ -451,6 +451,16 @@ class FailedChunkLedger:
                 and repair.get("outcome") in {"failed", "unrepairable"}
             )
             now = clock.now_utc()
+            failure_count = int(prior.get("failure_count") or 0) + (0 if same_event else 1)
+            inputs = _safe_inputs(
+                {**dict(diagnostics.get("coverage") or {}), **dict(diagnostics.get("inputs") or {})}
+            )
+            decision = dict(prior.get("decision") or {})
+            if prior.get("status") == "waived" and decision.get("input_sha256") != inputs.get(
+                "input_sha256"
+            ):
+                # A waived chunk is sent again only after its rendered input changed.
+                decision["lapsed_at"] = now
             self.payload["chunks"][key] = {
                 **{
                     name: value
@@ -463,12 +473,10 @@ class FailedChunkLedger:
                 "status": "failed",
                 "attempts": diagnostics.get("attempts", 0),
                 "budget": dict(budget),
-                "inputs": _safe_inputs(
-                    {**dict(diagnostics.get("coverage") or {}), **dict(diagnostics.get("inputs") or {})}
-                ),
+                "inputs": inputs,
                 "first_failed_at": prior.get("first_failed_at") or now,
                 "last_failed_at": prior["last_failed_at"] if same_event else now,
-                "failure_count": int(prior.get("failure_count") or 0) + (0 if same_event else 1),
+                "failure_count": failure_count,
                 "final": {
                     "category": last.get("category", "analysis_error"),
                     "defect_codes": sorted(
@@ -484,8 +492,10 @@ class FailedChunkLedger:
                 },
                 "attempt_history": history,
                 **({"repair": repair} if repair else {}),
-                "evidence": prior.get("evidence") if evidence is None and same_event else evidence,
-                "decision": prior.get("decision"),
+                # An export stays referenced until a later one replaces it; ``failure``
+                # names the failure_count it belongs to.
+                "evidence": prior.get("evidence") if evidence is None else {**evidence, "failure": failure_count},
+                "decision": decision or None,
                 "next": dict(next_steps),
             }
             self._prune()
@@ -505,7 +515,7 @@ class FailedChunkLedger:
                 elif dict(entry.get("repair") or {}).get("outcome") == "pending":
                     entry.pop("repair")
                 if evidence is not None:
-                    entry["evidence"] = evidence
+                    entry["evidence"] = {**evidence, "failure": entry.get("failure_count", 0)}
                 self._save()
 
     def supersede(self, artifact: str, current: set[str]) -> None:
@@ -604,6 +614,11 @@ def failed_chunk_summary(key: str, entry: dict) -> dict:
         **(
             {"reason": dict(entry.get("decision") or {}).get("reason", "")}
             if entry.get("status") == "waived"
+            else {}
+        ),
+        **(
+            {"waiver": "lapsed"}
+            if entry.get("status") == "failed" and dict(entry.get("decision") or {}).get("lapsed_at")
             else {}
         ),
         **({"repair": dict(entry["repair"])} if entry.get("repair") else {}),

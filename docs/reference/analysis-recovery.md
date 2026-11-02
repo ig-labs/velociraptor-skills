@@ -145,7 +145,11 @@ is not analysed: the artifact publishes its accepted chunks as
 `complete_with_failures`, the waived rows and reason are passed to synthesis as a
 coverage gap, and summaries show `waived by operator, not analysed: REASON`. The
 entry records the reason, time and input hash; the waiver lapses when the
-rendered chunk changes (source, question, configuration or prompt). Use
+rendered chunk changes (question, configuration or prompt). Changed source rows
+re-plan the chunk under a new key and mark the old entry `superseded`. A lapsed
+chunk is sent again; if it fails, the entry is `failed` again, its decision gains
+`lapsed_at`, and summaries add `An earlier waiver lapsed: the chunk input
+changed.` Review the rows again before a new waiver. Use
 `--retry-waived` to revoke the request's waivers and send those chunks again. An
 artifact with no accepted chunk still fails. `--reset-artifact NAME` discards the
 artifact's accepted chunks instead.
@@ -170,8 +174,11 @@ prompt and reply, under `<case-root>/<id>/debug/failed-chunks/<UTC timestamp>-<s
 as `failed-NNN.attempt-NNN.prompt.txt`, `.response.txt` and `.error.txt` with a
 `manifest.json`. Files are mode `0600` in `0700` directories. This is an explicit
 `interoperability_export` containing evidence and untrusted model output; the
-review entry references it by path and SHA-256. Remove it explicitly when no
-longer needed.
+review entry references it by path and SHA-256, with `failure` set to the
+`failure_count` it was exported for. A later failure without the option keeps
+that reference; only a new export replaces it. The `next` commands do not repeat
+the option: add it again to export the next failure. Remove the export explicitly
+when no longer needed; the reference is not removed with it.
 
 ## Troubleshooting and retention
 

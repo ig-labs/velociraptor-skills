@@ -761,9 +761,12 @@ def failed_chunk_line(chunk: Mapping[str, Any]) -> str:
         if repair.get("reason") in skipped
         else ""
     )
+    lapsed = (
+        " An earlier waiver lapsed: the chunk input changed." if chunk.get("waiver") == "lapsed" else ""
+    )
     return (
         f"{where} failed after {chunk.get('attempts', 0)} attempts: "
-        f"{chunk.get('category', 'analysis_error')}; {codes}.{tried} Key `{chunk.get('key', '')}`."
+        f"{chunk.get('category', 'analysis_error')}; {codes}.{tried}{lapsed} Key `{chunk.get('key', '')}`."
     )
 
 

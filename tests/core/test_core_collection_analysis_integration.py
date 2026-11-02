@@ -561,7 +561,8 @@ class CollectionAnalysisIntegrationTest(unittest.TestCase):
             ), mock.patch.object(
                 collection_analysis_cli, "create_agent_runner", return_value=runner,
             ):
-                first = run()
+                with prompt_debug.session(Path(directory), 0, keep_failed=True):
+                    first = run(keep_failed_chunk_evidence=True)
                 troubleshooting = first["analysis_result"]["troubleshooting"]
                 ledger_path = Path(troubleshooting["failed_chunks_file"])
                 ledger = json.loads(ledger_path.read_text())
@@ -573,9 +574,15 @@ class CollectionAnalysisIntegrationTest(unittest.TestCase):
                 self.assertEqual(entry["inputs"]["task_chunk_index"], 1)
                 self.assertEqual(entry["inputs"]["task_chunk_count"], 2)
                 self.assertIn("--waive-failed-chunk", entry["next"]["waive"])
+                # The export flag is an explicit choice per run, never carried forward.
+                self.assertNotIn("--keep-failed-chunk-evidence", entry["next"]["retry"])
+                self.assertNotIn("--keep-failed-chunk-evidence", entry["next"]["waive"])
                 self.assertNotIn("PRIVATE_MODEL_OUTPUT", ledger_path.read_text())
                 self.assertEqual([item["key"] for item in troubleshooting["failed_chunks"]], [key])
                 self.assertEqual(calls.count(entry["task_id"]), 3)
+                exported = entry["evidence"]
+                self.assertEqual(exported["failure"], 1)
+                self.assertTrue(Path(exported["directory"], "manifest.json").is_file())
 
                 with self.assertRaisesRegex(RuntimeError, "--waive-reason"):
                     run(waive_failed_chunk=[key])
@@ -602,6 +609,18 @@ class CollectionAnalysisIntegrationTest(unittest.TestCase):
                     [item["status"] for item in second["analysis_result"]["troubleshooting"]["failed_chunks"]],
                     ["waived"],
                 )
+
+                # A new question changes the rendered chunk: the waiver lapses and
+                # the earlier export stays referenced.
+                third = run(question="Which execution activity needs operator review?", retry_failed=True)
+                self.assertEqual(calls.count(entry["task_id"]), 6)
+                lapsed = json.loads(ledger_path.read_text())["chunks"][key]
+                self.assertEqual((lapsed["status"], lapsed["failure_count"]), ("failed", 2))
+                self.assertEqual(lapsed["decision"]["reason"], "Rows reviewed manually in Velociraptor")
+                self.assertTrue(lapsed["decision"]["lapsed_at"])
+                self.assertEqual(lapsed["evidence"], exported)
+                self.assertIn("An earlier waiver lapsed: the chunk input changed.", third["chat_summary"])
+                self.assertNotIn("--keep-failed-chunk-evidence", lapsed["next"]["retry"])
 
     def test_exhausted_chunk_is_logged_then_repaired_and_labelled(self):
         api = PaginatedFixtureApi(self.fixture, page_size=2)
@@ -677,6 +696,7 @@ class CollectionAnalysisIntegrationTest(unittest.TestCase):
             self.assertIn("Chunk coverage: 2/2 chunks accepted (1 after AI repair)", report)
             state = json.loads(Path(result["host_state_file"]).read_text())
             self.assertEqual(state["artifacts"]["Artifact.Multi"]["result_status"], "complete")
+            self.assertEqual(entry["evidence"]["failure"], 1)
             manifest = json.loads(
                 (Path(entry["evidence"]["directory"]) / "manifest.json").read_text()
             )
