@@ -230,10 +230,11 @@ def test_native_cli_diagnostics_control_provisioning(tmp_path, capsys, scenario,
 
 
 def args(**changes):
-    return argparse.Namespace(provision_api=True, api_user="selected", org_id="root",
-                              api_role_profile="provisioning-admin", server_profile="lab",
-                              server_ip="192.0.2.10", bootstrap_api_config=None,
-                              bootstrap_api_user=None, api_account_ready=False, **changes)
+    return argparse.Namespace(**{"provision_api": True, "api_user": "selected", "org_id": "root",
+                                 "api_role_profile": "provisioning-admin", "server_profile": "lab",
+                                 "server_ip": "192.0.2.10", "bootstrap_api_config": None,
+                                 "bootstrap_api_user": None, "api_account_ready": False,
+                                 "api_account_setup": False, "api_client": None, **changes})
 
 
 def snapshot(tmp_path):
@@ -251,6 +252,92 @@ def test_generic_requires_manual_account_setup_without_ssh(tmp_path, monkeypatch
     selected.api_account_ready = True
     assert provisioning.prepare_account(selected, snapshot(tmp_path))["status"] == "manual"
     run.assert_not_called()
+
+
+def cached_api(tmp_path, monkeypatch, identity="selected", verify=None):
+    api = tmp_path / "api.yaml"
+    api.write_text("cached")
+    monkeypatch.setattr(readiness, "validate_api_client_security", lambda path: {"identity": identity})
+    verify = verify or Mock(return_value={})
+    monkeypatch.setattr(readiness, "verify_api_authorization", verify)
+    monkeypatch.setattr(provisioning.subprocess, "run", Mock(side_effect=AssertionError("No SSH")))
+    return str(api), verify
+
+
+def test_generic_skips_manual_step_when_cached_yaml_works(tmp_path, monkeypatch, capsys):
+    api, verify = cached_api(tmp_path, monkeypatch)
+    monkeypatch.setattr(provisioning.sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr("builtins.input", Mock(side_effect=AssertionError("No prompt")))
+    assert provisioning.prepare_account(args(api_client=api), snapshot(tmp_path)) is None
+    verify.assert_called_once_with(Path(api), api_user="selected", role_profile="provisioning-admin")
+    captured = capsys.readouterr()
+    assert not captured.out
+    assert "already works" in captured.err and "--api-account-setup" in captured.err
+
+
+@pytest.mark.parametrize(("answer", "expected"), [("", None), ("n", None), ("yes", "manual")])
+def test_interactive_setup_offers_manual_step_when_cached_yaml_works(tmp_path, monkeypatch, capsys,
+                                                                     answer, expected):
+    api, _ = cached_api(tmp_path, monkeypatch)
+    monkeypatch.setattr(provisioning.sys.stdin, "isatty", lambda: True)
+    prompt = Mock(side_effect=[answer, "y"])
+    monkeypatch.setattr("builtins.input", prompt)
+    result = provisioning.prepare_account(args(api_client=api), snapshot(tmp_path))
+    assert (result or {}).get("status") == expected
+    assert "Run the manual account step anyway?" in prompt.call_args_list[0].args[0]
+    shown = "Manual API account setup" in capsys.readouterr().out
+    assert shown is (expected == "manual")
+    assert prompt.call_count == (2 if expected else 1)
+
+
+@pytest.mark.parametrize("case", ["api_account_setup", "other_identity", "invalid_credential", "verify_fails",
+                                  "missing_file", "force", "regenerate_remote_api"])
+def test_generic_runs_manual_step_unless_cached_yaml_works(tmp_path, monkeypatch, case):
+    verify = Mock(side_effect=RuntimeError("Live API role profile is missing required roles"))
+    api, verify = cached_api(tmp_path, monkeypatch, identity="other" if case == "other_identity" else "selected",
+                             verify=verify if case == "verify_fails" else None)
+    if case == "invalid_credential":
+        monkeypatch.setattr(readiness, "validate_api_client_security",
+                            Mock(side_effect=RuntimeError("Velociraptor API credential validation failed: expired")))
+    selected = args(api_client=str(tmp_path / "absent.yaml") if case == "missing_file" else api,
+                    api_account_setup=case == "api_account_setup", force=case == "force",
+                    regenerate_remote_api=case == "regenerate_remote_api")
+    monkeypatch.setattr(provisioning.sys.stdin, "isatty", lambda: False)
+    with pytest.raises(RuntimeError, match="Manual API account setup"):
+        provisioning.prepare_account(selected, snapshot(tmp_path))
+    assert verify.call_count == (1 if case == "verify_fails" else 0)
+
+
+@pytest.mark.parametrize("interactive", [False, True])
+def test_account_ready_skips_cached_check_and_prompts(tmp_path, monkeypatch, capsys, interactive):
+    api, verify = cached_api(tmp_path, monkeypatch)
+    monkeypatch.setattr(provisioning.sys.stdin, "isatty", lambda: interactive)
+    monkeypatch.setattr("builtins.input", Mock(side_effect=AssertionError("No prompt")))
+    selected = args(api_client=api, api_account_ready=True, api_account_setup=True)
+    assert provisioning.prepare_account(selected, snapshot(tmp_path)) == {
+        "status": "manual", "api_user": "selected", "org_id": "root"}
+    verify.assert_not_called()
+    assert not capsys.readouterr().err
+
+
+def test_bootstrap_ignores_cached_check(tmp_path, monkeypatch):
+    api, verify = cached_api(tmp_path, monkeypatch)
+    monkeypatch.setattr("vraptor.readiness_state.api_metadata", lambda path: {"ca_sha256": "a" * 64})
+    receipt = {"status": "existing", "api_user": "selected", "org_id": "root", "ca_sha256": "a" * 64}
+    run = Mock(return_value=SimpleNamespace(returncode=0, stdout=json.dumps(receipt)))
+    monkeypatch.setattr(provisioning.subprocess, "run", run)
+    selected = args(api_client=api, bootstrap_api_config="/secure/admin.yaml", bootstrap_api_user="bootstrap-admin")
+    assert provisioning.prepare_account(selected, snapshot(tmp_path)) == receipt
+    assert run.call_count == 1
+    verify.assert_not_called()
+
+
+def test_account_setup_flag_is_manual_only(tmp_path, monkeypatch):
+    selected = args(api_account_setup=True, bootstrap_api_config="/secure/admin.yaml",
+                    bootstrap_api_user="bootstrap-admin")
+    monkeypatch.setattr(provisioning.subprocess, "run", Mock(side_effect=AssertionError("No SSH")))
+    with pytest.raises(ValueError, match="--api-account-setup applies only to manual"):
+        provisioning.prepare_account(selected, snapshot(tmp_path))
 
 
 def test_remote_bootstrap_keeps_key_remote_and_returns_only_receipt(tmp_path, monkeypatch):

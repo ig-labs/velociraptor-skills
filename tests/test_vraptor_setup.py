@@ -183,6 +183,38 @@ def test_provisioning_uses_selected_user_through_fetch_and_readiness(workstation
     assert saved(workstation)["status"] == "ready"
 
 
+def test_provisioning_with_working_cached_yaml_skips_manual_account_step(workstation, monkeypatch, capsys):
+    api = workstation / "api.yaml"
+    api.touch()
+    monkeypatch.setattr(setup.subprocess, "run", Mock(side_effect=AssertionError("No SSH with cached YAML")))
+    monkeypatch.setattr("builtins.input", Mock(side_effect=AssertionError("No prompt")))
+    monkeypatch.setattr(readiness, "validate_api_client_security", lambda _: {"identity": "vraptor_alice"})
+    monkeypatch.setattr(readiness, "command_live_remote", ready)
+    assert invoke(workstation, "start", "--mode", "live-remote", "--api-client", str(api),
+                  "--provision-api", "--api-user", "vraptor_alice") == 0
+    readiness.verify_api_authorization.assert_called_once()
+    assert "--api-account-setup to run it anyway" in capsys.readouterr().err
+    assert saved(workstation)["status"] == "ready"
+    command = ("start", "--mode", "live-remote", "--api-client", str(api),
+               "--provision-api", "--api-account-setup", "--api-user", "vraptor_alice")
+    assert invoke(workstation, *command) == 1
+    assert "rerun the same setup command with --api-account-ready" in capsys.readouterr().err
+    # Following the printed instructions literally completes setup.
+    readiness.verify_api_authorization.reset_mock()
+    assert invoke(workstation, *command, "--api-account-ready") == 0
+    readiness.verify_api_authorization.assert_called_once()
+    assert saved(workstation)["status"] == "ready"
+
+
+def test_account_setup_flag_requires_provisioning(workstation, monkeypatch, capsys):
+    api = workstation / "api.yaml"
+    api.touch()
+    monkeypatch.setattr(readiness, "command_live_remote", Mock(side_effect=AssertionError("No readiness")))
+    assert invoke(workstation, "start", "--mode", "live-remote", "--api-client", str(api),
+                  "--api-user", "vraptor_alice", "--api-account-setup") == 1
+    assert "--api-account-setup requires --provision-api" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("interactive", [False, True])
 def test_manual_remote_preparation_requires_continue(workstation, monkeypatch, capsys, interactive):
     calls = []

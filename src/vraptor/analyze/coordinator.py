@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from vraptor.analyze import chunk_repair
 from vraptor.analyze import prompt_debug
 
 import asyncio
@@ -61,6 +62,7 @@ from vraptor.logging import operations as operation_log
 
 
 STATE_FILENAME = "hunt-analysis-state.json"
+FAILED_CHUNKS_FILENAME = "hunt-failed-chunks.json"
 REPORT_FILENAME = "analysis-hunt.md"
 VALIDATION_DEBUG_FILENAME = "hunt-analysis-validation-debug.json"
 OUTPUT_CONTRACT = "validated-hunt-analysis-summary-v3"
@@ -1853,6 +1855,123 @@ def _compact_chunk_attempt_failure(
     return result
 
 
+def _cap_attempt_failures(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep terminal failures first under the cap, then report in chunk order."""
+    def order(item: dict[str, Any]) -> tuple[int, str, int]:
+        return int(item["ordinal"]), str(item["chunk_id"]), int(item["attempt"])
+
+    kept = sorted(records, key=lambda item: (item["status"] != "failed", *order(item)))
+    return sorted(kept[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN], key=order)
+
+
+def _manifest_references(manifest: Mapping[str, Any]) -> dict[str, str]:
+    return {
+        key: str(manifest[key])
+        for key in ("first_reference", "last_reference")
+        if manifest.get(key)
+    }
+
+
+def _failed_chunk_review(outcome: Mapping[str, Any]) -> dict[str, Any]:
+    """Value-free review record, rebuilt from compact attempt codes if absent."""
+    if isinstance(outcome.get("review"), Mapping):
+        return dict(outcome["review"])
+    return recovery.task_diagnostics(
+        {
+            "stage": "chunk",
+            "status": "failed",
+            "attempts": int(outcome.get("attempts") or 0),
+            "attempt_history": [
+                {
+                    "attempt": item.get("attempt"),
+                    "status": item.get("status"),
+                    "diagnostics": [
+                        {"code": code} for code in item.get("diagnostic_codes") or []
+                    ],
+                    "run": {
+                        "status": "failed",
+                        "error_classification": str(item.get("failure_type") or ""),
+                    },
+                }
+                for item in outcome.get("attempt_failures") or []
+                if isinstance(item, Mapping)
+            ],
+        }
+    )
+
+
+class DetectRaptorChunkError(RuntimeError):
+    """A partition chunk failed every attempt; carries value-free outcomes for the hunt ledger."""
+
+    def __init__(
+        self,
+        outcomes: Iterable[Mapping[str, Any]],
+        manifests: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        super().__init__("DetectRaptor detection chunk analysis was not accepted.")
+        self.outcomes = [
+            {str(key): value for key, value in dict(item).items() if str(key) != "result"}
+            for item in outcomes
+        ]
+        self.manifests = {str(key): dict(value) for key, value in manifests.items()}
+
+
+def _record_hunt_failed_chunks(
+    path: Path,
+    *,
+    hunt_id: str,
+    org_id: str,
+    failed: Mapping[str, Mapping[str, Any]],
+    outcomes: Iterable[Mapping[str, Any]],
+    manifests: Mapping[str, Mapping[str, Any]],
+    budget: Mapping[str, int],
+    rerun: str = (
+        "Rerun the same hunt analysis command; hunt analysis has no "
+        "chunk-level resume and reviews every chunk again."
+    ),
+) -> None:
+    """Record failed and repaired hunt chunks value-free; resolve accepted ones."""
+    accepted = {
+        str(outcome.get("chunk_id") or ""): outcome
+        for outcome in outcomes
+        if str(outcome.get("status") or "") == "accepted"
+        and str(outcome.get("chunk_id") or "") not in failed
+    }
+    repaired = {key: outcome for key, outcome in accepted.items() if outcome.get("repair")}
+    ledger = recovery.FailedChunkLedger(
+        path, {"kind": "hunt", "hunt_id": hunt_id, "org_id": org_id},
+    )
+    for chunk_id, outcome in sorted({**failed, **repaired}.items()):
+        # Repaired chunks are logged as failures first, then resolved by the repair.
+        ledger.record_failure(
+            chunk_id,
+            _failed_chunk_review(outcome),
+            identity={
+                "artifact": str(dict(manifests.get(chunk_id) or {}).get("artifact") or ""),
+                "hunt_id": hunt_id,
+                "chunk_id": chunk_id,
+            },
+            budget=dict(budget),
+            next_steps={"rerun": rerun},
+            evidence=outcome.get("evidence"),
+        )
+    for chunk_id in sorted(accepted):
+        ledger.resolve(chunk_id, repair=dict(repaired.get(chunk_id) or {}).get("repair"))
+
+
+def _failed_closed_error(path: Path, chunk_ids: Iterable[str]) -> RuntimeError:
+    """The fail-closed hunt error names the review file and the failed chunk IDs."""
+    keys = sorted(chunk_ids)
+    return RuntimeError(
+        f"Hunt analysis failed closed: {len(keys)} chunk(s) were not accepted. "
+        "No synthesis checkpoint or update cursor was advanced. "
+        f"Review {path} (chunks: "
+        + ", ".join(keys[:10])
+        + (", ..." if len(keys) > 10 else "")
+        + ")."
+    )
+
+
 def _bounded_chunk_attempt_failures(
     outcomes: Iterable[Mapping[str, Any]],
     manifests: Mapping[str, Mapping[str, Any]],
@@ -1896,18 +2015,11 @@ def _bounded_chunk_attempt_failures(
                     "artifact": str(manifest.get("artifact") or "unknown"),
                     "row_count": int(manifest.get("row_count") or 0),
                     "input_tokens": int(manifest.get("input_tokens") or 0),
+                    **_manifest_references(manifest),
                     **compact,
                 }
             )
-    records.sort(
-        key=lambda item: (
-            int(item["ordinal"]),
-            str(item["chunk_id"]),
-            int(item["attempt"]),
-        )
-    )
-    total = len(records)
-    return records[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN], total
+    return _cap_attempt_failures(records), len(records)
 
 
 def compact_persisted_evidence(state: dict[str, Any]) -> None:
@@ -2649,6 +2761,8 @@ def iter_streaming_chunk_work(
             "artifact": str(public_chunk["artifact"]),
             "row_count": int(public_chunk["row_count"]),
             "input_tokens": int(public_chunk["input_tokens"]),
+            "first_reference": next(iter(source_rows), ""),
+            "last_reference": next(reversed(source_rows), ""),
         }
         if on_chunk is not None:
             on_chunk(manifest)
@@ -2703,6 +2817,45 @@ def iter_streaming_chunk_work(
         del work
 
 
+def _streaming_review_record(
+    base_task: AgentRequest,
+    chunk: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    review_history: list[dict[str, Any]],
+    attempts: int,
+    repair: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Raw record for recovery.task_diagnostics; it never leaves the chunk coroutine unfiltered."""
+    return {
+        "task_id": base_task.task_id,
+        "stage": "chunk",
+        "status": "accepted" if dict(repair or {}).get("outcome") == "repaired" else "failed",
+        "attempts": attempts,
+        "attempt_history": review_history,
+        "coverage": {
+            key: chunk[key]
+            for key in ("row_start", "row_end", "row_count", "task_chunk_index", "task_chunk_count")
+        },
+        "inputs": {
+            "input_sha256": recovery.fingerprint(base_task.prompt),
+            **{key: manifest[key] for key in ("ordinal", "input_tokens") if key in manifest},
+            **_manifest_references(manifest),
+        },
+        **({"repair": repair} if repair else {}),
+    }
+
+
+def _repaired_chunk_line(artifact: str, manifest: Mapping[str, Any], repair: Any) -> str:
+    """Hunt chunks are named by reference range and ledger key; their row positions are per-chunk."""
+    return analysis_summary.failed_chunk_line({
+        **_manifest_references(dict(manifest)),
+        "artifact": artifact,
+        "key": str(manifest.get("chunk_id") or ""),
+        "status": "resolved",
+        "repair": recovery.safe_repair(repair),
+    })
+
+
 async def _execute_streaming_chunk_work_async(
     work: Mapping[str, Any],
     *,
@@ -2728,9 +2881,23 @@ async def _execute_streaming_chunk_work_async(
     final_error = "chunk analysis failed"
     final_diagnostics: list[dict[str, Any]] = []
     attempt_failures: list[dict[str, Any]] = []
+    # Raw outputs stay in this coroutine; only value-free review data leaves it.
+    review_history: list[dict[str, Any]] = []
+    attempt_prompts: list[str] = []
+    correction_defects: list[dict[str, Any]] = []
     correction_attempts = analysis_limits.correction_attempts(work.get(
         "correction_attempts", analysis_limits.DEFAULT_VALIDATION_CORRECTION_ATTEMPTS))
-    for attempt in range(1, correction_attempts + 2):
+    policy = chunk_repair.active()
+    repair_reply: chunk_repair.RepairReply | None = None
+    repair_attempt = 0
+    findings_before = 0
+    skipped_repair = ""
+    for attempt in range(1, correction_attempts + 3):
+        repairing = attempt == repair_attempt
+        if attempt > correction_attempts + 1 and not repairing:
+            break
+        started_at = flow_analysis.now_utc()
+        attempt_prompts.append(task.prompt)
         run = None
         failure_type = "agent_failed"
         error_class = ""
@@ -2770,9 +2937,29 @@ async def _execute_streaming_chunk_work_async(
             failure_type = f"agent_{str(run.status or 'failed')}"
             final_diagnostics = []
             if run.status == "succeeded":
-                try:
-                    normalized = collection_analysis.validate_context_worker_result(
+                text: str | None = run.output
+                if repairing:
+                    repair_reply = chunk_repair.parse_repair_response(
                         run.output,
+                        defect_codes=[str(item.get("code") or "") for item in correction_defects],
+                        source_refs=set(source_rows),
+                        previous_line_count=len(
+                            str(review_history[-1]["run"].get("output") or "").splitlines()
+                        ),
+                    )
+                    text = repair_reply.body
+                try:
+                    if text is None:
+                        raise collection_analysis.WorkerResultError(
+                            "repair response has no REPAIRED body",
+                            diagnostics=[{
+                                "code": "repair_unrepairable"
+                                if repair_reply is not None and repair_reply.unrepairable
+                                else "repair_missing_body"
+                            }],
+                        )
+                    normalized = collection_analysis.validate_context_worker_result(
+                        text,
                         artifact=str(chunk["artifact"]),
                         chunk_index=int(chunk["task_chunk_index"]),
                         chunk_count=int(chunk["task_chunk_count"]),
@@ -2801,6 +2988,20 @@ async def _execute_streaming_chunk_work_async(
                 )
                 artifact_result["question"] = str(work["question"]).strip()
                 _add_provenance(artifact_result, dict(work["provenance"]))
+                repair = (
+                    chunk_repair.summary(
+                        repair_reply, outcome="repaired", attempt=attempt,
+                        findings_before=findings_before,
+                        findings_after=len(normalized.get("findings") or []),
+                    )
+                    if repairing
+                    else None
+                )
+                if repair is not None:
+                    artifact_result["limitations"] = [
+                        *list(artifact_result.get("limitations") or []),
+                        _repaired_chunk_line(str(chunk["artifact"]), dict(work["manifest"]), repair),
+                    ]
                 if progress_callback is not None:
                     progress_callback(
                         {
@@ -2818,6 +3019,25 @@ async def _execute_streaming_chunk_work_async(
                     "result": artifact_result,
                     "attempt_failures": attempt_failures,
                 }
+                if repair is not None:
+                    review_history.append({
+                        "attempt": attempt, "status": "accepted", "repair": True,
+                        "error": "", "diagnostics": [],
+                        "started_at": started_at, "completed_at": flow_analysis.now_utc(),
+                        "run": {"status": run.status, "output": run.output},
+                    })
+                    outcome["repair"] = repair
+                    outcome["review"] = recovery.task_diagnostics(
+                        _streaming_review_record(base_task, chunk, dict(work["manifest"]), review_history, attempt, repair)
+                    )
+                    outcome["evidence"] = prompt_debug.capture_failed_chunk(
+                        key=str(dict(work["manifest"])["chunk_id"]),
+                        prompts=attempt_prompts,
+                        record={"attempt_history": review_history},
+                        source_ids=sorted(
+                            {str(row.get("_SourceId") or "") for row in source_rows.values()} - {""}
+                        ),
+                    )
                 release_ephemeral_payload()
                 return outcome
         except Exception as exc:  # executor failures must become bounded outcomes
@@ -2834,20 +3054,62 @@ async def _execute_streaming_chunk_work_async(
         # model request is only a semantic correction for a successful provider
         # response that failed deterministic output validation.
         retryable = attempt <= correction_attempts and failure_type == "validation_failed"
+        # A validation failure that used the whole budget gets one repair call.
+        repair_next = (
+            not retryable and not repairing and policy is not None
+            and failure_type == "validation_failed"
+        )
+        repair_prompt: str | None = None
+        if repair_next:
+            runner_limits = getattr(runner, "limits", None)
+            repair_prompt = chunk_repair.build_repair_prompt(
+                base_task.prompt,
+                defects=final_diagnostics,
+                earlier_defects=correction_defects,
+                previous_output=str(getattr(run, "output", "") or ""),
+                rejected_count=attempt,
+                fits=chunk_repair.input_fits(
+                    getattr(runner_limits, "maximum_input_tokens", None),
+                    getattr(runner_limits, "token_encoding", None),
+                ),
+            )
+            if repair_prompt is None:
+                repair_next, skipped_repair = False, "repair_prompt_too_large"
+            elif not policy.claim():
+                repair_next, skipped_repair = False, "repair_limit_reached"
+        if final_error.startswith("Agent prompt exceeds maximum input tokens"):
+            failure_type = "input_limit"
         attempt_failures.append(
             _compact_chunk_attempt_failure(
                 attempt=attempt,
-                status="retrying" if retryable else "failed",
-                failure_type=(
-                    "input_limit"
-                    if final_error.startswith(
-                        "Agent prompt exceeds maximum input tokens"
-                    )
-                    else failure_type
-                ),
+                status="retrying" if retryable or repair_next else "failed",
+                failure_type=failure_type,
                 error=final_error,
                 diagnostics=[*initial_diagnostics, *final_diagnostics],
             )
+        )
+        completed_run = run is not None and not inspect.isawaitable(run)
+        review_history.append(
+            {
+                "attempt": attempt,
+                "status": "retrying" if retryable or repair_next else "failed",
+                **({"repair": True} if repairing else {}),
+                "error": final_error,
+                "diagnostics": initial_diagnostics or final_diagnostics,
+                "started_at": started_at,
+                "completed_at": flow_analysis.now_utc(),
+                "run": (
+                    {"status": "failed", "error_classification": failure_type}
+                    if failure_type in {"executor_error", "input_limit"} or not completed_run
+                    else {
+                        "status": run.status,
+                        "error_classification": getattr(run, "error_classification", ""),
+                        "attempt_count": getattr(run, "attempt_count", 0),
+                        "elapsed_seconds": getattr(run, "elapsed_seconds", 0),
+                        "output": run.output,
+                    }
+                ),
+            }
         )
         if progress_callback is not None:
             progress_callback(
@@ -2856,20 +3118,28 @@ async def _execute_streaming_chunk_work_async(
                     "task_id": task.task_id,
                     "chunk_id": str(dict(work["manifest"])["chunk_id"]),
                     "attempt": attempt,
-                    "status": "retrying" if retryable else "failed",
-                    "failure_type": (
-                        "input_limit"
-                        if final_error.startswith(
-                            "Agent prompt exceeds maximum input tokens"
-                        )
-                        else failure_type
-                    ),
+                    "status": "retrying" if retryable or repair_next else "failed",
+                    "failure_type": failure_type,
                     "error": final_error[:MAX_FAILED_CHUNK_ERROR_CHARS],
                     "diagnostics": initial_diagnostics or final_diagnostics,
                     "response_sha256": response_sha256,
                     "error_class": error_class,
                 }
             )
+        correction_defects.extend(final_diagnostics)
+        if repair_next:
+            findings_before = max(
+                chunk_repair.finding_count(str(item["run"].get("output") or ""))
+                for item in review_history
+            )
+            repair_attempt = attempt + 1
+            task = replace(
+                base_task,
+                prompt=str(repair_prompt),
+                output_name=base_task.output_name + ".repair",
+                metadata={**base_task.metadata, "attempt": attempt + 1, "repair": True},
+            )
+            continue
         if not retryable:
             break
         task = replace(
@@ -2877,17 +3147,41 @@ async def _execute_streaming_chunk_work_async(
             prompt=collection_analysis_runtime.render_retry_prompt(
                 base_task.prompt,
                 error=final_error,
-                diagnostics=final_diagnostics,
+                diagnostics=correction_defects,
             ),
             output_name=base_task.output_name + f".retry-{attempt + 1}",
             metadata={**base_task.metadata, "attempt": attempt + 1},
         )
+    manifest = dict(work["manifest"])
+    repair = (
+        chunk_repair.summary(
+            repair_reply,
+            outcome="unrepairable" if repair_reply is not None and repair_reply.unrepairable else "failed",
+            attempt=attempt, findings_before=findings_before,
+        )
+        if repair_attempt
+        else chunk_repair.summary(
+            None, outcome="skipped", attempt=attempt, findings_before=0, reason=skipped_repair,
+        )
+        if skipped_repair
+        else None
+    )
+    record = _streaming_review_record(base_task, chunk, manifest, review_history, attempt, repair)
     outcome = {
         "status": "failed",
-        "chunk_id": str(dict(work["manifest"])["chunk_id"]),
+        "chunk_id": str(manifest["chunk_id"]),
         "attempts": attempt,
         "error": final_error[:MAX_FAILED_CHUNK_ERROR_CHARS],
         "attempt_failures": attempt_failures,
+        "review": recovery.task_diagnostics(record),
+        "evidence": prompt_debug.capture_failed_chunk(
+            key=str(manifest["chunk_id"]),
+            prompts=attempt_prompts,
+            record=record,
+            source_ids=sorted(
+                {str(row.get("_SourceId") or "") for row in source_rows.values()} - {""}
+            ),
+        ),
     }
     release_ephemeral_payload()
     return outcome
@@ -2929,6 +3223,9 @@ async def execute_streaming_chunks_async(
         active_runner: Any = runner
         if shared_execute is not None:
             class SharedRunner:
+                # Read by the repair prompt's input check.
+                limits = runtime_limits
+
                 async def run(self, task: AgentRequest, **kwargs: Any) -> Any:
                     value = shared_execute(
                         task,
@@ -3849,9 +4146,7 @@ async def _analyze_detectraptor_partition(
                 if str(outcome.get("status") or "") != "accepted" or not isinstance(
                     outcome.get("result"), Mapping
                 ):
-                    raise RuntimeError(
-                        "DetectRaptor detection chunk analysis was not accepted."
-                    )
+                    raise DetectRaptorChunkError(outcomes, attempt_manifests)
                 attempt_results.append(dict(outcome["result"]))
         except Exception as exc:
             retryable = flow_analysis_runtime.is_retryable_read_only_transport_error(
@@ -5001,6 +5296,7 @@ async def _analyze_hunt_flows_locked(
                     "artifact": str(manifest.get("artifact") or "unknown"),
                     "row_count": int(manifest.get("row_count") or 0),
                     "input_tokens": int(manifest.get("input_tokens") or 0),
+                    **_manifest_references(manifest),
                     **compact,
                 }
                 if debug_validation:
@@ -5019,14 +5315,7 @@ async def _analyze_hunt_flows_locked(
                             "status": "running",
                         }
                     )
-            ordered_failures = sorted(
-                active_attempt_failures.values(),
-                key=lambda item: (
-                    int(item["ordinal"]),
-                    str(item["chunk_id"]),
-                    int(item["attempt"]),
-                ),
-            )
+            ordered_failures = list(active_attempt_failures.values())
             persist_progress(
                 phase="chunk_analysis",
                 force=task_status in {"repaired", "retrying", "failed"},
@@ -5041,9 +5330,7 @@ async def _analyze_hunt_flows_locked(
                     0,
                     len(ordered_failures) - MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN,
                 ),
-                chunk_attempt_failures=ordered_failures[
-                    :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
-                ],
+                chunk_attempt_failures=_cap_attempt_failures(ordered_failures),
                 **(
                     {
                         "validation_debug": copy.deepcopy(
@@ -5567,7 +5854,56 @@ async def _analyze_hunt_flows_locked(
             peak_active_partition_count
         )
         if failures:
-            failed_partition, failure = failures[0]
+            # Chunks of every partition reviewed in this run; completed partitions
+            # are reused without their outcomes on the next run.
+            reviewed_partitions = [
+                (value.outcomes, value.manifests)
+                if isinstance(value, DetectRaptorChunkError)
+                else (value["outcomes"], value["manifests"])
+                for value in pending_values
+                if isinstance(value, DetectRaptorChunkError)
+                or not isinstance(value, BaseException)
+            ]
+            partition_outcomes = [item for outcomes, _ in reviewed_partitions for item in outcomes]
+            failed_partition_chunks = {
+                str(item.get("chunk_id") or ""): item
+                for item in partition_outcomes
+                if str(item.get("status") or "") != "accepted"
+            }
+            repaired_partition_chunks = sorted(
+                str(item.get("chunk_id") or "")
+                for item in partition_outcomes
+                if str(item.get("status") or "") == "accepted" and item.get("repair")
+            )
+            chunk_failures = [item for item in failures if isinstance(item[1], DetectRaptorChunkError)]
+            other_failures = [item for item in failures if not isinstance(item[1], DetectRaptorChunkError)]
+            # Failed chunk IDs are recorded against the partition that holds them.
+            failed_partition, failure = (
+                chunk_failures[0] if failed_partition_chunks and chunk_failures else failures[0]
+            )
+            failed_chunks_path = analysis_root / FAILED_CHUNKS_FILENAME
+            if (
+                failed_partition_chunks
+                or repaired_partition_chunks
+                or failed_chunks_path.is_file()
+            ):
+                _record_hunt_failed_chunks(
+                    failed_chunks_path, hunt_id=hunt_id, org_id=org_id,
+                    failed=failed_partition_chunks, outcomes=partition_outcomes,
+                    manifests={
+                        key: value
+                        for _, manifests in reviewed_partitions
+                        for key, value in manifests.items()
+                    },
+                    budget={
+                        "validation_correction_attempts": analysis_configuration.validation_correction_attempts,
+                        "provider_max_retries": spec.max_retries,
+                    },
+                    rerun=(
+                        "Rerun the same hunt analysis command; it reviews failed "
+                        "DetectRaptor partitions again and reuses completed ones."
+                    ),
+                )
             completed_at = flow_analysis.now_utc()
             active = status_state.setdefault("active_analysis", {})
             active.update(
@@ -5612,11 +5948,50 @@ async def _analyze_hunt_flows_locked(
                             recovery_by_id[failed_partition.partition_id].get("attempt")
                             or 0
                         ),
+                        **(
+                            {
+                                "failed_partition_ids": [
+                                    partition.partition_id for partition, _ in failures
+                                ],
+                            }
+                            if len(failures) > 1
+                            else {}
+                        ),
+                        **(
+                            {
+                                "failed_chunks_file": str(failed_chunks_path),
+                                "repaired_chunk_ids": repaired_partition_chunks[
+                                    :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
+                                ],
+                            }
+                            if repaired_partition_chunks
+                            else {}
+                        ),
+                        **(
+                            {
+                                "failed_chunks_file": str(failed_chunks_path),
+                                "failed_chunk_ids": sorted(failed_partition_chunks)[
+                                    :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
+                                ],
+                            }
+                            if failed_partition_chunks
+                            else {}
+                        ),
                     },
                 ]
             )
             write_state(state_path, status_state)
             persist_detectraptor_outputs(run_status="failed")
+            if failed_partition_chunks:
+                error = _failed_closed_error(failed_chunks_path, failed_partition_chunks)
+                if other_failures:
+                    # Keep another partition's own failure visible beside the chunk failure.
+                    other_partition, other = other_failures[0]
+                    error = RuntimeError(
+                        f"{error} DetectRaptor partition {other_partition.detection} also "
+                        f"failed: {str(other)[:MAX_FAILED_CHUNK_ERROR_CHARS]}"
+                    )
+                raise error from failure
             raise failure
 
         evtx_interesting_context.sort(
@@ -6055,8 +6430,31 @@ async def _analyze_hunt_flows_locked(
         target_execution=str(target_execution_coverage or "unknown"),
         source_hunt_state=str(hunt_state or "unknown"),
     )
+    failed_chunks_path = analysis_root / FAILED_CHUNKS_FILENAME
+    chunk_manifests = {**evtx_partition_manifests, **emitted_chunks}
+    repaired_outcomes = {
+        str(outcome.get("chunk_id") or ""): outcome
+        for outcome in [*evtx_partition_outcomes, *chunk_outcomes]
+        if str(outcome.get("status") or "") == "accepted" and outcome.get("repair")
+    }
+    if failed_chunk_count or repaired_outcomes or failed_chunks_path.is_file():
+        # Accepted EVTX partition chunks resolve entries a failed partition left.
+        _record_hunt_failed_chunks(
+            failed_chunks_path, hunt_id=hunt_id, org_id=org_id,
+            failed=failed_outcomes, outcomes=[*evtx_partition_outcomes, *chunk_outcomes],
+            manifests=chunk_manifests,
+            budget={
+                "validation_correction_attempts": analysis_configuration.validation_correction_attempts,
+                "provider_max_retries": spec.max_retries,
+            },
+        )
+    if repaired_outcomes:
+        run_record["failed_chunks_file"] = str(failed_chunks_path)
+        run_record["repaired_chunk_ids"] = sorted(repaired_outcomes)[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN]
     if failed_chunk_count:
         run_record["status"] = "failed"
+        run_record["failed_chunks_file"] = str(failed_chunks_path)
+        run_record["failed_chunk_ids"] = sorted(failed_outcomes)[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN]
         completed_at = flow_analysis.now_utc()
         persist_progress(
             phase="failed",
@@ -6086,10 +6484,7 @@ async def _analyze_hunt_flows_locked(
             [*list(failure_state.get("runs") or []), run_record]
         )
         write_state(state_path, failure_state)
-        raise RuntimeError(
-            f"Hunt analysis failed closed: {failed_chunk_count} chunk(s) were not accepted. "
-            "No synthesis checkpoint or update cursor was advanced."
-        )
+        raise _failed_closed_error(failed_chunks_path, failed_outcomes)
 
     persist_progress(
         phase="cumulative_synthesis",
@@ -6204,6 +6599,20 @@ async def _analyze_hunt_flows_locked(
     full_result = copy.deepcopy(dict(synthesis["host_result"]))
     if synthesis_mode == "none":
         full_result = copy.deepcopy(accepted_candidates)
+    if repaired_outcomes:
+        # Synthesis does not carry input limitations; the repair labels are added here.
+        full_result["limitations"] = list(dict.fromkeys([
+            *list(full_result.get("limitations") or []),
+            *(
+                _repaired_chunk_line(
+                    str(dict(chunk_manifests.get(chunk_id) or {}).get("artifact") or ""),
+                    {**dict(chunk_manifests.get(chunk_id) or {}), "chunk_id": chunk_id},
+                    outcome.get("repair"),
+                )
+                for chunk_id, outcome in sorted(repaired_outcomes.items())
+            ),
+        ]))
+        full_result.setdefault("coverage", {})["repaired_chunks"] = len(repaired_outcomes)
     result = _compact_synthesis_result(full_result)
     if synthesis_mode == "full":
         result["findings"] = analysis_summary.consolidate_exact_findings(

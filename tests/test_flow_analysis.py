@@ -3160,6 +3160,16 @@ class FlowAnalysisTest(unittest.TestCase):
             rejected["attempt_failures"][0]["diagnostic_codes"],
             ["invalid_evidence_record"],
         )
+        review = rejected["review"]
+        self.assertEqual(review["attempts"], 3)
+        self.assertEqual(
+            [item["category"] for item in review["attempt_history"]],
+            ["validation_failed"] * 3,
+        )
+        self.assertRegex(review["inputs"]["first_reference"], r"^S[0-9]+-R[0-9]+$")
+        self.assertRegex(review["inputs"]["input_sha256"], r"^[0-9a-f]{64}$")
+        self.assertNotIn(invalid_output, json.dumps(review))
+        self.assertIsNone(rejected["evidence"])
 
         class OutputLimitRunner:
             def __init__(self):
@@ -3746,7 +3756,9 @@ class FlowAnalysisTest(unittest.TestCase):
                 flow_analysis_coordinator,
                 "execute_streaming_chunks_async",
                 side_effect=failed_chunks,
-            ), self.assertRaisesRegex(RuntimeError, "failed closed"):
+            ), self.assertRaisesRegex(
+                RuntimeError, r"failed closed.*Review .*hunt-failed-chunks\.json"
+            ):
                 flow_analysis_coordinator.analyze_hunt_flows(
                     api,
                     org_id="root",
@@ -3763,6 +3775,17 @@ class FlowAnalysisTest(unittest.TestCase):
                     spec=self.spec(),
                 )
             failed_state = json.loads(state_path.read_text())
+            ledger_path = state_path.parent / flow_analysis_coordinator.FAILED_CHUNKS_FILENAME
+            ledger = json.loads(ledger_path.read_text())
+            self.assertEqual(ledger["scope"], {"kind": "hunt", "hunt_id": "H.1", "org_id": "root"})
+            [(chunk_key, chunk_entry)] = ledger["chunks"].items()
+            self.assertEqual(chunk_entry["status"], "failed")
+            self.assertEqual(chunk_entry["chunk_id"], chunk_key)
+            self.assertEqual(
+                chunk_entry["final"]["defect_codes"],
+                ["invalid_source_reference", "unknown_field"],
+            )
+            self.assertNotIn("worker output containing evidence", ledger_path.read_text())
             self.assertEqual(
                 observed_active_failures[0][0]["error"],
                 "temporary model failure",
@@ -3787,8 +3810,12 @@ class FlowAnalysisTest(unittest.TestCase):
             self.assertNotIn(
                 "worker output containing evidence", json.dumps(failed_state)
             )
+            self.assertEqual(failed_run["failed_chunks_file"], str(ledger_path))
+            self.assertEqual(failed_run["failed_chunk_ids"], [chunk_key])
             accepted = self.run_analysis(api, root, update=True)
             accepted_state = json.loads(Path(accepted["analysis_state_file"]).read_text())
+            resolved = json.loads(ledger_path.read_text())["chunks"][chunk_key]
+            self.assertEqual(resolved["status"], "resolved")
         self.assertEqual(accepted_state["checkpoint"]["generation"], 2)
         self.assertEqual(accepted_state["inventory"]["last_successful_check_at"], api.cutoff)
 

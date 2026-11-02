@@ -28,6 +28,12 @@ After confirming the account, continue in the terminal or rerun the same setup
 command with `--api-account-ready`. This acknowledgement never bypasses final
 selected-user authentication or authorization checks.
 
+If the existing API YAML is kept (no `--force` or `--regenerate-remote-api`)
+and already authenticates as the selected user with the selected roles, setup
+skips this manual step and says so; a terminal session
+asks whether to run it anyway. Add `--api-account-setup` to run it when the
+operator asks.
+
 An explicitly configured remote administrator may automate this account step:
 `--bootstrap-api-config /secure/admin.yaml --bootstrap-api-user bootstrap-admin`.
 Equivalent named-connection keys are `bootstrap_api_config` and

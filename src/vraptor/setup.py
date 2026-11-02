@@ -116,6 +116,8 @@ def parser():
     result.add_argument("--api-role-profile", choices=("investigation", "provisioning-admin"))
     result.add_argument("--api-account-ready", action="store_true",
                         help="Confirm the generic manual account step is complete; operational access is still verified.")
+    result.add_argument("--api-account-setup", action="store_true",
+                        help="Run the generic manual account step even when the cached API YAML already works.")
     for flag in ("startup-timeout-seconds", "ready-timeout-seconds", "grpc-max-message-bytes"):
         result.add_argument("--" + flag, type=int)
     result.add_argument("--host-label", action="append")
@@ -282,8 +284,9 @@ def start(args, snapshot, previous, state_path, *, records=None):
     from . import lifecycle
     if args.mode not in MODES:
         raise ValueError("Unknown setup mode.")
-    if args.api_account_ready and not args.provision_api:
-        raise ValueError("--api-account-ready requires --provision-api.")
+    for flag in ("api_account_ready", "api_account_setup"):
+        if getattr(args, flag, False) and not args.provision_api:
+            raise ValueError(f"--{flag.replace('_', '-')} requires --provision-api.")
     if args.mapping_id and args.mode == "live-remote":
         raise ValueError("--mapping-id applies only to dead-disk setup.")
     args.server_profile = args.server_profile or ("local" if args.mode == "local-deaddisk" else args.engagement_id)

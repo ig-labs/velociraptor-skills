@@ -117,7 +117,12 @@ vraptor collect analyze \
 
 Missing non-terminal local analysis is reconstructed from the saved Velociraptor
 flows. Use `--retry-failed --request-id REQUEST_ID` to resume failed stages while
-reusing accepted chunks and artifact candidates. `--reset-artifact NAME` and
+reusing accepted chunks and artifact candidates. A chunk whose corrections all
+fail gets one AI repair call in the run (`--chunk-repair-limit N`, default 4, 0
+disables) and, if accepted, is labelled `accepted after AI repair`. Chunks that
+still fail are named in the summary and the request's `analysis/failed-chunks.json`; after
+review, `--waive-failed-chunk KEY --waive-reason TEXT` publishes the accepted
+chunks with that gap. `--reset-artifact NAME` and
 `--reset-analysis` explicitly discard accepted local work. These options require
 the exact request and never recollect evidence. Read the shared
 [correction and recovery contract](../../docs/reference/analysis-recovery.md)
@@ -260,6 +265,6 @@ Read [export-and-state.md](references/export-and-state.md) and
 - Do not infer absence from zero rows without applicability and adjacent evidence.
 - Fail if effective server arguments differ from the request.
 - Fail closed when the analyst runner is disabled, missing, or exceeds token limits.
-- Exhausting the configured correction budget is a coverage limitation; do not sample around it.
+- A chunk that still fails after its correction budget and one AI repair call is a coverage limitation; do not sample around it. Report `accepted after AI repair` labels with any finding from those rows.
 - Do not write evidence, prompts, model output, or review decisions under `/tmp`.
 - Raw analyst output, stderr and execution manifests are transient, except explicitly requested prompt exports. Durable summaries, checkpoints and current state contain compact results, provenance, failures, retry counts and coverage. Reference-only accepted chunk decisions support failed-stage recovery; bounded value-free diagnostics are saved normally. Source aliases bind request, organization, client, Flow, artifact and result component; chunking never renumbers source rows. Derived host-state snapshots are no longer archived on request switching.

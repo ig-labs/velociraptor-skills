@@ -165,8 +165,12 @@ equivalent noninteractive inputs. Existing API YAML connects directly without
 remote acquisition. `--fetch-config` enables copying missing configurations over
 SSH using an explicit/configured `--server-ip`; `--provision-api` prepares the selected account before acquiring credentials,
 even with cached YAML. Without explicit remote bootstrap configuration, it prompts
-for manual administrator account setup; `--api-account-ready` acknowledges that
-step without bypassing selected-user verification. `--bootstrap-api-config` and
+for manual administrator account setup, unless the cached YAML is kept (no
+`--force` or `--regenerate-remote-api`) and already authenticates as the
+selected user with the selected roles: setup then skips the
+step (a terminal asks whether to run it anyway), and `--api-account-setup` runs
+it. `--api-account-ready` acknowledges the manual step without bypassing
+selected-user verification. `--bootstrap-api-config` and
 `--bootstrap-api-user` select a remote provisioning-only connection. The credential
 stays on the SSH host and cannot be the operational identity. Generation never
 sets roles; existing accounts are unchanged. `--provision-client` separately

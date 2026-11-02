@@ -137,7 +137,9 @@ Existing API YAML can otherwise connect directly. For remote credential acquisit
 `--server-ip` and explicitly select `--fetch-config`. `--provision-api` starts account setup before generating missing API credentials,
 including when operational YAML is cached. Generic installations prompt the
 operator to create/verify the account in the running server; continue or rerun
-with `--api-account-ready` only after completing that manual step. They have no
+with `--api-account-ready` only after completing that manual step. If the kept
+cached YAML already passes the selected user's role checks, setup skips the manual step
+and says so; add `--api-account-setup` only when the operator asks to run it. They have no
 built-in administrator API account. An explicitly configured remote bootstrap
 connection may automate this step; its identity is never used operationally.
 See the [shared account procedure](../velociraptor-live-api-client/references/service-account-config.md). Endpoint YAML and
