@@ -83,8 +83,9 @@ vraptor hunt analyze-saved \
 
 A saved state file or explicit hunt directory may also identify the durable
 manifests. Do not use transient latest-action fields as evidence identity.
-A relative `output_file` resolves from the manifest's folder, and every output
-file must stay under that hunt's `exports/` or `downloads/` folder.
+A relative `output_file` resolves from the manifest's folder. Export-manifest
+files must stay under that hunt's `exports/` folder and download-manifest files
+under its `downloads/` folder.
 
 ## Review Method
 
