@@ -237,7 +237,8 @@ For a large artifact, the automated generic stack lane:
    second validated tab-delimited analyst pass.
 10. Python owns supplied-part and row-count accounting. It validates sparse
    `FLAG` records and requires exactly one `ASSESSMENT` for every follow-up
-   GroupId. One invalid result receives one retry, then the run fails closed.
+   GroupId. One invalid result receives one retry, then the run fails closed
+   without a repair call or `hunt-failed-chunks.json` entry.
 11. Accounts expected groups compactly. Only notable or suspicious groups become
    live-query drill-down items.
 12. Requeries flagged groups using the original server-side scope and signature

@@ -588,10 +588,15 @@ def test_resume_command_keeps_the_model_and_repair_settings():
 
 
 class _HuntRunner:
-    """Breaks the first chunk it sees; the repair call returns a valid answer."""
+    """Breaks the first chunk it sees; the repair call returns ``repair``."""
 
-    def __init__(self):
-        self.calls, self.first = [], None
+    def __init__(
+        self,
+        repair="DIAGNOSIS\tformat_drift\tL1\tnot a protocol record\nREPAIRED\n"
+        "RESULT\tno_reportable_findings\nEND",
+        broken=True,
+    ):
+        self.calls, self.first, self.repair, self.broken = [], None, repair, broken
 
     async def run(self, task, **_kwargs):
         repairing = bool(task.metadata.get("repair"))
@@ -601,10 +606,9 @@ class _HuntRunner:
         else:
             self.first = self.first or task.task_id
             output = (
-                "DIAGNOSIS\tformat_drift\tL1\tnot a protocol record\nREPAIRED\n"
-                "RESULT\tno_reportable_findings\nEND"
+                self.repair
                 if repairing
-                else "PRIVATE_MODEL_OUTPUT" if task.task_id == self.first
+                else "PRIVATE_MODEL_OUTPUT" if self.broken and task.task_id == self.first
                 else "RESULT\tno_reportable_findings\nEND"
             )
         return AgentResult(
@@ -616,13 +620,13 @@ class _HuntRunner:
         pass
 
 
-def _analyze_hunt(tmp_path, api, artifact, **kwargs):
+def _analyze_hunt(tmp_path, api, artifact, runner=None, **kwargs):
     from dataclasses import replace
     from unittest import mock
 
     import test_flow_analysis
 
-    runner = _HuntRunner()
+    runner = runner or _HuntRunner()
     with mock.patch.object(coordinator, "create_agent_runner", return_value=runner), \
             mock.patch.object(coordinator.asyncio, "sleep", new=mock.AsyncMock()), \
             chunk_repair.session(4) as policy:
@@ -662,7 +666,7 @@ def test_hunt_publishes_the_repair_label_and_logs_the_chunk(tmp_path, synthesis_
     assert published["coverage"]["repaired_chunks"] == 1
 
 
-def test_detectraptor_partition_repair_is_logged(tmp_path):
+def _detectraptor_hunt():
     from test_flow_analysis import FakeFlowApi, flow_row
     from vraptor.analyze import flow_runtime
     from vraptor.analyze import time_scope
@@ -676,17 +680,82 @@ def test_detectraptor_partition_repair_is_logged(tmp_path):
             {"Detection": {"Name": "Common"}, "EventTime": "2026-08-13T09:40:00Z"},
         ]},
     )
-    _result, run, ledger, _runner, policy = _analyze_hunt(
-        tmp_path, api, artifact,
-        time_scope=time_scope.TimeScope.from_values(
-            after="2026-08-13T09:00:00Z", before="2026-08-13T10:00:00Z",
-        ),
+    scope = time_scope.TimeScope.from_values(
+        after="2026-08-13T09:00:00Z", before="2026-08-13T10:00:00Z",
     )
+    return api, artifact, scope
+
+
+def test_detectraptor_partition_repair_is_logged(tmp_path):
+    api, artifact, scope = _detectraptor_hunt()
+    _result, run, ledger, _runner, policy = _analyze_hunt(tmp_path, api, artifact, time_scope=scope)
     assert policy.used == 1
     [chunk_id] = run["repaired_chunk_ids"]
     assert ledger["chunks"][chunk_id]["resolution"]["by"] == "repair"
     assert ledger["chunks"][chunk_id]["artifact"] == artifact
 
+
+def test_detectraptor_partition_chunk_that_fails_every_attempt_is_recorded(tmp_path):
+    api, artifact, scope = _detectraptor_hunt()
+    path = tmp_path / "analysis" / coordinator.FAILED_CHUNKS_FILENAME
+    with pytest.raises(RuntimeError) as raised:
+        _analyze_hunt(tmp_path, api, artifact, runner=_HuntRunner(repair="PRIVATE_MODEL_OUTPUT"),
+                      time_scope=scope)
+    ledger = json.loads(path.read_text())
+    [chunk_id] = ledger["chunks"]
+    entry = ledger["chunks"][chunk_id]
+    assert re.fullmatch(recovery._IDENTITY_PATTERNS["chunk_id"], chunk_id)
+    assert str(raised.value).endswith(f"Review {path} (chunks: {chunk_id}).")
+    assert (entry["status"], entry["stage"], entry["artifact"], entry["hunt_id"]) == (
+        "failed", "chunk", artifact, "H.1")
+    assert (entry["attempts"], entry["final"]["category"], entry["repair"]["outcome"]) == (
+        4, "validation_failed", "failed")
+    assert "PRIVATE_MODEL_OUTPUT" not in path.read_text()
+    state = json.loads((tmp_path / "analysis" / "hunt-analysis-state.json").read_text())
+    run = state["runs"][-1]
+    assert (run["failure_stage"], run["failed_chunks_file"], run["failed_chunk_ids"]) == (
+        "detectraptor_partition", str(path), [chunk_id])
+
+    # The rerun reviews the failed partition again and resolves its entry.
+    _result, run, ledger, _runner, _policy = _analyze_hunt(
+        tmp_path, api, artifact, runner=_HuntRunner(broken=False), time_scope=scope)
+    assert run["status"] == "complete"
+    assert ledger["chunks"][chunk_id]["status"] == "resolved"
+    assert ledger["chunks"][chunk_id]["resolution"] == {"by": "acceptance"}
+
+
+def _rare_partition_fails():
+    from unittest import mock
+
+    real = coordinator._analyze_detectraptor_partition
+
+    async def rare_fails(*args, **kwargs):
+        if kwargs["partition"].detection == "Rare":
+            raise RuntimeError("partition stage failed")
+        return await real(*args, **kwargs)
+
+    return mock.patch.object(coordinator, "_analyze_detectraptor_partition", new=rare_fails)
+
+
+def test_detectraptor_partition_completed_in_a_failed_run_updates_the_record(tmp_path):
+    api, artifact, scope = _detectraptor_hunt()
+    path = tmp_path / "analysis" / coordinator.FAILED_CHUNKS_FILENAME
+    with _rare_partition_fails():
+        for runner in (_HuntRunner(repair="PRIVATE_MODEL_OUTPUT"), _HuntRunner(broken=False)):
+            with pytest.raises(RuntimeError, match="partition stage failed|failed closed"):
+                _analyze_hunt(tmp_path, api, artifact, runner=runner, time_scope=scope)
+    # The second run completed that partition; later runs reuse it without outcomes.
+    [entry] = json.loads(path.read_text())["chunks"].values()
+    assert entry["resolution"] == {"by": "acceptance"}
+
+    path.unlink()
+    with _rare_partition_fails(), pytest.raises(RuntimeError, match="partition stage failed"):
+        _analyze_hunt(tmp_path / "repaired", api, artifact, time_scope=scope)
+    ledger = json.loads((tmp_path / "repaired" / "analysis" / coordinator.FAILED_CHUNKS_FILENAME).read_text())
+    [(chunk_id, entry)] = ledger["chunks"].items()
+    assert entry["resolution"]["by"] == "repair"
+    state = json.loads((tmp_path / "repaired" / "analysis" / "hunt-analysis-state.json").read_text())
+    assert state["runs"][-1]["repaired_chunk_ids"] == [chunk_id]
 
 def _pending_then(ledger, key, repair, *, history_tail=(), evidence=None):
     failure = _failure(key.split(":", 1)[1])

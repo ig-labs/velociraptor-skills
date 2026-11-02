@@ -154,7 +154,14 @@ Hunt analysis remains fail-closed and has no chunk-level resume or waiver. Its
 error names the record file and chunk IDs, and the run record carries
 `failed_chunks_file` and `failed_chunk_ids`; rerun the same command after review.
 Hunt chunks get the same repair call. Their record is written when the analysis
-run ends, and a run with repaired chunks lists them in `repaired_chunk_ids`.
+run ends, and a run with repaired chunks lists them in `repaired_chunk_ids`. A
+failed DetectRaptor EVTX partition chunk ends the run with `failure_stage`
+`detectraptor_partition` and the same error, record and run fields; the rerun
+reviews that partition again and reuses completed partitions. Specialized
+generic stack and Autoruns reviews (live `hunt analyze` stack and Autoruns
+workflows, and `--profile autoruns`) keep their one-retry part review with no
+repair call or `hunt-failed-chunks.json` entry: a failed stack part fails the
+run, and a failed Autoruns review is recorded as a failed AI review status.
 
 To inspect the raw material, add `--keep-failed-chunk-evidence` to `analyze`,
 `collect analyze` or live `hunt analyze`. Only chunks that fail every attempt,

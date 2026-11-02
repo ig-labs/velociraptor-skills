@@ -1900,6 +1900,77 @@ def _failed_chunk_review(outcome: Mapping[str, Any]) -> dict[str, Any]:
     )
 
 
+class DetectRaptorChunkError(RuntimeError):
+    """A partition chunk failed every attempt; carries value-free outcomes for the hunt ledger."""
+
+    def __init__(
+        self,
+        outcomes: Iterable[Mapping[str, Any]],
+        manifests: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        super().__init__("DetectRaptor detection chunk analysis was not accepted.")
+        self.outcomes = [
+            {str(key): value for key, value in dict(item).items() if str(key) != "result"}
+            for item in outcomes
+        ]
+        self.manifests = {str(key): dict(value) for key, value in manifests.items()}
+
+
+def _record_hunt_failed_chunks(
+    path: Path,
+    *,
+    hunt_id: str,
+    org_id: str,
+    failed: Mapping[str, Mapping[str, Any]],
+    outcomes: Iterable[Mapping[str, Any]],
+    manifests: Mapping[str, Mapping[str, Any]],
+    budget: Mapping[str, int],
+) -> None:
+    """Record failed and repaired hunt chunks value-free; resolve accepted ones."""
+    accepted = {
+        str(outcome.get("chunk_id") or ""): outcome
+        for outcome in outcomes
+        if str(outcome.get("status") or "") == "accepted"
+        and str(outcome.get("chunk_id") or "") not in failed
+    }
+    repaired = {key: outcome for key, outcome in accepted.items() if outcome.get("repair")}
+    ledger = recovery.FailedChunkLedger(
+        path, {"kind": "hunt", "hunt_id": hunt_id, "org_id": org_id},
+    )
+    for chunk_id, outcome in sorted({**failed, **repaired}.items()):
+        # Repaired chunks are logged as failures first, then resolved by the repair.
+        ledger.record_failure(
+            chunk_id,
+            _failed_chunk_review(outcome),
+            identity={
+                "artifact": str(dict(manifests.get(chunk_id) or {}).get("artifact") or ""),
+                "hunt_id": hunt_id,
+                "chunk_id": chunk_id,
+            },
+            budget=dict(budget),
+            next_steps={
+                "rerun": "Rerun the same hunt analysis command; hunt analysis has no "
+                "chunk-level resume and reviews every chunk again.",
+            },
+            evidence=outcome.get("evidence"),
+        )
+    for chunk_id in sorted(accepted):
+        ledger.resolve(chunk_id, repair=dict(repaired.get(chunk_id) or {}).get("repair"))
+
+
+def _failed_closed_error(path: Path, chunk_ids: Iterable[str]) -> RuntimeError:
+    """The fail-closed hunt error names the review file and the failed chunk IDs."""
+    keys = sorted(chunk_ids)
+    return RuntimeError(
+        f"Hunt analysis failed closed: {len(keys)} chunk(s) were not accepted. "
+        "No synthesis checkpoint or update cursor was advanced. "
+        f"Review {path} (chunks: "
+        + ", ".join(keys[:10])
+        + (", ..." if len(keys) > 10 else "")
+        + ")."
+    )
+
+
 def _bounded_chunk_attempt_failures(
     outcomes: Iterable[Mapping[str, Any]],
     manifests: Mapping[str, Mapping[str, Any]],
@@ -4074,9 +4145,7 @@ async def _analyze_detectraptor_partition(
                 if str(outcome.get("status") or "") != "accepted" or not isinstance(
                     outcome.get("result"), Mapping
                 ):
-                    raise RuntimeError(
-                        "DetectRaptor detection chunk analysis was not accepted."
-                    )
+                    raise DetectRaptorChunkError(outcomes, attempt_manifests)
                 attempt_results.append(dict(outcome["result"]))
         except Exception as exc:
             retryable = flow_analysis_runtime.is_retryable_read_only_transport_error(
@@ -5785,6 +5854,46 @@ async def _analyze_hunt_flows_locked(
         )
         if failures:
             failed_partition, failure = failures[0]
+            # Chunks of every partition reviewed in this run; completed partitions
+            # are reused without their outcomes on the next run.
+            reviewed_partitions = [
+                (value.outcomes, value.manifests)
+                if isinstance(value, DetectRaptorChunkError)
+                else (value["outcomes"], value["manifests"])
+                for value in pending_values
+                if isinstance(value, DetectRaptorChunkError)
+                or not isinstance(value, BaseException)
+            ]
+            partition_outcomes = [item for outcomes, _ in reviewed_partitions for item in outcomes]
+            failed_partition_chunks = {
+                str(item.get("chunk_id") or ""): item
+                for item in partition_outcomes
+                if str(item.get("status") or "") != "accepted"
+            }
+            repaired_partition_chunks = sorted(
+                str(item.get("chunk_id") or "")
+                for item in partition_outcomes
+                if str(item.get("status") or "") == "accepted" and item.get("repair")
+            )
+            failed_chunks_path = analysis_root / FAILED_CHUNKS_FILENAME
+            if (
+                failed_partition_chunks
+                or repaired_partition_chunks
+                or failed_chunks_path.is_file()
+            ):
+                _record_hunt_failed_chunks(
+                    failed_chunks_path, hunt_id=hunt_id, org_id=org_id,
+                    failed=failed_partition_chunks, outcomes=partition_outcomes,
+                    manifests={
+                        key: value
+                        for _, manifests in reviewed_partitions
+                        for key, value in manifests.items()
+                    },
+                    budget={
+                        "validation_correction_attempts": analysis_configuration.validation_correction_attempts,
+                        "provider_max_retries": spec.max_retries,
+                    },
+                )
             completed_at = flow_analysis.now_utc()
             active = status_state.setdefault("active_analysis", {})
             active.update(
@@ -5829,11 +5938,35 @@ async def _analyze_hunt_flows_locked(
                             recovery_by_id[failed_partition.partition_id].get("attempt")
                             or 0
                         ),
+                        **(
+                            {
+                                "failed_chunks_file": str(failed_chunks_path),
+                                "repaired_chunk_ids": repaired_partition_chunks[
+                                    :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
+                                ],
+                            }
+                            if repaired_partition_chunks
+                            else {}
+                        ),
+                        **(
+                            {
+                                "failed_chunks_file": str(failed_chunks_path),
+                                "failed_chunk_ids": sorted(failed_partition_chunks)[
+                                    :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
+                                ],
+                            }
+                            if failed_partition_chunks
+                            else {}
+                        ),
                     },
                 ]
             )
             write_state(state_path, status_state)
             persist_detectraptor_outputs(run_status="failed")
+            if failed_partition_chunks:
+                raise _failed_closed_error(
+                    failed_chunks_path, failed_partition_chunks
+                ) from failure
             raise failure
 
         evtx_interesting_context.sort(
@@ -6280,33 +6413,16 @@ async def _analyze_hunt_flows_locked(
         if str(outcome.get("status") or "") == "accepted" and outcome.get("repair")
     }
     if failed_chunk_count or repaired_outcomes or failed_chunks_path.is_file():
-        failed_chunk_ledger = recovery.FailedChunkLedger(
-            failed_chunks_path, {"kind": "hunt", "hunt_id": hunt_id, "org_id": org_id},
+        # Accepted EVTX partition chunks resolve entries a failed partition left.
+        _record_hunt_failed_chunks(
+            failed_chunks_path, hunt_id=hunt_id, org_id=org_id,
+            failed=failed_outcomes, outcomes=[*evtx_partition_outcomes, *chunk_outcomes],
+            manifests=chunk_manifests,
+            budget={
+                "validation_correction_attempts": analysis_configuration.validation_correction_attempts,
+                "provider_max_retries": spec.max_retries,
+            },
         )
-        for chunk_id, outcome in sorted({**failed_outcomes, **repaired_outcomes}.items()):
-            # Repaired chunks are logged as failures first, then resolved by the repair.
-            failed_chunk_ledger.record_failure(
-                chunk_id,
-                _failed_chunk_review(outcome),
-                identity={
-                    "artifact": str(dict(chunk_manifests.get(chunk_id) or {}).get("artifact") or ""),
-                    "hunt_id": hunt_id,
-                    "chunk_id": chunk_id,
-                },
-                budget={
-                    "validation_correction_attempts": analysis_configuration.validation_correction_attempts,
-                    "provider_max_retries": spec.max_retries,
-                },
-                next_steps={
-                    "rerun": "Rerun the same hunt analysis command; hunt analysis has no "
-                    "chunk-level resume and reviews every chunk again.",
-                },
-                evidence=outcome.get("evidence"),
-            )
-        for chunk_id in sorted(set(accepted_results) | set(repaired_outcomes)):
-            failed_chunk_ledger.resolve(
-                chunk_id, repair=dict(repaired_outcomes.get(chunk_id) or {}).get("repair"),
-            )
     if repaired_outcomes:
         run_record["failed_chunks_file"] = str(failed_chunks_path)
         run_record["repaired_chunk_ids"] = sorted(repaired_outcomes)[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN]
@@ -6343,14 +6459,7 @@ async def _analyze_hunt_flows_locked(
             [*list(failure_state.get("runs") or []), run_record]
         )
         write_state(state_path, failure_state)
-        raise RuntimeError(
-            f"Hunt analysis failed closed: {failed_chunk_count} chunk(s) were not accepted. "
-            "No synthesis checkpoint or update cursor was advanced. "
-            f"Review {failed_chunks_path} (chunks: "
-            + ", ".join(sorted(failed_outcomes)[:10])
-            + (", ..." if failed_chunk_count > 10 else "")
-            + ")."
-        )
+        raise _failed_closed_error(failed_chunks_path, failed_outcomes)
 
     persist_progress(
         phase="cumulative_synthesis",
