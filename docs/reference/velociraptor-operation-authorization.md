@@ -31,6 +31,11 @@ restating it.
   user. Include the flag automatically, even when API YAML is already cached,
   and do not ask for separate approval. It covers creating that account when
   absent and generating its missing API YAML.
+- On generic installs (no bootstrap connection), setup skips the manual account
+  step when the existing API YAML, kept without `--force` or
+  `--regenerate-remote-api`, already authenticates as that user with the
+  selected roles, and says so. Interactive setup offers to run the step anyway;
+  pass `--api-account-setup` when the operator asks to run it.
 - A cached YAML identity, the OS login or an application fallback alone does
   not authorize creation.
 - Honor explicit no-provision, read-only and fetch-only requests.

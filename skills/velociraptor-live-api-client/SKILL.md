@@ -97,8 +97,10 @@ See the [shared account procedure](references/service-account-config.md).
 Generation uses these explicit CLI flags:
 
 - Shared `setup start --provision-api` first establishes the selected account:
-  generic installs prompt for manual administrator setup; explicitly configured
-  remote bootstrap credentials are restricted to account provisioning. See the
+  generic installs prompt for manual administrator setup (skipped when the kept
+  cached YAML already passes the selected user's role checks; `--api-account-setup` runs
+  it on request); explicitly configured remote bootstrap credentials are
+  restricted to account provisioning. See the
   [shared account procedure](references/service-account-config.md).
 - `fetch-api --provision-api` only signs missing operational YAML, without
   `--role`, after confirming remote file absence. It does not create a live account.

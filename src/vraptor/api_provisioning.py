@@ -204,8 +204,31 @@ def manual_instructions(username, org_id, role_profile):
     )
 
 
+def cached_account_works(args, username, role_profile):
+    """True when the kept API YAML already authenticates as the selected user with its roles."""
+    # A refresh may fetch from another server; only YAML that setup keeps counts.
+    if getattr(args, "force", False) or getattr(args, "regenerate_remote_api", False):
+        return False
+    cached_api = getattr(args, "api_client", None)
+    if not cached_api or not Path(cached_api).is_file():
+        return False
+    from vraptor import readiness
+    try:
+        path = Path(cached_api)
+        if readiness.validate_api_client_security(path)["identity"] != username:
+            return False
+        readiness.verify_api_authorization(path, api_user=username, role_profile=role_profile)
+    except (OSError, RuntimeError, ValueError, KeyError):
+        return False
+    return True
+
+
 def prepare_account(args, snapshot):
-    """Called once by setup, before acquisition, including when YAML is cached."""
+    """Called once by setup, before acquisition, including when YAML is cached.
+
+    Generic installs skip the manual step when the cached YAML already works,
+    unless --api-account-setup (or the interactive prompt) asks to run it.
+    """
     if not getattr(args, "provision_api", False):
         return None
     username = str(getattr(args, "api_user", None) or "")
@@ -217,6 +240,15 @@ def prepare_account(args, snapshot):
     bootstrap_path = getattr(args, "bootstrap_api_config", None)
     bootstrap_user = getattr(args, "bootstrap_api_user", None)
     if not bootstrap_path and not bootstrap_user:
+        if (not getattr(args, "api_account_ready", False) and not getattr(args, "api_account_setup", False)
+                and cached_account_works(args, username, role_profile)):
+            note = f"API account {username!r} already works with the cached API YAML."
+            if not sys.stdin.isatty():
+                print(note + " Skipped the manual account step; rerun with --api-account-setup to run it anyway.",
+                      file=sys.stderr, flush=True)
+                return None
+            if input(note + " Run the manual account step anyway? [y/N]: ").strip().lower() not in {"y", "yes"}:
+                return None
         if not getattr(args, "api_account_ready", False):
             instructions = manual_instructions(username, org_id, role_profile)
             if not sys.stdin.isatty():
@@ -227,8 +259,9 @@ def prepare_account(args, snapshot):
         return {"status": "manual", "api_user": username, "org_id": org_id}
     if not bootstrap_path or not bootstrap_user:
         raise ValueError("Configure both bootstrap_api_config and bootstrap_api_user.")
-    if getattr(args, "api_account_ready", False):
-        raise ValueError("--api-account-ready applies only to manual account setup.")
+    for flag in ("api_account_ready", "api_account_setup"):
+        if getattr(args, flag, False):
+            raise ValueError(f"--{flag.replace('_', '-')} applies only to manual account setup.")
     if username.casefold() == bootstrap_user.casefold():
         raise ValueError("The bootstrap account cannot be the operational API user.")
     values = snapshot.values
