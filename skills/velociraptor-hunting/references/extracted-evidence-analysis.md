@@ -34,7 +34,9 @@ Use the exact `snapshots[].snapshot` path that `hunt snapshot` returns;
 
 Chunk output is the default. It normalizes, deduplicates, accounts for evidence,
 and returns canonical token-bounded CSV chunk paths without writing derived
-analysis files.
+analysis files. Snapshot analysis never runs AI: results report
+`status: prepared`, `ai_review_status: skipped` and `review_complete: false`,
+and `vraptor analyze --from` exits 2.
 
 Request derived output only when reusable derived products are required:
 
@@ -81,6 +83,8 @@ vraptor hunt analyze-saved \
 
 A saved state file or explicit hunt directory may also identify the durable
 manifests. Do not use transient latest-action fields as evidence identity.
+A relative `output_file` resolves from the manifest's folder, and every output
+file must stay under that hunt's `exports/` or `downloads/` folder.
 
 ## Review Method
 

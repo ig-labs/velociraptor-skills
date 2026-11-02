@@ -1139,6 +1139,33 @@ class HuntWorkflowTest(unittest.TestCase):
         self.assertEqual(result["action"], "hunt_snapshot_analyzed")
         analyze_snapshot.assert_called_once()
 
+    def test_snapshot_replay_is_reported_as_preparation(self):
+        module = load_module(WORKFLOW_PATH, "hunt_workflow_snapshot_status")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            snapshot = write_snapshot_v3(
+                Path(temp_dir) / "H.1" / "snapshots" / "one",
+                hunt_id="H.1",
+                artifact="Artifact.Test",
+                rows=[{"ClientId": "C.1", "Hostname": "host01", "Message": "evidence"}],
+            )
+            argv = ["analyze", "--snapshot", str(snapshot), "--no-progress", "--format", "json"]
+            codes, payloads = [], []
+            for existing_only in (True, False):
+                stdout = io.StringIO()
+                with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(io.StringIO()):
+                    codes.append(module.main(argv, existing_only=existing_only))
+                payloads.append(json.loads(stdout.getvalue()))
+
+        # Only the existing-source route reports incomplete review by exit code.
+        self.assertEqual(codes, [2, 0])
+        for payload in payloads:
+            self.assertEqual(payload["status"], "prepared")
+            self.assertEqual(payload["ai_review_status"], "skipped")
+            self.assertIs(payload["review_complete"], False)
+            self.assertEqual(payload["analyses"][0]["status"], "prepared")
+            self.assertIn("- Status: `prepared`", payload["chat_summary"])
+            self.assertIn("AI analysis not run", payload["chat_summary"])
+
     def test_missing_client_retry_is_bounded_and_idempotent(self):
         module = load_module(WORKFLOW_PATH, "hunt_workflow_retry")
 
