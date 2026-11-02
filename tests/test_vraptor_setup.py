@@ -683,3 +683,20 @@ def test_generic_account_prompt_stops_before_acquisition(workstation, monkeypatc
     assert "Manual API account setup required" in capsys.readouterr().err
     assert saved(workstation)["status"] == "needs_attention"
     fetch.assert_not_called()
+
+
+def test_evidence_prompts_name_collections_and_only_start_selects_type(workstation, monkeypatch, capsys):
+    prompts = []
+    monkeypatch.setattr(setup.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": prompts.append(prompt) or "")
+    assert invoke(workstation, "start", "--mode", "local-deaddisk") == 1
+    assert len(prompts) == 1 and "Velociraptor collection folder or ZIP" in prompts[0]
+    with pytest.raises(SystemExit):
+        readiness.build_parser().parse_args(["remote-deaddisk", "--help"])
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "Velociraptor collection folder or ZIP" in help_text and "--evidence-type" not in help_text
+    for command in (["remote-deaddisk", "--evidence-path", "x"], ["local-deaddisk"]):
+        with pytest.raises(SystemExit):
+            readiness.build_parser().parse_args([*command, "--evidence-type", "auto"])
+    selected = setup.parser().parse_args(["start", "--evidence-type", "velociraptor-kapefiles-zip"])
+    assert selected.evidence_type == "velociraptor-kapefiles-zip"

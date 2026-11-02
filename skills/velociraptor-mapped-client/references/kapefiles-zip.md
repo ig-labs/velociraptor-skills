@@ -16,8 +16,10 @@ directly, and how to validate mapping changes.
 
 `src/vraptor/resources/vql/kapefiles_zip_remapping.vql`
 generates the filesystem and registry rules from the validated inventory.
-Python retains archive validation, source hashing, password-file checks and the
-client lifecycle; it no longer constructs the mount rules. The VQL inputs are
+Python retains archive validation (only Windows drive uploads under the `auto`,
+`file` or `ntfs` accessors pass; a ZIP without `uploads.json` or uploaded files
+is rejected), source hashing, password-file checks and the client lifecycle; it
+no longer constructs the mount rules. The VQL inputs are
 `RecordsFile`, `BaseFile`, `EvidencePath`, and `MountScope` (a VQL statement
 referencing the protected password file, never the password itself).
 Preparation consumes the emitted YAML and verifies mapped reads before publishing.
@@ -59,4 +61,6 @@ or performance threshold is configured.
 ## Validation
 
 Validate with `.venv/bin/python -m pytest tests/test_zip_mapping.py tests/test_export_mapping.py`.
-Native binary tests skip when unavailable; AES fixture tests require `7z`.
+Detection and input-rejection tests (duplicate members, results-only ZIPs,
+non-Windows paths) need no binary. Native mapping tests skip individually when
+the binary is unavailable; AES fixture tests require `7z`.

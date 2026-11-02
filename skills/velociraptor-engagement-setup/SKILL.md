@@ -159,10 +159,14 @@ permissions. Preserve the selected credential profile during recovery.
 
 ### Local server and mapped client
 
-Both `local-deaddisk` and `remote-deaddisk` accept `--evidence-type`:
+`setup start --mode local-deaddisk|remote-deaddisk` accepts `--evidence-type`:
 `auto` (default), `windows-disk`, `windows-directory`, `velociraptor-export`, or
-`velociraptor-kapefiles-zip`.
-Auto detects extracted exports by `uploads.json`; it rejects ambiguous directories.
+`velociraptor-kapefiles-zip`. The lower-level `setup remote-deaddisk` always
+auto-detects and `setup local-deaddisk` only verifies an existing mapping;
+neither accepts `--evidence-type`.
+Auto detects collections by `uploads.json` (or a protected `data.zip`) and rejects
+ambiguous directories. Collections map Windows drive uploads only; results-only
+collector ZIPs are rejected.
 See [extracted collection exports](../velociraptor-mapped-client/SKILL.md#extracted-velociraptor-kapefiles-collection)
 for mapping behavior and coverage limits.
 

@@ -26,6 +26,7 @@ SHARED = ("mode", "engagement_id", "case_root", "server_profile", "api_client",
           "client_config", "velociraptor_bin", "api_role_profile", "org_id",
           "local_server_workspace", "local_server_options")
 LIVE_SCOPE = ("hostname", "client_id", "host_label", "exclude_host_label", "environment_only_ok")
+EVIDENCE_PROMPT = "Windows image, mounted Windows directory, or Windows Velociraptor collection folder or ZIP"
 
 
 def mapping_records(payload):
@@ -294,7 +295,7 @@ def start(args, snapshot, previous, state_path, *, records=None):
     if args.mode == "live-remote":
         _scope(args)
     else:
-        _required(args, "evidence_path", "Windows image or mounted Windows directory")
+        _required(args, "evidence_path", EVIDENCE_PROMPT)
         args.evidence_path = str(Path(args.evidence_path).expanduser().resolve())
         if not Path(args.evidence_path).exists():
             raise ValueError("Evidence path does not exist.")
@@ -400,7 +401,7 @@ def main(argv=None):
         _required(args, "mode", "Mode (local-deaddisk, remote-deaddisk, live-remote)")
         if args.mode != "live-remote":
             args.evidence_path = args.evidence_path or saved_setup.get("evidence_path")
-            _required(args, "evidence_path", "Windows image or mounted Windows directory")
+            _required(args, "evidence_path", EVIDENCE_PROMPT)
     evidence = args.evidence_path or saved_setup.get("evidence_path")
     if evidence:
         from .lifecycle import validate_output_paths

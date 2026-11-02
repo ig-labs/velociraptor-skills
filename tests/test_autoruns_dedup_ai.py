@@ -21,7 +21,7 @@ from vraptor.hunt import command as hunt_workflow
 from vraptor.artifacts import persistence as persistence_policy
 from tests import test_autoruns_regex as legacy_tests
 from tests.test_autoruns_regex import EXACT, RULE
-from tests.test_autoruns_regex_review import execute, row
+from tests.test_autoruns_regex_review import execute, requires_velociraptor, row
 from tests.test_autoruns_ai_review import _test_execution
 
 
@@ -175,6 +175,7 @@ class DedupAiTest(unittest.TestCase):
         self.assertEqual(unlimited[-2]["HighCountExcludedRows"], 0)
         self.assertEqual(filtered[1]["TotalRows"], 25)
 
+    @requires_velociraptor
     def test_native_clears_only_over_limit_samples_and_preserves_output(self):
         cfg = db.load(self.database)
         # Interleave groups so even an LRU of one must evict and re-emit keys.
@@ -335,6 +336,7 @@ class DedupAiTest(unittest.TestCase):
         path.write_text(json.dumps(state))
         persistence_policy.preflight_analysis_tree(path.parent, ["hunt:H.test"])
 
+    @requires_velociraptor
     def test_native_empty_and_all_matched_cutoff_accounting(self):
         cfg = db.load(self.database)
         for rows, matched, excluded in (([], 0, 0), ([row(**EXACT)]*25, 25, 0),
@@ -349,6 +351,7 @@ class DedupAiTest(unittest.TestCase):
                 self.assertEqual(counts["MatchedRows"], matched)
                 self.assertEqual(counts["HighCountExcludedRows"], excluded)
 
+    @requires_velociraptor
     def test_native_materialization_threshold_preserves_disk_and_memory_results(self):
         from tests.test_autoruns_regex_review import subprocess as native_subprocess
         cfg = db.load(self.database)
@@ -380,6 +383,7 @@ class DedupAiTest(unittest.TestCase):
         self.assertEqual(results[0][-1]["HighCountExcludedRows"], 21)
         self.assertEqual(results[0][-1]["EligibleGroups"], 1105)
 
+    @requires_velociraptor
     def test_native_many_groups_keep_late_counts_and_host_samples(self):
         cfg = db.load(self.database)
         rows = [row("early", image=f"c:\\fixture\\item{i}.exe") for i in range(1105)]

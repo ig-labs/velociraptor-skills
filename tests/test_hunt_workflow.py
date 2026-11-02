@@ -3,6 +3,7 @@ import contextlib
 import importlib.util
 import io
 import json
+import re
 import sys
 import tempfile
 import threading
@@ -2909,6 +2910,42 @@ class HuntSnapshotAnalysisTest(unittest.TestCase):
         self.assertTrue(review_files_exist)
         self.assertTrue(shared_review_files)
         self.assertEqual(derived_csv_files, [])
+
+    def test_extracted_evidence_reference_names_snapshot_output_layout(self):
+        workflow = load_module(WORKFLOW_PATH, "hunt_workflow_documented_layout")
+        module = load_module(ANALYSIS_PATH, "hunt_analysis_documented_layout")
+        version = module.STACK_ANALYSIS_VERSION
+        reference = (
+            REPO_ROOT
+            / "skills/velociraptor-hunting/references/extracted-evidence-analysis.md"
+        ).read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            case_root = Path(temp_dir)
+            hunt_root = workflow.case_layout.hunt_dir(case_root, "IR1234", "H.1234")
+            snapshot_dir = hunt_root / "snapshots" / "20260101T000000Z-doc"
+            snapshot_path = write_snapshot_v2(
+                snapshot_dir,
+                hunt_id="H.1234",
+                artifact="Artifact.Test",
+                rows=[{"ClientId": "C.1", "Message": "alpha"}],
+                fingerprint="doc",
+            )
+            module.analyze_snapshot(snapshot_path, snapshot_output="derived")
+            self.assertEqual(hunt_root, case_root / "IR1234" / "hunts" / "H.1234")
+            self.assertTrue((snapshot_dir / f"analysis-v{version}").is_dir())
+            self.assertTrue(
+                (hunt_root / "analysis-cache" / "by-chunk" / f"v{version}").is_dir()
+            )
+
+        documented = (
+            "/IR1234/hunts/H.1234/snapshots/<utc>-<fingerprint>/snapshot.json",
+            f"<snapshot_dir>/analysis-v{version}/",
+            f"<hunt_root>/analysis-cache/by-chunk/v{version}/",
+        )
+        self.assertEqual([path for path in documented if path not in reference], [])
+        self.assertEqual(
+            set(re.findall(r"analysis-v(\d+)", reference)), {str(version)}
+        )
 
     def test_analysis_partitions_by_client_and_reuses_chunk_hash(self):
         module = load_module(ANALYSIS_PATH, "hunt_analysis")

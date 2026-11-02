@@ -11,7 +11,7 @@ from vraptor.export_mapping import detect, prepare
 from vraptor.paths import resolve_velociraptor_binary
 
 BINARY = Path(resolve_velociraptor_binary(None, Path(__file__).resolve().parents[1]))
-pytestmark = pytest.mark.skipif(not BINARY.is_file(), reason='Native Velociraptor required')
+native = pytest.mark.skipif(not BINARY.is_file(), reason='Native Velociraptor required')
 
 
 def archive(tmp_path, encrypted=False):
@@ -34,6 +34,7 @@ def archive(tmp_path, encrypted=False):
     return output
 
 
+@native
 def test_zip_mapping_and_resume(tmp_path):
     source = archive(tmp_path)
     before = source.read_bytes()
@@ -54,6 +55,7 @@ def test_zip_mapping_and_resume(tmp_path):
         prepare(source, remap, str(BINARY), 'other-host')
 
 
+@native
 def test_password_zip(tmp_path, monkeypatch):
     source = archive(tmp_path, encrypted=True)
     remap = tmp_path / 'runtime/remapping.yaml'
@@ -71,6 +73,7 @@ def test_password_zip(tmp_path, monkeypatch):
         prepare(source, remap, str(BINARY), 'zip-test')
 
 
+@native
 def test_wrong_password(tmp_path, monkeypatch):
     source = archive(tmp_path, encrypted=True)
     password = tmp_path / 'password'
@@ -81,6 +84,7 @@ def test_wrong_password(tmp_path, monkeypatch):
         prepare(source, tmp_path / 'runtime/remapping.yaml', str(BINARY), 'zip-test')
 
 
+@native
 def test_zip_changed_after_mapping(tmp_path):
     source = archive(tmp_path)
     remap = tmp_path / 'runtime/remapping.yaml'
@@ -98,3 +102,24 @@ def test_rejects_unindexed_and_duplicate_uploads(tmp_path):
             z.writestr('uploads/auto/C%3A/Windows/example.txt', b'other')
     with pytest.raises(ValueError, match='Duplicate'):
         prepare(source, tmp_path / 'runtime/remapping.yaml', str(BINARY), 'zip-test')
+
+
+def test_rejects_results_only_and_non_windows_zips(tmp_path):
+    results_only = tmp_path / 'results.zip'
+    with zipfile.ZipFile(results_only, 'w') as z:
+        z.writestr('results/Generic.Client.Info%2FBasicInformation.json', '{}\n')
+    with pytest.raises(ValueError, match='uploads.json'):
+        detect(results_only)
+    with zipfile.ZipFile(results_only, 'a') as z:
+        z.writestr('uploads.json', '')
+    with pytest.raises(ValueError, match='no uploaded files'):
+        prepare(results_only, tmp_path / 'runtime/remapping.yaml', str(BINARY), 'zip-test')
+    linux = tmp_path / 'linux.zip'
+    row = dict(_Components=['uploads', 'auto', 'etc', 'passwd'], file_size=8, uploaded_size=8)
+    with zipfile.ZipFile(linux, 'w') as z:
+        z.writestr('uploads/auto/etc/passwd', b'evidence')
+        z.writestr('uploads.json', json.dumps(row) + '\n')
+    assert detect(linux) == 'velociraptor-kapefiles-zip'
+    with pytest.raises(ValueError, match='Unsupported accessor, drive'):
+        prepare(linux, tmp_path / 'runtime/remapping.yaml', str(BINARY), 'zip-test')
+    assert not (tmp_path / 'runtime').exists()
