@@ -262,7 +262,15 @@ def test_model_helpers_precede_prompt_without_restricting_models(
             assert "[saved-model]" in prompt
             hints = capsys.readouterr().err
             if choice in {"anthropic", "claude_code"}:
-                assert "claude-sonnet-5" in hints and "claude-opus-5-5" in hints
+                assert all(
+                    model in hints
+                    for model in (
+                        "claude-sonnet-5-5",
+                        "claude-opus-5-5",
+                        "claude-haiku-5-5",
+                        "claude-fable-5-1",
+                    )
+                )
                 assert "gpt-6-astra" not in hints
                 assert ("aliases: sonnet, opus, haiku, fable" in hints) == (
                     choice == "claude_code"
@@ -271,7 +279,16 @@ def test_model_helpers_precede_prompt_without_restricting_models(
                 assert "enter your deployment name" in hints
                 assert "gpt-6-astra" not in hints
             else:
-                assert "gpt-6-astra" in hints and "gpt-5.6-luna" in hints
+                assert all(
+                    model in hints
+                    for model in (
+                        "gpt-6-astra",
+                        "gpt-6.1-sol",
+                        "gpt-6.1-terra",
+                        "gpt-6-luna",
+                        "gpt-5.6-luna",
+                    )
+                )
                 assert "claude-sonnet-5" not in hints
             seen.append(prompt)
             return entered
@@ -327,6 +344,8 @@ def test_explicit_model_skips_suggestions_and_preserves_json_output(tmp_path, ca
     "choice,model,expected,absent",
     [
         ("openai", "gpt-6-astra", "  xhigh", "  none"),
+        ("openai", "gpt-6.1-sol", "  xhigh", "  none"),
+        ("openai", "gpt-6.1-terra", "  none", "Haiku"),
         ("openai", "gpt-6-sol", "  none", "Haiku"),
         ("openai", "gpt-5.6-luna", "  none", "Haiku"),
         ("openai", "gpt-5", "  minimal", "  none"),
@@ -334,6 +353,8 @@ def test_explicit_model_skips_suggestions_and_preserves_json_output(tmp_path, ca
         ("claude_code", "claude-opus-5-5", "  xhigh", "  none"),
         ("anthropic", "claude-opus-4-6", "  max", "  xhigh"),
         ("anthropic", "claude-haiku-4-5-20251001", "does not support", "  xhigh"),
+        ("anthropic", "claude-haiku-5-5", "  xhigh", "does not support"),
+        ("claude_code", "haiku", "  xhigh", "does not support"),
         (
             "azure_openai",
             "custom-deployment",
@@ -353,7 +374,7 @@ def test_effort_options_precede_prompt_and_preserve_saved_values(
     flags += ["--model", model]
     if choice == "azure_openai":
         flags += ["--base-url", "https://azure.example.test"]
-    saved_effort = [] if "haiku" in model else ["--reasoning-effort", "low"]
+    saved_effort = [] if "haiku-4-5" in model else ["--reasoning-effort", "low"]
     manage.setup(setup_args(tmp_path, *flags, *saved_effort))
     capsys.readouterr()
     seen = []
@@ -377,19 +398,164 @@ def test_effort_options_precede_prompt_and_preserve_saved_values(
     assert profile.get("reasoning_effort") == ("low" if saved_effort else None)
 
 
+@pytest.mark.parametrize(
+    "flags",
+    [
+        ["--from-harness", "claude_code"],
+        ["--from-harness", "claude_code", "--transport", "claude_agent_sdk"],
+    ],
+)
+def test_claude_code_keeps_effort_it_lowers_itself(tmp_path, flags):
+    # Claude Code runs an unsupported level as the highest supported one.
+    report = manage.setup(
+        setup_args(
+            tmp_path,
+            *flags,
+            "--model",
+            "claude-opus-4-6",
+            "--reasoning-effort",
+            "xhigh",
+        )
+    )
+    profile = sources.read_config(tmp_path / "analyst.toml")["profiles"][
+        report["execution_profile"]
+    ]
+    assert profile["reasoning_effort"] == "xhigh"
+
+
+@pytest.mark.parametrize(
+    "model,transport,expected",
+    [
+        ("claude-opus-4-6", "claude_agent_sdk", (200000, 120000, 64000)),
+        ("claude-opus-4-6[1m]", "claude_agent_sdk", (1000000, 872000, 128000)),
+        ("claude-opus-4-6", "api", (1000000, 872000, 128000)),
+    ],
+)
+def test_claude_code_route_uses_its_context_window(tmp_path, model, transport, expected):
+    report = manage.setup(
+        setup_args(
+            tmp_path,
+            "--from-harness",
+            "claude_code",
+            "--transport",
+            transport,
+            "--model",
+            model,
+        )
+    )
+    effective = report["analysis_limits"]["effective"]
+    assert (
+        effective["model_context_tokens"],
+        effective["maximum_input_tokens"],
+        effective["maximum_output_tokens"],
+    ) == expected
+
+
+@pytest.mark.parametrize(
+    "transport,expected",
+    [
+        ("claude_agent_sdk", (200000, 120000, 64000)),
+        ("api", (1000000, 872000, 128000)),
+    ],
+)
+def test_disabled_1m_context_budgets_claude_code_at_200k(tmp_path, transport, expected):
+    flags = ("--from-harness", "claude_code", "--transport", transport)
+    model = ("--model", "claude-opus-5-5")
+    with mock.patch.dict("os.environ", {"CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"}):
+        report = manage.setup(setup_args(tmp_path, *flags, *model))
+    effective = report["analysis_limits"]["effective"]
+    assert (
+        effective["model_context_tokens"],
+        effective["maximum_input_tokens"],
+        effective["maximum_output_tokens"],
+    ) == expected
+    # Clearing the setting restores the model's own limits on rerun.
+    report = manage.setup(setup_args(tmp_path, *flags))
+    effective = report["analysis_limits"]["effective"]
+    assert effective["model_context_tokens"] == 1000000
+    assert effective["maximum_input_tokens"] == 872000
+
+
+@pytest.mark.parametrize(
+    "model,extra,expected",
+    [
+        # The profile keeps the model's own limits; only budgets fit 200K.
+        ("claude-opus-5-5", (), (1000000, 200000, 120000, 64000)),
+        # Unlisted models are held to the same window.
+        ("custom-claude", (), (None, 200000, 120000, 64000)),
+        # An explicit smaller deployment cap is kept.
+        ("claude-opus-5-5", ("--model-context-tokens", "150000"), (150000, 150000, 100000, 50000)),
+    ],
+)
+def test_managed_disabled_1m_context_budgets_claude_code_at_200k(
+    tmp_path, monkeypatch, model, extra, expected
+):
+    directory = tmp_path / "managed"
+    directory.mkdir()
+    (directory / "managed-settings.json").write_text(
+        json.dumps({"env": {"CLAUDE_CODE_DISABLE_1M_CONTEXT": "true"}})
+    )
+    monkeypatch.setattr(sources, "DEFAULT_CLAUDE_MANAGED_SETTINGS_DIR", directory)
+    flags = ("--from-harness", "claude_code", "--transport", "claude_agent_sdk")
+    report = manage.setup(setup_args(tmp_path, *flags, "--model", model, *extra))
+    profile = sources.read_config(tmp_path / "analyst.toml")["profiles"]["claude_code"]
+    effective = report["analysis_limits"]["effective"]
+    assert (
+        profile.get("model_context_tokens"),
+        effective["model_context_tokens"],
+        effective["maximum_input_tokens"],
+        effective["maximum_output_tokens"],
+    ) == expected
+
+
+def test_disabled_1m_context_rerun_keeps_window_budgets_for_unlisted_model(tmp_path):
+    flags = ("--from-harness", "claude_code", "--transport", "claude_agent_sdk")
+    with mock.patch.dict("os.environ", {"CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"}):
+        for _ in range(2):
+            report = manage.setup(setup_args(tmp_path, *flags, "--model", "custom-claude"))
+            effective = report["analysis_limits"]["effective"]
+            assert (
+                effective["model_context_tokens"],
+                effective["maximum_input_tokens"],
+                effective["maximum_output_tokens"],
+            ) == (200000, 120000, 64000)
+
+
+def test_claude_code_import_on_api_transport_checks_effort_ladder(tmp_path):
+    with pytest.raises(RuntimeError, match="supports reasoning effort low, medium"):
+        manage.setup(
+            setup_args(
+                tmp_path,
+                "--from-harness",
+                "claude_code",
+                "--transport",
+                "api",
+                "--model",
+                "claude-opus-4-6",
+                "--reasoning-effort",
+                "xhigh",
+            )
+        )
+    assert not (tmp_path / "analyst.toml").exists()
+
+
 @pytest.mark.parametrize("managed", [False, True])
 @pytest.mark.parametrize("interactive", [False, True])
 @pytest.mark.parametrize(
     "model,expected",
     [
         ("claude-sonnet-5", "medium"),
+        ("claude-sonnet-5-5", "medium"),
+        ("claude-haiku-5-5", "medium"),
         ("claude-opus-5-5", "medium"),
         ("claude-fable-5-1", "medium"),
         ("claude-opus-4-5-20251101", "medium"),
         ("claude-sonnet-4-6", "medium"),
         ("claude-opus-4-6", "medium"),
         ("claude-haiku-4-5-20251001", None),
-        ("haiku", None),
+        ("claude-haiku-4-5", None),
+        # The haiku alias names Haiku 5.5, which takes effort.
+        ("haiku", "medium"),
         ("claude-sonnet-4-5", None),
         ("custom-model", None),
     ],
@@ -493,7 +659,7 @@ def test_explicit_effort_skips_helper_and_unsupported_claude_effort_still_fails(
     before = (tmp_path / "analyst.toml").read_bytes()
     with (
         mock.patch("builtins.input", return_value=""),
-        pytest.raises(RuntimeError, match="Anthropic reasoning_effort"),
+        pytest.raises(RuntimeError, match="supports reasoning effort low, medium"),
     ):
         manage.setup(
             setup_args(
@@ -502,6 +668,23 @@ def test_explicit_effort_skips_helper_and_unsupported_claude_effort_still_fails(
                 "anthropic",
                 "--model",
                 "claude-sonnet-5",
+                "--reasoning-effort",
+                "none",
+            )
+        )
+    assert (tmp_path / "analyst.toml").read_bytes() == before
+    # Unlisted models still get the generic Claude effort check.
+    with (
+        mock.patch("builtins.input", return_value=""),
+        pytest.raises(RuntimeError, match="Anthropic reasoning_effort"),
+    ):
+        manage.setup(
+            setup_args(
+                tmp_path,
+                "--provider",
+                "anthropic",
+                "--model",
+                "custom-claude",
                 "--reasoning-effort",
                 "none",
             )
@@ -729,6 +912,8 @@ def test_ai_help_is_accessible_without_config(tmp_path, command):
             and "Claude / Anthropic reasoning efforts" in output
         )
         assert "none, low, medium, high, xhigh, max" in output
+        assert "  Haiku 4.5: no effort setting" in output
+        assert "Haiku 5.5, Opus 4.7/4.8: low, medium, high, xhigh, max" in output
         for title in (
             "Profile selection:",
             "Connection and authentication:",

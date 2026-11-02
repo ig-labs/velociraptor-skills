@@ -7,6 +7,15 @@ from unittest import mock
 import pytest
 from vraptor.agent import command, factory, manage, sources
 from vraptor.agent.config import resolve_agent_execution
+from vraptor.agent.model_budgets import (
+    MIN_INPUT_TOKENS,
+    MIN_OUTPUT_TOKENS,
+    claude_code_1m_disabled,
+    effort_levels,
+    load_model_catalog,
+    model_aliases,
+    model_budget,
+)
 from vraptor.agent.runtime import AgentRequest, ProviderCapabilities, ProviderResponse
 from vraptor.analyze import limits
 from vraptor.paths import repository_environment
@@ -142,6 +151,8 @@ def test_interactive_pair_is_saved_and_reused(tmp_path, capsys):
     "provider,model,input_tokens,output_tokens",
     [
         ("openai", "gpt-6-astra", 272000, 128000),
+        ("openai", "gpt-6.1-sol", 272000, 128000),
+        ("openai", "gpt-6.1-terra", 272000, 128000),
         ("openai", "gpt-6-sol", 272000, 128000),
         ("openai", "gpt-6-luna", 272000, 128000),
         ("openai", "gpt-5.6-sol", 272000, 128000),
@@ -149,8 +160,13 @@ def test_interactive_pair_is_saved_and_reused(tmp_path, capsys):
         ("openai", "gpt-5.6-luna", 272000, 128000),
         ("azure_openai", "gpt-6-sol", 272000, 128000),
         ("anthropic", "claude-sonnet-5", 872000, 128000),
+        ("anthropic", "claude-sonnet-5-5", 872000, 128000),
         ("anthropic", "claude-opus-5-5", 872000, 128000),
+        ("anthropic", "claude-opus-4-8", 872000, 128000),
         ("anthropic", "claude-fable-5-1", 872000, 128000),
+        # Haiku 5.5 prompts over 100000 tokens use its higher rates.
+        ("anthropic", "claude-haiku-5-5", 100000, 128000),
+        ("anthropic", "claude-haiku-4-5", 120000, 64000),
         ("anthropic", "claude-haiku-4-5-20251001", 120000, 64000),
     ],
 )
@@ -178,6 +194,110 @@ def test_selected_model_defaults_reach_real_resolver(
     assert "Reference defaults:" in capsys.readouterr().err
     # Re-running does not inflate the budget, change its model cap, or lose it.
     assert setup(path, provider)["analysis_limits"]["effective"] == effective
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic"])
+def test_model_catalog_entries_are_consistent(provider):
+    catalog = load_model_catalog()["providers"][provider]
+    ids = [
+        name
+        for item in catalog["models"]
+        for name in (item["id"], *item.get("snapshots", ()))
+    ]
+    assert len(ids) == len(set(ids))
+    for name in ids:
+        budget = model_budget(provider, name)
+        assert budget.max_input_tokens >= MIN_INPUT_TOKENS
+        assert MIN_OUTPUT_TOKENS <= budget.default_output_tokens
+        assert budget.default_output_tokens <= budget.max_output_tokens
+        # Every listed model has a known effort ladder, possibly empty.
+        assert effort_levels(provider, name) is not None
+    for alias, target in model_aliases(provider).items():
+        assert alias == alias.lower()
+        assert target in ids
+        assert model_budget(provider, alias).alias_reference_model == target
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_claude_code_route_limits_are_consistent(enabled):
+    for item in load_model_catalog()["providers"]["anthropic"]["models"]:
+        budget = model_budget(
+            "anthropic", item["id"], "claude_agent_sdk", claude_code_1m=enabled
+        )
+        assert budget.max_input_tokens >= MIN_INPUT_TOKENS
+        assert MIN_OUTPUT_TOKENS <= budget.default_output_tokens
+        assert budget.default_output_tokens <= budget.max_output_tokens
+        larger = item["context_tokens"] > 200000
+        assert budget.claude_code_limit == (
+            ("needs_1m_variant" if item.get("claude_code_1m_variant") else "")
+            if enabled
+            else "1m_disabled" if larger else ""
+        )
+        assert budget.context_tokens == (
+            200000 if budget.claude_code_limit else item["context_tokens"]
+        )
+
+
+@pytest.mark.parametrize(
+    "value,disabled",
+    [
+        ("1", True), ("true", True), ("TRUE", True), (" yes ", True), ("on", True),
+        ("0", False), ("false", False), ("", False), ("off", False), ("2", False),
+    ],
+)
+def test_claude_code_1m_disable_values_match_claude_code(value, disabled):
+    # Checked against the bundled Claude Code CLI: only these drop context-1m.
+    assert claude_code_1m_disabled(value) is disabled
+
+
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("claude-opus-5-5", (200000, 120000, 64000)),
+        ("opus", (200000, 120000, 64000)),
+        ("claude-opus-4-6[1m]", (200000, 120000, 64000)),
+        ("claude-haiku-5-5", (200000, 100000, 64000)),
+        ("claude-haiku-4-5", (200000, 120000, 64000)),
+    ],
+)
+def test_disabled_1m_context_holds_claude_code_route_to_200k(model, expected):
+    budget = model_budget("anthropic", model, "claude_agent_sdk", claude_code_1m=False)
+    assert (
+        budget.context_tokens,
+        budget.default_input_tokens,
+        budget.default_output_tokens,
+    ) == expected
+    # Output shares the window with the minimum input.
+    assert budget.max_output_tokens == (64000 if "4-5" in model else 100000)
+    # The API route ignores the Claude Code setting.
+    api = model_budget("anthropic", model.replace("[1m]", ""), claude_code_1m=False)
+    assert api.claude_code_limit == ""
+
+
+@pytest.mark.parametrize("model", ["claude-opus-4-6", "claude-sonnet-4-6"])
+def test_claude_code_runs_4_6_at_200k_without_1m_variant(model):
+    api = model_budget("anthropic", model)
+    sdk = model_budget("anthropic", model, "claude_agent_sdk")
+    extended = model_budget("anthropic", f"{model}[1m]", "claude_agent_sdk")
+    assert (api.context_tokens, api.default_input_tokens) == (1000000, 872000)
+    assert (sdk.context_tokens, sdk.default_input_tokens) == (200000, 120000)
+    assert (sdk.default_output_tokens, sdk.max_input_tokens) == (64000, 136000)
+    assert extended.public_dict() == api.public_dict()
+    # The [1m] suffix is a Claude Code model name, not an API model ID.
+    assert model_budget("anthropic", f"{model}[1m]") is None
+
+
+@pytest.mark.parametrize(
+    "model,target,levels",
+    [
+        ("Opus", "claude-opus-5-5", ("low", "medium", "high", "xhigh", "max")),
+        ("Sonnet[1M]", "claude-sonnet-5-5", ("low", "medium", "high", "xhigh", "max")),
+        ("HAIKU", "claude-haiku-5-5", ("low", "medium", "high", "xhigh", "max")),
+    ],
+)
+def test_claude_aliases_match_without_case(model, target, levels):
+    assert model_budget("anthropic", model).alias_reference_model == target
+    assert effort_levels("anthropic", model) == levels
 
 
 @pytest.mark.parametrize(
@@ -242,19 +362,17 @@ def test_claude_alias_wizard_uses_bounded_reference(tmp_path, capsys, model, sav
                 ]
             )
         )
-    haiku = model == "haiku"
     effective = report["analysis_limits"]["effective"]
-    assert effective["model_context_tokens"] == (200000 if haiku else 1000000)
-    assert effective["maximum_input_tokens"] == (120000 if haiku else 872000)
-    assert effective["maximum_output_tokens"] == (64000 if haiku else 128000)
+    assert effective["model_context_tokens"] == 1000000
+    # The haiku alias names Haiku 5.5, whose standard-price tier ends at 100000.
+    assert effective["maximum_input_tokens"] == (100000 if model == "haiku" else 872000)
+    assert effective["maximum_output_tokens"] == 128000
     profile = sources.read_config(path)["profiles"]["claude_code"]
-    assert profile["model_max_output_tokens"] == (64000 if haiku else 128000)
-    if haiku:
-        assert "reasoning_effort" not in profile
-        assert resolve(path).route.reasoning_effort == ""
+    assert profile["model_max_output_tokens"] == 128000
     assert report["model_token_reference"]["model"] == model
-    assert report["model_token_reference"]["alias_reference_model"].startswith(
-        "claude-"
+    assert (
+        report["model_token_reference"]["alias_reference_model"]
+        == model_aliases("anthropic")[model]
     )
     display = capsys.readouterr().err
     assert "Default alias budget reference:" in display
@@ -262,7 +380,10 @@ def test_claude_alias_wizard_uses_bounded_reference(tmp_path, capsys, model, sav
     assert "999,990" not in display
 
 
-@pytest.mark.parametrize("model", ["haiku", "sonnet", "opus", "fable"])
+@pytest.mark.parametrize(
+    "model",
+    ["haiku", "sonnet", "opus", "fable", "best", "sonnet[1m]", "opus[1m]", "opusplan"],
+)
 def test_claude_alias_interactive_max_respects_output_cap(tmp_path, model):
     with (
         mock.patch("os.isatty", return_value=True),
@@ -275,8 +396,8 @@ def test_claude_alias_interactive_max_respects_output_cap(tmp_path, model):
     ):
         report = setup(tmp_path / "agents.toml", "anthropic", "--model", model)
     effective = report["analysis_limits"]["effective"]
-    assert effective["maximum_output_tokens"] == (64000 if model == "haiku" else 128000)
-    assert effective["maximum_input_tokens"] == (120000 if model == "haiku" else 872000)
+    assert effective["maximum_output_tokens"] == 128000
+    assert effective["maximum_input_tokens"] == (100000 if model == "haiku" else 872000)
 
 
 @pytest.mark.parametrize("model", ["haiku", "sonnet", "opus", "fable"])
@@ -292,14 +413,14 @@ def test_claude_alias_keeps_smaller_explicit_budgets(tmp_path, model):
         "--model-max-output-tokens",
         "32000",
         "--max-input-tokens",
-        "120000",
+        "100000",
         "--max-output-tokens",
         "32000",
     )
     report = setup(path, "anthropic", "--no-auto-token-budgets")
     effective = report["analysis_limits"]["effective"]
     assert effective["model_context_tokens"] == 160000
-    assert effective["maximum_input_tokens"] == 120000
+    assert effective["maximum_input_tokens"] == 100000
     assert effective["maximum_output_tokens"] == 32000
     assert report["token_budget_maxima"]["max_output_tokens"] == 32000
 
@@ -307,7 +428,8 @@ def test_claude_alias_keeps_smaller_explicit_budgets(tmp_path, model):
 @pytest.mark.parametrize(
     "model,maximum",
     [
-        ("haiku", 64000),
+        ("haiku", 128000),
+        ("claude-haiku-4-5", 64000),
         ("sonnet", 128000),
         ("opus", 128000),
         ("fable", 128000),
@@ -324,11 +446,57 @@ def test_claude_alias_rejects_excessive_explicit_output_without_writing(
     assert path.read_bytes() == original
 
 
-def test_haiku_setup_rejects_explicit_effort_before_writing(tmp_path):
+@pytest.mark.parametrize("model", ["claude-haiku-4-5", "claude-haiku-4-5-20251001"])
+def test_haiku_4_5_setup_rejects_explicit_effort_before_writing(tmp_path, model):
     path = tmp_path / "agents.toml"
-    with pytest.raises(RuntimeError, match="Haiku does not support"):
-        setup(path, "anthropic", "--model", "haiku", "--reasoning-effort", "medium")
+    with pytest.raises(RuntimeError, match="Haiku 4.5 does not support"):
+        setup(path, "anthropic", "--model", model, "--reasoning-effort", "medium")
     assert not path.exists()
+
+
+@pytest.mark.parametrize(
+    "model,effort,levels",
+    [
+        ("claude-opus-4-6", "xhigh", "low, medium, high, max"),
+        ("claude-sonnet-4-6", "xhigh", "low, medium, high, max"),
+        ("claude-opus-4-5-20251101", "max", "low, medium, high"),
+    ],
+)
+def test_api_setup_rejects_effort_outside_model_ladder(tmp_path, model, effort, levels):
+    path = tmp_path / "agents.toml"
+    with pytest.raises(RuntimeError, match=f"supports reasoning effort {levels}$"):
+        setup(path, "anthropic", "--model", model, "--reasoning-effort", effort)
+    assert not path.exists()
+
+
+def test_haiku_5_5_wizard_shows_price_tier_and_bounds_input(tmp_path, capsys):
+    path = tmp_path / "agents.toml"
+    with (
+        mock.patch("os.isatty", return_value=True),
+        mock.patch("builtins.input", return_value=""),
+    ):
+        setup(path, "anthropic", "--model", "claude-haiku-5-5")
+    display = capsys.readouterr().err
+    for line in (
+        "Published context: 1,000,000 tokens",
+        "Standard-price input ceiling: 100,000 tokens",
+        "Maximum model output: 128,000 tokens",
+        "Reference defaults: 100,000 input / 128,000 output",
+        "Prompts above the standard-price ceiling are billed at higher rates for the whole request.",
+    ):
+        assert line in display
+    before = path.read_bytes()
+    with pytest.raises(RuntimeError, match="between 100000 and 100000"):
+        setup(path, "anthropic", "--max-input-tokens", "100001")
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("model", ["haiku", "claude-haiku-5-5"])
+def test_haiku_5_5_setup_keeps_explicit_effort(tmp_path, model):
+    path = tmp_path / "agents.toml"
+    setup(path, "anthropic", "--model", model, "--reasoning-effort", "low")
+    assert sources.read_config(path)["profiles"]["anthropic"]["reasoning_effort"] == "low"
+    assert resolve(path).route.reasoning_effort == "low"
 
 
 # Minimum validation is shared across model aliases; retain both fields/providers.
@@ -384,7 +552,9 @@ def test_interactive_output_minimum_reprompts_and_haiku_input_max_is_available(
         mock.patch("os.isatty", return_value=True),
         mock.patch("builtins.input", side_effect=answer),
     ):
-        report = setup(tmp_path / "agents.toml", "anthropic", "--model", "haiku")
+        report = setup(
+            tmp_path / "agents.toml", "anthropic", "--model", "claude-haiku-4-5"
+        )
     effective = report["analysis_limits"]["effective"]
     assert effective["maximum_input_tokens"] == 136000
     assert effective["maximum_output_tokens"] == 64000
@@ -392,19 +562,61 @@ def test_interactive_output_minimum_reprompts_and_haiku_input_max_is_available(
 
 
 @pytest.mark.parametrize("model", ["sonnet", "opus", "fable"])
-def test_switching_claude_alias_to_haiku_clears_stale_limits_and_effort(
+def test_switching_claude_alias_to_haiku_4_5_clears_stale_limits_and_effort(
+    tmp_path, model
+):
+    path = tmp_path / "agents.toml"
+    setup(path, "anthropic", "--model", model)
+    report = setup(path, "anthropic", "--model", "claude-haiku-4-5")
+    effective = report["analysis_limits"]["effective"]
+    assert effective["model_context_tokens"] == 200000
+    assert effective["maximum_output_tokens"] == 64000
+    assert effective["maximum_input_tokens"] == 120000
+    profile = sources.read_config(path)["profiles"]["anthropic"]
+    assert profile["model"] == "claude-haiku-4-5"
+    assert "reasoning_effort" not in profile
+
+
+@pytest.mark.parametrize("previous", ["claude-haiku-4-5", None])
+def test_saved_reference_limits_follow_model_change(tmp_path, previous):
+    path = tmp_path / "agents.toml"
+    if previous:
+        setup(path, "anthropic", "--model", previous)
+    else:
+        # A haiku profile saved while the alias named Haiku 4.5.
+        document(
+            path,
+            {
+                "provider": "anthropic",
+                "model": "haiku",
+                "api_key_env": "ANTHROPIC_API_KEY",
+                "model_context_tokens": 200000,
+                "model_max_output_tokens": 64000,
+                "max_input_tokens": 120000,
+                "max_output_tokens": 64000,
+            },
+        )
+    report = setup(path, "anthropic", "--model", "haiku")
+    effective = report["analysis_limits"]["effective"]
+    assert effective["model_context_tokens"] == 1000000
+    assert effective["maximum_output_tokens"] == 128000
+    assert effective["maximum_input_tokens"] == 100000
+
+
+@pytest.mark.parametrize("model", ["sonnet", "opus", "fable"])
+def test_switching_claude_alias_to_haiku_bounds_input_and_keeps_effort(
     tmp_path, model
 ):
     path = tmp_path / "agents.toml"
     setup(path, "anthropic", "--model", model)
     report = setup(path, "anthropic", "--model", "haiku")
     effective = report["analysis_limits"]["effective"]
-    assert effective["model_context_tokens"] == 200000
-    assert effective["maximum_output_tokens"] == 64000
-    assert effective["maximum_input_tokens"] == 120000
+    assert effective["model_context_tokens"] == 1000000
+    assert effective["maximum_output_tokens"] == 128000
+    assert effective["maximum_input_tokens"] == 100000
     profile = sources.read_config(path)["profiles"]["anthropic"]
     assert profile["model"] == "haiku"
-    assert "reasoning_effort" not in profile
+    assert profile["reasoning_effort"] == "medium"
 
 
 def test_haiku_recommendation_is_separate_from_model_maximum(tmp_path, capsys):

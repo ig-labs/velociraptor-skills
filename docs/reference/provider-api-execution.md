@@ -116,7 +116,7 @@ provider error messages and response payloads are not persisted.
 | OpenAI | official `openai` SDK, `AsyncOpenAI`, Responses API | Responses JSON Schema plus client validation | sends `max_output_tokens`; local stream cancellation; `store=false`; no response chaining |
 | Azure OpenAI | official `openai` SDK, `AsyncOpenAI`, Azure `/openai/v1/responses` | Responses JSON Schema plus client validation | sends `max_output_tokens`; API key or async Entra token provider; local stream cancellation; stateless |
 | Codex-managed OpenAI | installed `codex app-server`, JSON-RPC over its version-matched stdio proxy | app-server turn output schema plus client validation | output ceiling remains local; remote turn interruption; one ephemeral thread per request; Codex-managed login |
-| Anthropic | official `anthropic` SDK, Messages API | native JSON Schema plus client validation; model support required | sends `max_tokens`; local stream cancellation; no message chaining; incomplete responses fail |
+| Anthropic | official `anthropic` SDK, Messages API | native JSON Schema plus client validation; model support required | sends `max_tokens`; effort adds adaptive thinking except on Opus 4.5; local stream cancellation; no message chaining; incomplete responses fail, with context-window and refusal stops classified separately |
 | Claude-managed Anthropic | official `claude-agent-sdk`, native login | SDK output format plus client validation | output ceiling remains local; one ephemeral session; tools, MCP, hooks and setting sources disabled |
 
 Only the providers listed above are implemented. Any other provider selection

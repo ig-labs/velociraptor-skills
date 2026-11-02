@@ -66,8 +66,8 @@ Analysis supports run-only `--execution-profile`, `--ai-config-file`, `--model`,
 reserves output space, and honors smaller declared deployment limits. Advanced
 `--model-context-tokens TOKENS|max` and `--model-max-output-tokens TOKENS|max`
 can override those ceilings; `max` requires a recognized model reference.
-Input has a 100000-token floor when available input capacity permits it, otherwise
-a 10-token floor. Overrides outrank environment and saved settings, are validated
+Input must be at least 100000 tokens and output at least 32000; limits that cannot
+hold both are rejected. Overrides outrank environment and saved settings, are validated
 before API access, and never change persisted configuration. Omitting them keeps
 the existing defaults. `analyze --help` lists this shared option group.
 

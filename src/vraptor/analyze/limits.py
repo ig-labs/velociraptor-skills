@@ -10,6 +10,11 @@ from types import MappingProxyType
 from typing import Any
 
 from vraptor.agent.config import REPO_ROOT
+from vraptor.agent.model_budgets import (
+    CLAUDE_CODE_DISABLE_1M,
+    claude_code_1m_disabled,
+    claude_code_window,
+)
 from vraptor.agent.runtime import AgentRuntimeLimits
 from vraptor.common import token_budget
 from vraptor.paths import RepositoryEnvironment, repository_environment
@@ -79,6 +84,48 @@ def default_analysis_settings() -> dict[str, Any]:
     """Return the shared settings written by setup from canonical code defaults."""
     defaults = AnalysisLimits()
     return {name: getattr(defaults, field) for name, field in TOML_FIELDS.items()}
+
+
+BUDGET_FIELDS = ("maximum_input_tokens", "maximum_output_tokens")
+BUDGET_DEFAULTS = {
+    "maximum_input_tokens": DEFAULT_MAXIMUM_INPUT_TOKENS,
+    "maximum_output_tokens": DEFAULT_MAXIMUM_OUTPUT_TOKENS,
+}
+
+
+def fit_claude_code_window(
+    pair: dict[str, Any], sources: dict[str, LimitSource]
+) -> list[str]:
+    """Cap saved profile budgets that overflow Claude Code's 200K window.
+
+    CLAUDE_CODE_DISABLE_1M_CONTEXT can postdate the saved pair. A "max" field
+    counts as the window's default; CLI and environment budgets stay as given.
+    Updates ``pair`` and ``sources`` in place and returns the changed fields.
+    """
+    window = claude_code_window()
+    budgets = {
+        "maximum_input_tokens": window["input_budget_tokens"],
+        "maximum_output_tokens": window["output_budget_tokens"],
+    }
+    planned = {
+        name: budgets[name] if pair[name] == "max" else int(pair[name])
+        for name in BUDGET_FIELDS
+    }
+    if sum(planned.values()) <= window["context_tokens"]:
+        return []
+    changed = [
+        name
+        for name in BUDGET_FIELDS
+        if pair[name] != "max"
+        and planned[name] > budgets[name]
+        and getattr(sources.get(name), "kind", "") == "execution_profile"
+    ]
+    for name in changed:
+        pair[name] = budgets[name]
+        sources[name] = LimitSource(
+            kind="model_envelope", name=CLAUDE_CODE_DISABLE_1M, explicit=True
+        )
+    return changed
 
 
 def derive_profile_budgets(
@@ -295,12 +342,35 @@ class AnalysisLimits:
             token_encoding=self.token_encoding,
         )
 
+    def _fit_claude_code_window(self, route) -> AnalysisLimits:
+        if getattr(route, "claude_code_1m_context", True):
+            return self
+        pair = {name: getattr(self, name) for name in BUDGET_FIELDS}
+        sources = dict(self.field_sources)
+        if not fit_claude_code_window(pair, sources):
+            return self
+        derived = derive_profile_budgets(
+            pair["maximum_input_tokens"],
+            pair["maximum_output_tokens"],
+            self.maximum_evidence_tokens_per_item,
+        )
+        for name in derived:
+            sources[name] = LimitSource(
+                kind="model_envelope", name=CLAUDE_CODE_DISABLE_1M, explicit=True
+            )
+        return replace(
+            self, **pair, **derived, field_sources=MappingProxyType(sources)
+        )
+
     def for_execution(self, execution) -> AnalysisLimits:
         """Tighten the shared envelope to the operator's model/deployment limits.
 
         Input/output share the declared context. Instruction, prior-context and
         safety reserves are already accounted for inside the input budget.
         """
+        return self._fit_claude_code_window(execution.route)._bounded(execution)
+
+    def _bounded(self, execution) -> AnalysisLimits:
         route = execution.route
         context = route.model_context_tokens or self.model_context_tokens
         if not route.model_context_tokens and not route.model_max_output_tokens:
@@ -505,20 +575,48 @@ def resolve_analysis_limits(
                 sources[field_name] = LimitSource(kind="cli", name=source.name, explicit=True)
                 environment_fields.discard(field_name)
                 environment_fields.discard("operational_context_tokens")
-    maximum_fields = {name for name in ("maximum_input_tokens", "maximum_output_tokens") if values.get(name) == "max"}
-    if maximum_fields:
-        from vraptor.agent.model_budgets import MIN_INPUT_TOKENS, model_budget
-        selected_execution = execution
-        if selected_execution is None:
-            from vraptor.agent.config import resolve_agent_execution
+    maximum_fields = {name for name in BUDGET_FIELDS if values.get(name) == "max"}
+    selected_execution = execution
+    # Plan-only, snapshot and prepare paths never reach for_execution, so saved
+    # profile budgets are refitted here too while Claude Code is held to 200K.
+    refit_hint = bool(
+        execution is None
+        and profile_budget
+        and _claude_code_1m_disabled_hint(environment, layers)
+    )
+    if selected_execution is None and (maximum_fields or refit_hint):
+        from vraptor.agent.config import resolve_agent_execution
+        try:
             selected_execution = resolve_agent_execution(
                 cli_values={key: value for key, value in (("config_file", config_path), ("execution_profile", profile_name)) if value},
                 repo_root=REPO_ROOT,
                 process_environment=environment if environment is not None else None,
                 allow_missing_credentials=True,
             )
+        except (RuntimeError, ValueError):
+            # Without a resolvable route the saved pair stays; a runner refits it.
+            if maximum_fields:
+                raise
+    claude_code_200k = (
+        selected_execution is not None
+        and not selected_execution.route.claude_code_1m_context
+    )
+    refitted = []
+    if claude_code_200k:
+        # Before "max" is filled, so it uses the room left by a refitted partner.
+        pair = {name: values.get(name, BUDGET_DEFAULTS[name]) for name in BUDGET_FIELDS}
+        refitted = fit_claude_code_window(pair, sources)
+        for name in refitted:
+            values[name] = pair[name]
+    if maximum_fields:
+        from vraptor.agent.model_budgets import MIN_INPUT_TOKENS, model_budget
         route = selected_execution.route
-        reference = model_budget(route.provider, route.model)
+        reference = model_budget(
+            route.provider,
+            route.model,
+            route.protocol,
+            claude_code_1m=route.claude_code_1m_context,
+        )
         context = route.model_context_tokens or (reference.context_tokens if reference else 0)
         output_cap = route.model_max_output_tokens or (reference.max_output_tokens if reference else 0)
         if not context or not output_cap:
@@ -527,7 +625,10 @@ def resolve_analysis_limits(
             context = min(context, reference.context_tokens)
             output_cap = min(output_cap, reference.max_output_tokens)
         if "maximum_output_tokens" in maximum_fields:
-            values["maximum_output_tokens"] = min(output_cap, context - MIN_INPUT_TOKENS)
+            saved_input = values.get("maximum_input_tokens")
+            # In Claude Code's 200K window, "max" output fills what the input leaves.
+            reserved_input = max(MIN_INPUT_TOKENS, int(saved_input)) if claude_code_200k and saved_input not in (None, "max") else MIN_INPUT_TOKENS
+            values["maximum_output_tokens"] = min(output_cap, context - reserved_input)
         output = values.get("maximum_output_tokens", DEFAULT_MAXIMUM_OUTPUT_TOKENS)
         if "maximum_input_tokens" in maximum_fields:
             values["maximum_input_tokens"] = min(context - output, reference.standard_price_input_ceiling if reference else context - output)
@@ -541,7 +642,8 @@ def resolve_analysis_limits(
                 DEFAULT_MAXIMUM_EVIDENCE_TOKENS_PER_ITEM,
             ),
         )
-        # Explicit environment overrides remain authoritative and are validated below.
+        # Explicit environment overrides remain authoritative and are validated
+        # below, unless a refitted pair no longer holds them.
         for name, value in derived.items():
             if name not in environment_fields:
                 values[name] = value
@@ -551,6 +653,11 @@ def resolve_analysis_limits(
                     if name == "operational_context_tokens"
                     else name,
                     location=config_path,
+                )
+            elif refitted and values[name] > value:
+                values[name] = value
+                sources[name] = LimitSource(
+                    kind="model_envelope", name=CLAUDE_CODE_DISABLE_1M, explicit=True
                 )
         values["model_context_tokens"] = model_context
         sources["model_context_tokens"] = LimitSource(
@@ -567,6 +674,20 @@ def resolve_analysis_limits(
     if validate:
         limits.validate()
     return limits
+
+
+def _claude_code_1m_disabled_hint(
+    environment: Mapping[str, str] | None, layers: RepositoryEnvironment | None
+) -> bool:
+    """Cheap pre-check before resolving a route for the 200K refit."""
+    from vraptor.agent.sources import claude_managed_env, setting
+
+    managed = claude_managed_env(CLAUDE_CODE_DISABLE_1M)
+    if managed:
+        return claude_code_1m_disabled(managed[0])
+    if layers is not None:
+        return claude_code_1m_disabled(setting(layers, CLAUDE_CODE_DISABLE_1M))
+    return claude_code_1m_disabled((environment or {}).get(CLAUDE_CODE_DISABLE_1M))
 
 
 def analysis_route(value: str | None = None) -> str:

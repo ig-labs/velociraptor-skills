@@ -144,8 +144,8 @@ for the command sequence and limits of offline checks.
 - The reasoning-effort prompt likewise lists model-specific choices, including
   `xhigh` where supported. Enter preserves/inherits effort; recognized Claude
   models with effort support default to `medium` only if no explicit, saved,
-  shared or native effort exists. Haiku and unknown models receive no automatic
-  effort setting.
+  shared or native effort exists. Haiku 4.5 and unknown models receive no
+  automatic effort setting.
 
 ### Analysis token budgets
 
@@ -163,14 +163,24 @@ the resolved values and sources with `vraptor ai config`.
   explicit smaller deployment caps.
 - New OpenAI/Azure profiles suggest 272000 / 128000, deriving 400000 context and
   keeping the shared 200000 evidence ceiling.
-- Unknown IDs/custom deployments/short harness aliases show unverified limits and
+- Listed Claude aliases (`opus`, `sonnet`, `haiku`, `fable`, `best`) use the
+  reference limits of the model they currently name, and setup names that
+  reference model. Unknown IDs and custom deployments show unverified limits and
   use saved/application fallbacks. Do not treat these offline API references as
   account discovery or managed-plan price guarantees.
+- On the Claude Code route, Opus/Sonnet 4.6 without `[1m]`, and every model while
+  `CLAUDE_CODE_DISABLE_1M_CONTEXT` is `1`, `true`, `yes` or `on`, use a 200000
+  context with 64000 output / 120000 input defaults (Haiku 5.5: 100000 input).
+  Setup and runtime read the variable from Claude Code's managed settings files,
+  the process environment and `.env` (not server-managed settings, MDM policies or
+  `~/.claude.json`), and pass it to Claude Code. While it is set, runtime lowers saved profile budgets that overflow 200K to
+  those defaults; rerun setup after changing it. See
+  [shared token budgets](../../../docs/model-execution.md#shared-token-budgets).
 - Setup selects output first and shows the exact remaining input maximum. `max`
   or `auto` at a prompt fills that field's available capacity. Prompt brackets
   show the calculated default, e.g. `Maximum input tokens [872000] (Enter to keep):`.
-- Input has a 100000-token minimum when the available maximum is at least
-  100000; smaller available contexts retain a lower minimum.
+- Input must be at least 100000 tokens and output at least 32000; a model or
+  deployment that cannot hold both is rejected.
 - The default `--auto-token-budgets` replaces saved budgets with those model
   output recommendations and reference input defaults.
   `--no-auto-token-budgets` retains saved budgets within the allowed range, with a

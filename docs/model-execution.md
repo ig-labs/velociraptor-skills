@@ -78,16 +78,20 @@ checks native login and starts sign-in if required after saving. Enter skips
 that step; `ai login --harness claude_code` remains available separately.
 
 Before an interactive model prompt, setup lists the selected provider's model
-examples in aligned columns with short descriptions. OpenAI and Codex show GPT-6
-and GPT-5.6 examples; Anthropic API and Claude Code show Claude examples. Claude
-Code also shows its `sonnet`, `opus`, `haiku` and `fable` aliases. Azure asks for
+examples in aligned columns with short descriptions. OpenAI and Codex show GPT-6,
+GPT-6.1 and GPT-5.6 examples; Anthropic API and Claude Code show Claude examples. Claude
+Code also shows its `sonnet`, `opus`, `haiku`, `fable`, `best`, `sonnet[1m]`,
+`opus[1m]` and `opusplan` aliases. Azure asks for
 your actual deployment name. These are offline suggestions, not an account model
 inventory or an allowlist. You can enter another supported ID, or press Enter to
 retain the displayed model. Supplying `--model` skips the prompt and suggestions.
 `ai setup --help` includes both lists. Model defaults and token budgets do not
 change when these suggestions are displayed.
 
-The reference lists were checked on 2026-09-23 against the
+Examples, token references, Claude Code aliases and effort ladders all come from
+one file, `src/vraptor/resources/model-catalog.toml`. Update it,
+including its `checked` date, when providers publish new models or limits.
+The reference lists were checked on 2026-10-30 against the
 [OpenAI catalogue](https://developers.openai.com/api/docs/models),
 [GPT-5.6 guide](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.6),
 [Anthropic catalogue](https://platform.claude.com/docs/en/models/overview) and
@@ -96,20 +100,27 @@ Access still depends on your account and client version.
 
 The **Reasoning effort** section prints model-specific levels and short
 descriptions before its prompt; the same guidance appears in `ai setup --help`.
-GPT-6 Astra supports `low`, `medium`, `high`, `xhigh`, `max`; GPT-6 Sol/Luna and
-GPT-5.6 also support `none`. Older GPT-5 supports `minimal`, `low`, `medium`, `high`.
+GPT-6 Astra and GPT-6.1 Sol support `low`, `medium`, `high`, `xhigh`, `max`;
+GPT-6.1 Terra, GPT-6 Sol/Luna and GPT-5.6 also support `none`. Older GPT-5 supports
+`minimal`, `low`, `medium`, `high`.
 OpenAI effort values remain free-form so other supported model-specific levels
 can pass through to the selected runtime. Azure deployments must use the levels
 supported by their underlying model.
 
 Claude API and Claude Code profiles accept `low`, `medium`, `high`, `xhigh`, `max`.
-The selected model must support the value: current Sonnet 5, Opus 5/5.5 and Fable
-5/5.1 support all five; older models can support fewer. Haiku does not expose
-effort, so leave it unset. Enter preserves saved settings; displaying the helper
+The selected model must support the value: Fable 5/5.1, Opus 5/5.5, Sonnet 5/5.5,
+Haiku 5.5 and Opus 4.7/4.8 support all five; Opus/Sonnet 4.6 support `low`,
+`medium`, `high`, `max`; Opus 4.5 supports `low`, `medium`, `high`. Haiku 4.5 does
+not expose effort, so leave it unset. On the direct API route, setup and a run's
+`--reasoning-effort` reject a level the listed model lacks, and an inherited level
+(for example after a run's `--model` switches model) is lowered to the highest
+supported one, as Claude Code does for its route. Enter preserves saved settings; displaying the helper
 does not alter them. Recognized effort-capable Claude models default to `medium`
 only when CLI, profile, shared and native settings supply no effort. This applies
 to interactive and non-interactive setup, including inherited Claude models.
-Haiku, unsupported older versions and unknown IDs receive no automatic effort.
+`medium` is the API default for Opus 5.5 and Haiku 5.5 and one level below the
+`high` API default of Sonnet 5.5 and Fable 5.1.
+Haiku 4.5, unsupported older versions and unknown IDs receive no automatic effort.
 `--reasoning-effort` skips the prompt and helper.
 Reference: [OpenAI model specifications](https://developers.openai.com/api/docs/models),
 [GPT-5 effort](https://developers.openai.com/api/docs/models/gpt-5), and
@@ -160,8 +171,8 @@ and `--harness-config` to skip the harness-path prompt in a terminal):
 
 The Claude command inherits the model from Claude Code. The wizard uses that
 resolved model for its offline [token-budget reference](#shared-token-budgets).
-Known Claude IDs have model-specific defaults; unknown IDs and moving aliases
-fall back to shared budgets (272K input / 64K output unless configured).
+Known Claude IDs and the Claude Code aliases have model-specific defaults; unknown
+IDs fall back to shared budgets (272K input / 64K output unless configured).
 New OpenAI/Azure profiles suggest 272K input and 128K output when no saved values
 exist. These references do not query account capabilities or enable extended context.
 Check [Claude model capacities](https://platform.claude.com/docs/en/build-with-claude/context-windows)
@@ -239,24 +250,57 @@ also support `--execution-profile`. These execution profiles are independent of
 The **Analysis token budgets** section of `vraptor ai setup` prompts for two
 values per profile. It first prints the resolved model, published context,
 standard-price input ceiling, maximum output and reference defaults. Offline
-references checked **2026-09-23** cover the exact IDs in the setup model helper:
+references checked **2026-10-30** cover the exact IDs in the model catalog:
 
 | Model IDs | Standard-price input ceiling | Output maximum | Output default | Input default |
 | --- | ---: | ---: | ---: | ---: |
-| GPT-6 Astra/Sol/Luna; GPT-5.6 Sol/Terra/Luna | 272000 | 128000 | 128000 | 272000 |
-| Claude Sonnet 5, Opus 5.5, Fable 5.1 | 1000000 context | 128000 | 128000 | 872000 |
-| Claude Haiku `claude-haiku-4-5-20251001` | 200000 context | 64000 | 64000 | 120000 |
+| GPT-6 Astra; GPT-6.1 Sol/Terra; GPT-6 Sol/Luna; GPT-5.6 Sol/Terra/Luna | 272000 | 128000 | 128000 | 272000 |
+| Claude Fable 5.1, Opus 5.5, Sonnet 5.5 and the listed earlier 1M models | 1000000 context | 128000 | 128000 | 872000 |
+| Claude Haiku 5.5 `claude-haiku-5-5` | 100000 | 128000 | 128000 | 100000 |
+| Claude Haiku 4.5 `claude-haiku-4-5`, `claude-haiku-4-5-20251001` | 200000 context | 64000 | 64000 | 120000 |
+| Claude Opus/Sonnet 4.6 on the Claude Code route without `[1m]`; any larger Claude model there while `CLAUDE_CODE_DISABLE_1M_CONTEXT` is set | 200000 context | 100000 | 64000 | 120000 (Haiku 5.5: 100000) |
 
 [OpenAI model specifications](https://developers.openai.com/api/docs/models/gpt-6-sol)
 describe the surcharge above 272K input.
 [Claude capacities](https://platform.claude.com/docs/en/models/overview) and
 [pricing](https://platform.claude.com/docs/en/about-claude/pricing#long-context-pricing)
-include standard pricing across the current models' context. Input capacity is
-`min(model context - selected output, standard-price input ceiling)`; Sonnet's
-default is `1000000 - 128000 = 872000`. More tokens still cost more at the same
-per-token rate. Haiku defaults to 64000 output and 120000 input, leaving 16000
-context tokens unallocated. Explicit input `max` permits
-`200000 - 64000 = 136000`. The JSON reference reports `default_input_tokens`
+include standard pricing across the current models' context, except Haiku 5.5:
+prompts over 100000 tokens, cache reads and writes included, use its higher rates.
+Input capacity is `min(model context - selected output, standard-price input ceiling)`;
+Sonnet's default is `1000000 - 128000 = 872000`. More tokens still cost more at the
+same per-token rate. Haiku 4.5 defaults to 64000 output and 120000 input, below the
+`200000 - 64000 = 136000` that explicit input `max` permits. Claude Code runs
+`claude-opus-4-6` and `claude-sonnet-4-6` at 200K, so Claude Code profiles use the
+same 64000 / 120000 defaults for them; `claude-opus-4-6[1m]` or
+`claude-sonnet-4-6[1m]` selects the 1M window where the plan allows it
+([model configuration](https://code.claude.com/docs/en/model-config)).
+`CLAUDE_CODE_DISABLE_1M_CONTEXT` set to `1`, `true`, `yes` or `on` (as Claude Code
+reads it; `0`, `false` or empty keep 1M) makes Claude Code run every model at 200K,
+`[1m]` variants included. Vraptor reads it from Claude Code's managed settings
+files (`/etc/claude-code/managed-settings.json`, then non-hidden
+`managed-settings.d/*.json` in name order; `/Library/Application Support/ClaudeCode`
+on macOS), which win, then from the process environment and its `.env` layers, and
+passes it to Claude Code on analyst runs. It does not read server-managed settings,
+MDM or registry policies, or `~/.claude.json`, which can hold account data: a value
+set only there reaches Claude Code but not the budgets, and the resulting
+`Prompt is too long` error is reported as `model_context_window_exceeded`. While
+the variable is set on the Claude Code route:
+
+- Setup keeps the model's own limits in the profile and budgets the 200000 window
+  with 64000 output and 120000 input (Haiku 5.5: 100000), unlisted models included.
+  An explicit smaller `--model-context-tokens` is kept.
+- Runtime caps `model_context_tokens` at 200000 and `model_max_output_tokens` at
+  100000, on every analysis path.
+- Saved profile budgets that exceed 200000 together are lowered to at most 120000
+  input / 64000 output; a saved `max` fills what its partner leaves.
+- CLI budgets above the window are rejected; environment budgets are narrowed to
+  fit, as for any model.
+
+The API route ignores the variable. Rerun setup after changing it.
+
+Budgets are local o200k estimates: Claude counts the same text as roughly
+1.15–1.35 times as many tokens, more for code-like evidence such as hashes and paths, so a full budget can
+exceed a Claude context window or Haiku 5.5's 100000 price tier. The JSON reference reports `default_input_tokens`
 separately from `max_input_tokens`. Setup defaults to automatic budgets for known models, including
 reruns; use `--no-auto-token-budgets` to retain saved values within the allowed
 range. These are API references, not managed-plan allowances or
@@ -267,19 +311,26 @@ context is recorded as `model_context_tokens` for
 new and existing profiles so the generic 400K application fallback cannot silently
 restrict them. Setup also records `model_max_output_tokens`; output `max` can never
 expand to nearly the whole context for these models. Smaller explicitly configured
-context/output caps remain in force and are displayed.
+context/output caps remain in force and are displayed. A saved pair that matches a
+listed model's reference (for example 200000 / 64000 saved while `haiku` named
+Haiku 4.5) is treated as setup-recorded and refreshed for the selected model; pass
+`--model-context-tokens` and `--model-max-output-tokens` on each setup run to keep
+such a pair as a deployment cap.
 
 Claude aliases `haiku`, `sonnet`, `opus`, and `fable` use dated offline references
-for the default Anthropic-hosted models (checked **2026-09-24**): Haiku 4.5,
-Sonnet 5, Opus 5.5, and Fable 5.1 respectively. Haiku uses 200000 context / 64000
-maximum and default output, with 120000 default input. The other three
-use 1000000 context / 128000 maximum and default output / 872000 default input.
+for the default Anthropic-hosted models (checked **2026-10-30**): Haiku 5.5,
+Sonnet 5.5, Opus 5.5, and Fable 5.1 respectively. All four use 1000000 context /
+128000 maximum and default output. Haiku 5.5 input defaults to its 100000
+standard-price ceiling; the other three default to 872000 input. `best`,
+`sonnet[1m]`, `opus[1m]` and `opusplan` use the Fable 5.1, Sonnet 5.5, Opus 5.5
+and Sonnet 5.5 references; their limits match.
 The alias is retained for execution. The wizard and JSON `alias_reference_model`
 identify the reference rather than claiming live alias resolution. A remapped alias
 or another hosting provider can have different limits: select the exact supported
-model ID or configure smaller deployment caps. `claude-haiku-4-5` is also recognized.
-Setup removes stale Haiku effort settings and runtime resolution omits effort for
-Haiku 4.5, including inherited settings from a previous model.
+model ID or configure smaller deployment caps. `claude-haiku-4-5` and its dated
+snapshot select Haiku 4.5. Setup removes stale effort settings and runtime
+resolution omits effort for Haiku 4.5, including inherited settings from a
+previous model; Haiku 5.5 keeps its effort.
 
 Unknown models and custom Azure deployment names retain application/shared
 fallbacks and are explicitly marked unverified. Explicit model ceilings still
@@ -315,14 +366,14 @@ Maximum input tokens [100000] (Enter to keep):
 
 Output is selected first; the wizard then displays the exact remaining input
 capacity before asking for input. Enter `max` or `auto` at either budget prompt
-to use its maximum (explicitly choosing this for Haiku output uses 64000).
+to use its maximum (explicitly choosing this for Haiku 4.5 output uses 64000).
 Oversized interactive values are adjusted to the displayed maximum and setup
 continues; non-numeric/too-small entries can be corrected without restarting.
 For example, entering `1000000` for Sonnet input with 128000 output selects
 872000 input, while selecting 32000 output allows 968000 input.
 
 The default `--auto-token-budgets` replaces the selected profile's saved budgets with
-maximum model output and remaining standard-price input, except Haiku's explicit
+maximum model output and remaining standard-price input, except Haiku 4.5's explicit
 120000 input default. Smaller deployment caps still apply. Explicit token flags
 override this mode and fail before writing if invalid. For Claude, OpenAI and Azure,
 input must be at least **100000** and output at least **32000**. Output selection
@@ -361,12 +412,13 @@ Host, hunt, Autoruns and snapshot analysis accept the same optional settings:
 | `--model-context-tokens TOKENS\|max` | Set deployment context, or replace a saved smaller cap with published context. |
 | `--model-max-output-tokens TOKENS\|max` | Set deployment output cap, or use the published cap. |
 
-For example, append `--model claude-sonnet-5 --max-input-tokens max
+For example, append `--model claude-sonnet-5-5 --max-input-tokens max
 --max-output-tokens max` to an existing analysis command using an Anthropic
 profile: input resolves to 872000 and output to 128000. Specifying 32000 output
-instead permits 968000 input. Haiku `--max-output-tokens max` explicitly chooses
-64000, which is also its setup default. Haiku's setup input default is 120000;
-explicit input `max` permits 136000 with 64000 output.
+instead permits 968000 input. Haiku 4.5 `--max-output-tokens max` explicitly chooses
+64000, which is also its setup default. Haiku 4.5's setup input default is 120000;
+explicit input `max` permits 136000 with 64000 output. Haiku 5.5 (`haiku`)
+resolves `max` to 100000 input and 128000 output.
 
 Explicit smaller deployment ceilings remain binding unless overridden. Unknown
 model IDs need declared numeric ceilings before `max` can claim capacity. Input
@@ -542,8 +594,9 @@ startup environment or mutate global environment between requests.
 
 The repository requirements install the Python API/Claude extras; standalone
 installations can install only the extras they need. Azure uses deployment names.
-Anthropic uses Messages with native structured outputs and opt-in adaptive thinking;
-the selected model must support requested features. No provider fallback occurs.
+Anthropic uses Messages with native structured outputs. A configured effort also
+enables adaptive thinking, except on Opus 4.5, which receives effort only. The
+selected model must support requested features. No provider fallback occurs.
 
 `TRANSPORT=auto` selects a compatible transport from launch context. An unset
 transport inherits a detected harness where supported; explicitly configured
@@ -557,6 +610,8 @@ MCP configuration, hooks disabled, and one turn; observed tool actions fail the 
 It requires SDK >=0.2.140 and does not share a Codex-style daemon. Endpoint-managed
 vendor policy still applies. Qualify this transport on the intended managed endpoint
 before internal production use; vendor authentication eligibility must also be checked.
+Use this route for an operator's own Claude Code login; shared or customer
+deployments should use the Anthropic API key route.
 
 ## Limits and diagnostics
 
@@ -573,7 +628,9 @@ allowance scales proportionally before applying any explicit output ceiling.
 Setup and runtime use the full declared model context; there is no fixed 25%
 Anthropic context reduction. Instruction, prior-context and safety reserves remain
 inside the input budget when deriving evidence capacity. Local tiktoken counts remain
-estimates and are not the provider's tokenizer. Validate limits with representative
+estimates and are not the provider's tokenizer; Claude counts typical text as
+about 1.15–1.35 times as many tokens. A Claude stop at the context window is
+reported as `context_window_exceeded` and a safety refusal as `refusal`. Validate limits with representative
 inputs. Host, hunt and standalone
 analysis use the bounded envelope; runtime admission checks remain the final guard.
 

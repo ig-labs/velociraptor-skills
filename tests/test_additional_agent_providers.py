@@ -103,6 +103,30 @@ def test_anthropic_real_sdk_terminal_contract(tmp_path, stop, expected, effort):
     assert (tmp_path / "result.txt").exists() == (expected == "succeeded")
 
 
+@pytest.mark.parametrize(
+    "model,thinking",
+    [
+        ("claude-opus-5-5", {"type": "adaptive"}),
+        ("claude-haiku-5-5", {"type": "adaptive"}),
+        ("custom-claude", {"type": "adaptive"}),
+        # Adaptive thinking starts with Claude 4.6.
+        ("claude-opus-4-5-20251101", None),
+    ],
+)
+def test_anthropic_effort_sends_adaptive_thinking_only_where_supported(
+    model, thinking
+):
+    selected = execution("anthropic", "messages")
+    selected = replace(
+        selected, route=replace(selected.route, model=model, reasoning_effort="low")
+    )
+    options = AnthropicMessagesAdapter(
+        selected, TimeoutPolicy(), client=object()
+    )._request_options(request())
+    assert options.get("thinking") == thinking
+    assert options["output_config"]["effort"] == "low"
+
+
 @pytest.mark.parametrize("effort", ["", "low", "medium", "high", "xhigh", "max"])
 def test_claude_sdk_uses_real_options_with_mocked_execution(effort, monkeypatch):
     ResultMessage = pytest.importorskip("claude_agent_sdk").ResultMessage
@@ -280,8 +304,28 @@ def test_claude_sdk_rejects_tool_blocks(streamed):
         asyncio.run(run())
 
 
-@pytest.mark.parametrize("stop", ["max_tokens", "tool_use", "refusal"])
-def test_claude_sdk_rejects_incomplete_success_result(stop):
+STOP_CLASSIFICATIONS = [
+    ("max_tokens", "output_limit_reached"),
+    ("model_context_window_exceeded", "context_window_exceeded"),
+    ("refusal", "refusal"),
+    ("tool_use", "incomplete_response"),
+]
+
+
+@pytest.mark.parametrize("stop,classification", STOP_CLASSIFICATIONS)
+def test_anthropic_stop_reasons_are_classified(stop, classification):
+    adapter = AnthropicMessagesAdapter(
+        execution("anthropic", "messages"), TimeoutPolicy(), client=object()
+    )
+    response = SimpleNamespace(stop_reason=stop, id="msg_1", usage=None, content=[])
+    with pytest.raises(AgentProviderException) as raised:
+        adapter._finish(response)
+    assert raised.value.error.classification == classification
+    assert raised.value.error.finish_reason == stop
+
+
+@pytest.mark.parametrize("stop,classification", STOP_CLASSIFICATIONS)
+def test_claude_sdk_rejects_incomplete_success_result(stop, classification):
     ResultMessage = pytest.importorskip("claude_agent_sdk").ResultMessage
 
     async def query(**kwargs):
@@ -307,9 +351,111 @@ def test_claude_sdk_rejects_incomplete_success_result(stop):
         pytest.raises(AgentProviderException) as raised,
     ):
         asyncio.run(run())
+    assert raised.value.error.classification == classification
     assert raised.value.error.usage.status == "reported"
     assert raised.value.error.usage.as_dict()["total_tokens"] == 7
     assert raised.value.error.request_id == "test-session"
+
+
+@pytest.mark.parametrize(
+    "api_stop,result_stop,classification",
+    [
+        ("max_tokens", "stop_sequence", "output_limit_reached"),
+        ("model_context_window_exceeded", "stop_sequence", "context_window_exceeded"),
+        ("refusal", "refusal", "refusal"),
+        (None, "refusal", "refusal"),
+        (None, "stop_sequence", "incomplete_response"),
+    ],
+)
+@pytest.mark.parametrize("result", ["partial", "Prompt is too long: 210000 tokens > 200000 maximum"])
+def test_claude_sdk_classifies_cli_error_results(
+    api_stop, result_stop, classification, result
+):
+    # Claude Code reports these stops as is_error results; the streamed
+    # message_delta carries the API stop reason.
+    pytest.importorskip("claude_agent_sdk")
+    from claude_agent_sdk import ResultMessage
+    from claude_agent_sdk.types import StreamEvent
+
+    async def query(**kwargs):
+        if api_stop:
+            yield StreamEvent(
+                uuid="delta",
+                session_id="test-session",
+                event={
+                    "type": "message_delta",
+                    "delta": {"stop_reason": api_stop, "stop_sequence": None},
+                    "usage": {"output_tokens": 2},
+                },
+            )
+        yield ResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=True,
+            num_turns=1,
+            session_id="test-session",
+            result=result,
+            stop_reason=result_stop,
+        )
+
+    async def run():
+        return await ClaudeAgentSDKAdapter(
+            execution("anthropic", "claude_agent_sdk"), TimeoutPolicy()
+        ).execute(request())
+
+    with (
+        mock.patch("claude_agent_sdk.query", query),
+        pytest.raises(AgentProviderException) as raised,
+    ):
+        asyncio.run(run())
+    if result.startswith("Prompt is too long") and result_stop != "refusal":
+        # Claude Code's own text when the prompt exceeds its window.
+        classification = "context_window_exceeded"
+        expected = "model_context_window_exceeded"
+    else:
+        expected = result_stop if classification == "incomplete_response" else (
+            api_stop or result_stop
+        )
+    assert raised.value.error.classification == classification
+    assert raised.value.error.finish_reason == expected
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_claude_sdk_passes_disabled_1m_context_to_claude_code(enabled):
+    pytest.importorskip("claude_agent_sdk")
+    from claude_agent_sdk import ResultMessage
+
+    seen = {}
+
+    async def query(**kwargs):
+        seen.update(kwargs["options"].env)
+        yield ResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="test-session",
+            result="READY",
+        )
+
+    selected = execution("anthropic", "claude_agent_sdk")
+    selected = replace(
+        selected, route=replace(selected.route, claude_code_1m_context=enabled)
+    )
+
+    async def run():
+        return await ClaudeAgentSDKAdapter(selected, TimeoutPolicy()).execute(
+            request()
+        )
+
+    with mock.patch("claude_agent_sdk.query", query):
+        assert asyncio.run(run()).output == "READY"
+    # Settings from vraptor .env files must reach Claude Code as budgeted.
+    assert ("CLAUDE_CODE_DISABLE_1M_CONTEXT" in seen) is not enabled
+    if not enabled:
+        assert seen["CLAUDE_CODE_DISABLE_1M_CONTEXT"] == "1"
 
 
 def test_anthropic_unexpected_action_preserves_usage():

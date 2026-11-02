@@ -47,6 +47,8 @@ max_output_tokens = 128000
 
 # Direct Anthropic API (vraptor ai setup --provider anthropic --model MODEL_ID).
 # Uses the shared analysis_defaults token budgets; credentials stay in the environment.
+# Run setup for a listed Claude model to save its limits: the shared 272000 input
+# exceeds Haiku 4.5's 200000 context and Haiku 5.5's 100000 standard-price tier.
 [profiles.claude_api]
 provider = "anthropic"
 transport = "api"

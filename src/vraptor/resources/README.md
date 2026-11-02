@@ -10,6 +10,7 @@ not generated inventory, CSV, or resolved-policy exports.
 | `detection-scenarios.json` | Canonical cross-artifact scenario definitions. Loaded and validated with artifact profiles into the same snapshot. |
 | `collection-analysis-profiles.json` | Host collection-type objectives and artifact-strategy grouping. It does not select models or duplicate artifact field policy. |
 | `artifact-schema-compatibility.json` | Compatibility assertions for expected artifact/component schemas. |
+| `model-catalog.toml` | Offline model hints for `ai setup` and analysis budgets: published context, standard-price input and output limits, Claude Code aliases, effort ladders and setup examples. Not an allowlist; loaded by `agent/model_budgets.py`. |
 | `windows-lolbins.json` | Windows LOLBin reference data used during deterministic enrichment. |
 | `windows-rmm-greyware.json` | Windows remote-management and greyware reference data used during deterministic enrichment. |
 | `autoruns/` | Read-only GoldenDB schema and VQL templates. |

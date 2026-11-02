@@ -24,4 +24,12 @@ def isolated_home(tmp_path_factory, monkeypatch):
     # Set rather than unset, so a repo .env CASE_ROOT cannot win.
     monkeypatch.setenv("CASE_ROOT", str(home / "cases"))
     monkeypatch.setenv("TIKTOKEN_CACHE_DIR", TIKTOKEN_CACHE_DIR)
+    # Claude Code's 1M switch and machine managed settings change Claude budgets.
+    monkeypatch.delenv("CLAUDE_CODE_DISABLE_1M_CONTEXT", raising=False)
+    from vraptor.agent import sources
+
+    monkeypatch.setattr(sources, "CLAUDE_MANAGED_SETTINGS_DIRS", {})
+    monkeypatch.setattr(
+        sources, "DEFAULT_CLAUDE_MANAGED_SETTINGS_DIR", home / "claude-managed"
+    )
     return home

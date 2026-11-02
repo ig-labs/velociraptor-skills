@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import tomllib
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -310,6 +311,44 @@ def detect_harness(environment: Mapping[str, str]) -> str:
             "Ambiguous active harness; select an execution profile or set AI_SKILLS_ANALYST_AGENT_HARNESS"
         )
     return signals[0] if signals else ""
+
+
+# Claude Code applies managed settings `env` over the inherited environment,
+# even for analyst runs that load no setting sources.
+CLAUDE_MANAGED_SETTINGS_DIRS = {
+    "darwin": Path("/Library/Application Support/ClaudeCode"),
+}
+DEFAULT_CLAUDE_MANAGED_SETTINGS_DIR = Path("/etc/claude-code")
+
+
+def claude_managed_env(variable: str) -> tuple[str, str] | None:
+    """Return (value, file) when Claude Code's managed settings set ``variable``.
+
+    managed-settings.d drop-ins apply after managed-settings.json in name order,
+    so the last file that sets the variable wins. Only that one key is read.
+    """
+    directory = CLAUDE_MANAGED_SETTINGS_DIRS.get(
+        sys.platform, DEFAULT_CLAUDE_MANAGED_SETTINGS_DIR
+    )
+    found = None
+    for path in (
+        directory / "managed-settings.json",
+        *sorted(
+            drop_in
+            for drop_in in (directory / "managed-settings.d").glob("*.json")
+            # Claude Code ignores hidden drop-ins.
+            if not drop_in.name.startswith(".")
+        ),
+    ):
+        try:
+            if path.stat().st_size > MAX_CONFIG_BYTES:
+                continue
+            env = json.loads(path.read_text(encoding="utf-8")).get("env")
+        except (OSError, ValueError, AttributeError):
+            continue
+        if isinstance(env, Mapping) and variable in env:
+            found = (str(env[variable]), str(path))
+    return found
 
 
 def claude_settings_path(

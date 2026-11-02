@@ -18,14 +18,25 @@ from typing import Any
 
 from vraptor.agent.config import REPO_ROOT, resolve_agent_execution
 from vraptor.agent.model_budgets import (
+    CLAUDE_CODE_DISABLE_1M,
     MIN_INPUT_TOKENS,
     MIN_OUTPUT_TOKENS,
+    captured_envelopes,
+    claude_code_1m_disabled,
+    claude_code_window,
+    effort_label,
+    effort_levels,
+    effort_summary,
+    model_aliases,
     model_budget,
+    model_examples,
 )
 from vraptor.agent.registry import PROVIDERS
 from vraptor.agent.sources import (
     NAME,
+    claude_managed_env,
     claude_settings_path,
+    setting,
     expand_path,
     normalize_document,
     read_config,
@@ -35,42 +46,21 @@ from vraptor.common.atomic_io import write_bytes_atomic
 from vraptor.paths import repository_environment
 
 
-# Offline examples checked 2026-09-23; these are hints, never a model allowlist.
-# https://developers.openai.com/api/docs/models
-# https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.6
-# https://platform.claude.com/docs/en/models/overview
-# https://code.claude.com/docs/en/model-config
-_MODEL_EXAMPLES = {
-    "openai": (
-        ("gpt-6-astra", "Demanding reasoning and complex workflows"),
-        ("gpt-6-sol", "Balanced coding and analysis"),
-        ("gpt-6-luna", "Efficient, high-volume tasks"),
-        ("gpt-5.6-sol", "Previous-generation flagship"),
-        ("gpt-5.6-terra", "Previous-generation balanced option"),
-        ("gpt-5.6-luna", "Previous-generation economical option"),
-    ),
-    "anthropic": (
-        ("claude-haiku-4-5-20251001", "Fast extraction and simple classification"),
-        ("claude-sonnet-5", "Balanced analysis and coding"),
-        ("claude-opus-5-5", "Complex reasoning and demanding analysis"),
-        ("claude-fable-5-1", "Hard reasoning and long-running tasks"),
-    ),
-}
-
-
 def _model_options_help(provider: str, harness: str = "") -> str:
-    """Share offline model hints between CLI help and the interactive prompt."""
+    """Share offline model hints (resources/model-catalog.toml) between CLI help and the prompt."""
     if provider == "azure_openai":
         return "Azure: enter your deployment name, which may differ from the model ID."
     label = "Claude / Anthropic" if provider == "anthropic" else "OpenAI"
     lines = [f"{label} model examples:"]
-    for model, purpose in _MODEL_EXAMPLES[provider]:
+    for model, purpose in model_examples(provider):
         lines.append(f"  {model:<27} {purpose}")
     lines.append(
         "Other supported model IDs are accepted; availability varies by account/client."
     )
     if harness == "claude_code":
-        lines.append("Claude Code also accepts aliases: sonnet, opus, haiku, fable.")
+        lines.append(
+            f"Claude Code also accepts aliases: {', '.join(model_aliases(provider))}."
+        )
     elif harness == "codex":
         lines.append(
             "Codex can inherit its model; an Azure-backed source needs its deployment name."
@@ -78,76 +68,33 @@ def _model_options_help(provider: str, harness: str = "") -> str:
     return "\n".join(lines)
 
 
-def _claude_effort_levels(model: str) -> tuple[str, ...]:
-    """Known effort-capable families; unknown models receive no automatic effort."""
-    selected = model.lower()
-    if selected.startswith(("claude-opus-4-6", "claude-sonnet-4-6")):
-        return ("low", "medium", "high", "max")
-    if selected.startswith("claude-opus-4-5"):
-        return ("low", "medium", "high")
-    if selected in {"opus", "sonnet", "fable"} or selected.startswith(
-        (
-            "claude-opus-5",
-            "claude-sonnet-5",
-            "claude-fable-5",
-            "claude-opus-4-7",
-            "claude-opus-4-8",
-        )
-    ):
-        return ("low", "medium", "high", "xhigh", "max")
-    return ()
-
-
 def _reasoning_options_help(provider: str, model: str = "") -> str:
-    """Offline effort guidance; unknown models/deployments keep free-form input.
+    """Offline effort guidance from the model catalog; unknown models keep free-form input.
 
     References: OpenAI model pages and Claude's build-with-claude/effort guide.
     """
-    levels = ("low", "medium", "high", "xhigh", "max")
-    selected = model.lower()
-    if provider == "anthropic":
-        label = "Claude / Anthropic"
-        if selected == "haiku" or selected.startswith("claude-haiku-"):
-            return (
-                "Haiku does not support a reasoning-effort setting; leave it unset.\n"
-                "Setup clears any saved or inherited effort for Haiku."
-            )
-        levels = _claude_effort_levels(model)
-        if not levels:
-            return (
-                "Claude / Anthropic reasoning efforts (model-dependent):\n"
-                "  Sonnet 5, Opus 5/5.5, Fable 5/5.1: low, medium, high, xhigh, max\n"
-                "  Opus/Sonnet 4.6: low, medium, high, max\n"
-                "  Haiku: no effort setting\n"
-                "Aliases depend on the model selected by your client. Enter keeps/inherits the displayed setting."
-            )
-    else:
-        label = "OpenAI"
-        legacy_gpt5 = selected == "gpt-5" or selected.startswith("gpt-5-2025-")
-        if (
-            provider == "azure_openai"
-            or not legacy_gpt5
-            and not selected.startswith(
-                (
-                    "gpt-6-astra",
-                    "gpt-6-sol",
-                    "gpt-6-luna",
-                    "gpt-5.6",
-                )
-            )
-        ):
-            return (
-                "OpenAI reasoning efforts (model-dependent):\n"
-                "  GPT-6 Astra: low, medium, high, xhigh, max\n"
-                "  GPT-6 Sol/Luna and GPT-5.6: none, low, medium, high, xhigh, max\n"
-                "  GPT-5: minimal, low, medium, high\n"
-                "Other models and Azure deployments may support fewer levels.\n"
-                "Enter keeps/inherits the displayed setting."
-            )
-        if legacy_gpt5:
-            levels = ("minimal", "low", "medium", "high")
-        elif not selected.startswith("gpt-6-astra"):
-            levels = ("none", *levels)
+    label = "Claude / Anthropic" if provider == "anthropic" else "OpenAI"
+    levels = None if provider == "azure_openai" else effort_levels(provider, model)
+    if levels == ():
+        name = effort_label(provider, model)
+        return (
+            f"{name} does not support a reasoning-effort setting; leave it unset.\n"
+            f"Setup clears any saved or inherited effort for {name}."
+        )
+    if not levels:
+        note = (
+            "Aliases depend on the model selected by your client."
+            if provider == "anthropic"
+            else "Other models and Azure deployments may support fewer levels."
+        )
+        return "\n".join(
+            [
+                f"{label} reasoning efforts (model-dependent):",
+                *effort_summary(provider),
+                note,
+                "Enter keeps/inherits the displayed setting.",
+            ]
+        )
     meanings = {
         "none": "No reasoning effort (supported models only)",
         "minimal": "Minimal reasoning for older GPT-5 models",
@@ -297,7 +244,7 @@ def parser_for(command: str) -> argparse.ArgumentParser:
             "--auto-token-budgets",
             action=argparse.BooleanOptionalAction,
             default=True,
-            help="Default: use maximum model output and remaining standard-price input; Haiku defaults to 120000 input / 64000 output. Use --no-auto-token-budgets to retain valid saved budgets. Explicit token flags win.",
+            help="Default: use maximum model output and remaining standard-price input; Haiku 4.5 defaults to 120000 input / 64000 output and Haiku 5.5 to 100000 / 128000. Use --no-auto-token-budgets to retain valid saved budgets. Explicit token flags win.",
         )
         budgets.add_argument(
             "--max-input-tokens",
@@ -309,7 +256,7 @@ def parser_for(command: str) -> argparse.ArgumentParser:
             "--max-output-tokens",
             type=int,
             metavar="TOKENS",
-            help="Explicit output budget; minimum 32000, maximum set by model/context limits. Defaults to the model maximum: Haiku 64000; OpenAI/Azure fallback 128000.",
+            help="Explicit output budget; minimum 32000, maximum set by model/context limits. Defaults to the model maximum (Haiku 4.5: 64000); OpenAI/Azure fallback 128000.",
         )
         advanced = parser.add_argument_group("Advanced transport and model limits")
         advanced.add_argument(
@@ -833,20 +780,26 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
         model != native_model or args.model is not None or "model" in profile
     ):
         profile["model"] = model
+    # Unknown Claude models and those without effort (Haiku 4.5) get no default.
     default_effort = (
         "high"
         if provider in {"openai", "azure_openai"} and not args.from_harness
         else "medium"
-        if provider == "anthropic" and _claude_effort_levels(model or "")
+        if provider == "anthropic" and effort_levels(provider, model or "")
         else None
     )
-    is_haiku = provider == "anthropic" and (
-        (model or native_model) == "haiku"
-        or (model or native_model or "").startswith("claude-haiku-")
+    selected_model = model or native_model or ""
+    transport = profile.get("transport")
+    runs_sdk = transport == "claude_agent_sdk" or (
+        transport == "auto" and args.from_harness == "claude_code"
     )
-    if is_haiku:
+    no_effort = provider == "anthropic" and effort_levels(provider, selected_model) == ()
+    no_effort_error = (
+        f"{effort_label(provider, selected_model)} does not support a reasoning-effort setting"
+    )
+    if no_effort:
         if args.reasoning_effort:
-            raise RuntimeError("Haiku does not support a reasoning-effort setting")
+            raise RuntimeError(no_effort_error)
         profile.pop("reasoning_effort", None)
         native_effort = None
     if args.reasoning_effort is None:
@@ -856,20 +809,31 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
         "reasoning_effort",
         "Reasoning effort",
         None
-        if is_haiku
+        if no_effort
         else profile.get(
             "reasoning_effort",
             defaults.get("reasoning_effort", native_effort or default_effort),
         ),
         required=False,
     )
-    if is_haiku and effort:
-        raise RuntimeError("Haiku does not support a reasoning-effort setting")
+    if no_effort and effort:
+        raise RuntimeError(no_effort_error)
     if effort is not None and (
         effort != native_effort
         or args.reasoning_effort is not None
         or "reasoning_effort" in profile
     ):
+        # The Messages API rejects an unsupported level; Claude Code lowers it.
+        levels = (
+            effort_levels(provider, selected_model)
+            if provider == "anthropic" and not runs_sdk
+            else None
+        )
+        if effort and levels and effort not in levels:
+            raise RuntimeError(
+                f"{effort_label(provider, selected_model)} supports reasoning effort "
+                + ", ".join(levels)
+            )
         profile["reasoning_effort"] = effort
     for option, label, fallback in (
         ("timeout_seconds", "Timeout seconds", 600),
@@ -890,6 +854,19 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
     profiles[name] = profile
     budget_model = model
     budget_provider = provider
+    budget_protocol = "claude_agent_sdk" if runs_sdk else ""
+    # Read as the Claude Code subprocess sees it; runtime applies the same rule.
+    managed_1m = claude_managed_env(CLAUDE_CODE_DISABLE_1M)
+    disable_1m = (
+        managed_1m[0]
+        if managed_1m
+        else setting(repository_environment(REPO_ROOT), CLAUDE_CODE_DISABLE_1M)
+    )
+    # Scratch resolutions see HOME only; keep the setting for their route.
+    resolve_environment = {
+        "HOME": str(Path.home()),
+        **({CLAUDE_CODE_DISABLE_1M: disable_1m} if disable_1m else {}),
+    }
     if not budget_model and args.from_harness:
         # Use the real resolver for inherited native models (including named
         # Codex profiles), without login, discovery requests, or inference.
@@ -899,12 +876,21 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
             preview = resolve_agent_execution(
                 cli_values={"config_file": str(candidate), "execution_profile": name},
                 repo_root=Path(scratch),
-                process_environment={"HOME": str(Path.home())},
+                process_environment=resolve_environment,
                 allow_missing_credentials=True,
             )
             budget_model = preview.route.model
             budget_provider = preview.route.provider
-    reference = model_budget(budget_provider, budget_model or "")
+            budget_protocol = preview.route.protocol
+    claude_code_1m = budget_protocol != "claude_agent_sdk" or not (
+        claude_code_1m_disabled(disable_1m)
+    )
+    reference = model_budget(
+        budget_provider,
+        budget_model or "",
+        budget_protocol,
+        claude_code_1m=claude_code_1m,
+    )
     reference_report = {
         "model": budget_model,
         "known": reference is not None,
@@ -923,6 +909,18 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
                     "  Alias resolution is not verified; for remapped aliases select the exact model ID or configure smaller deployment caps.",
                     file=sys.stderr,
                 )
+            if reference.claude_code_limit == "needs_1m_variant":
+                print(
+                    f"  Claude Code runs {budget_model} at {reference.context_tokens:,} tokens;\n"
+                    f"  {budget_model}[1m] selects 1M where the plan allows it.",
+                    file=sys.stderr,
+                )
+            elif reference.claude_code_limit == "1m_disabled":
+                print(
+                    f"  {CLAUDE_CODE_DISABLE_1M} is set, so Claude Code runs\n"
+                    f"  {budget_model} at {reference.context_tokens:,} tokens.",
+                    file=sys.stderr,
+                )
             print(
                 f"  Published context: {reference.context_tokens:,} tokens\n"
                 f"  Standard-price input ceiling: {reference.standard_price_input_ceiling:,} tokens\n"
@@ -932,7 +930,7 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
             )
             if reference.standard_price_input_ceiling < reference.context_tokens:
                 print(
-                    "  Input above the standard-price ceiling has a long-context surcharge.",
+                    "  Prompts above the standard-price ceiling are billed at higher rates for the whole request.",
                     file=sys.stderr,
                 )
             else:
@@ -949,15 +947,36 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
                 "  Model limits/pricing unverified; using saved values or application defaults.\n",
                 file=sys.stderr,
             )
+    saved_envelope = (
+        profile.get("model_context_tokens"),
+        profile.get("model_max_output_tokens"),
+    )
+    if (
+        reference
+        and args.model_context_tokens is None
+        and args.model_max_output_tokens is None
+        and saved_envelope in captured_envelopes(budget_provider)
+    ):
+        # Setup saved these for a listed model (perhaps another one, or an
+        # alias's earlier target); they are not deployment caps.
+        profile.pop("model_context_tokens")
+        profile.pop("model_max_output_tokens")
     configured_context = profile.get(
         "model_context_tokens", defaults.get("model_context_tokens")
     )
+    # Save the model's own limits; runtime holds the route to Claude Code's
+    # window only while 1M context stays disabled.
+    envelope = (
+        model_budget(budget_provider, budget_model or "", budget_protocol)
+        if reference and reference.claude_code_limit == "1m_disabled"
+        else reference
+    )
     context = int(
         configured_context
-        or (reference.context_tokens if reference else MODEL_CONTEXT_TOKENS)
+        or (envelope.context_tokens if envelope else MODEL_CONTEXT_TOKENS)
     )
-    if reference:
-        context = min(context, reference.context_tokens)
+    if envelope:
+        context = min(context, envelope.context_tokens)
         # Capture the real model envelope even when editing an existing profile.
         # Otherwise the resolver's generic 400K fallback silently restricts it.
         profile["model_context_tokens"] = context
@@ -971,13 +990,20 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
     output_maximum = min(
         context - MIN_INPUT_TOKENS,
         int(output_cap) if output_cap else context - MIN_INPUT_TOKENS,
-        reference.max_output_tokens if reference else context - MIN_INPUT_TOKENS,
+        envelope.max_output_tokens if envelope else context - MIN_INPUT_TOKENS,
     )
-    if reference:
+    if envelope:
         profile["model_max_output_tokens"] = output_maximum
+    windowed = not claude_code_1m and context > claude_code_window()["context_tokens"]
+    if windowed:
+        # Budgets for every model, listed or not, fit the 200K window.
+        context = claude_code_window()["context_tokens"]
+        output_maximum = min(output_maximum, context - MIN_INPUT_TOKENS)
     if os.isatty(0):
         source = (
-            "configured model/deployment limit"
+            f"{CLAUDE_CODE_DISABLE_1M} is set"
+            if windowed
+            else "configured model/deployment limit"
             if configured_context
             else "selected model"
             if reference
@@ -992,20 +1018,29 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
     def saved_budget(value, maximum):
         return maximum if value == "max" else int(value)
 
+    # An unlisted model in Claude Code's 200K window takes the window's budgets.
+    window_budgets = claude_code_window() if windowed and not reference else None
     recommended_output = (
         reference.default_output_tokens
         if reference
+        else window_budgets["output_budget_tokens"]
+        if window_budgets
         else 128_000
         if profile_action == "added" and provider in {"openai", "azure_openai"}
         else saved_budget(analysis_defaults["max_output_tokens"], output_maximum)
     )
-    if not reference and configured_context and "max_output_tokens" not in profile:
+    if (
+        not reference
+        and not window_budgets
+        and configured_context
+        and "max_output_tokens" not in profile
+    ):
         recommended_output = min(
             recommended_output,
             int(output_cap) if output_cap else MIN_OUTPUT_TOKENS,
             context - MIN_INPUT_TOKENS,
         )
-    automatic_budgets = args.auto_token_budgets and reference is not None
+    automatic_budgets = args.auto_token_budgets and bool(reference or window_budgets)
     output_default = (
         recommended_output
         if automatic_budgets
@@ -1047,6 +1082,8 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
         input_maximum,
         (reference.input_budget_tokens or input_maximum)
         if reference
+        else window_budgets["input_budget_tokens"]
+        if window_budgets
         else input_maximum,
     )
     input_default = (
@@ -1058,7 +1095,7 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
                 saved_analysis_defaults.get(
                     "max_input_tokens",
                     recommended_input
-                    if reference
+                    if reference or window_budgets
                     else analysis_defaults["max_input_tokens"],
                 ),
             ), input_maximum
@@ -1106,7 +1143,7 @@ def setup(args: argparse.Namespace) -> dict[str, Any]:
         execution = resolve_agent_execution(
             cli_values={"config_file": str(candidate), "execution_profile": name},
             repo_root=Path(scratch),
-            process_environment={"HOME": str(Path.home())},
+            process_environment=resolve_environment,
             allow_missing_credentials=True,
         )
         execution = replace(

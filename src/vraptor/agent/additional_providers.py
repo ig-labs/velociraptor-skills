@@ -8,6 +8,7 @@ from dataclasses import replace
 from importlib.metadata import version
 from typing import Any
 
+from vraptor.agent.model_budgets import adaptive_thinking
 from vraptor.agent.providers import (
     _BaseAdapter,
     _get,
@@ -47,6 +48,15 @@ def _message_usage_snapshot(known: dict[str, Any], event: Any) -> AgentUsage:
     )
 
 
+# Unsuccessful Claude stop reasons; any other non-end_turn stop is incomplete.
+_STOP_CLASSIFICATIONS = {
+    "max_tokens": "output_limit_reached",
+    # Claude 4.5+ accepts input + max_tokens over the window and stops here.
+    "model_context_window_exceeded": "context_window_exceeded",
+    "refusal": "refusal",
+}
+
+
 class AnthropicMessagesAdapter(_BaseAdapter):
     def capabilities(self) -> ProviderCapabilities:
         return ProviderCapabilities(
@@ -79,7 +89,8 @@ class AnthropicMessagesAdapter(_BaseAdapter):
         }
         output_config: dict[str, Any] = {}
         if self.configuration.reasoning_effort:
-            options["thinking"] = {"type": "adaptive"}
+            if adaptive_thinking("anthropic", self.configuration.model):
+                options["thinking"] = {"type": "adaptive"}
             output_config["effort"] = self.configuration.reasoning_effort
         if request.output_schema:
             output_config["format"] = {
@@ -95,11 +106,7 @@ class AnthropicMessagesAdapter(_BaseAdapter):
         request_id = str(_get(response, "_request_id", "") or _get(response, "id", ""))
         usage = _usage(_get(response, "usage"))
         if reason != "end_turn":
-            classification = (
-                "output_limit_reached"
-                if reason == "max_tokens"
-                else "incomplete_response"
-            )
+            classification = _STOP_CLASSIFICATIONS.get(reason, "incomplete_response")
             raise AgentProviderException(
                 AgentError(
                     classification,
@@ -266,6 +273,13 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                     "CLAUDE_CODE_USE_FOUNDRY": "",
                     "CLAUDE_CODE_USE_ANTHROPIC_AWS": "",
                     "CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS": "1",
+                    # Keep Claude Code on the 200K window the budgets assume,
+                    # also when the setting came from a vraptor .env file.
+                    **(
+                        {}
+                        if self.configuration.route.claude_code_1m_context
+                        else {"CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"}
+                    ),
                 },
                 include_partial_messages=True,
                 effort=self.configuration.reasoning_effort or None,
@@ -277,6 +291,7 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                 else None,
             )
             iterator = query(prompt=request.prompt, options=options)
+            api_stop = None
             try:
                 async for message in iterator:
                     if cancellation:
@@ -314,6 +329,9 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                         event = message.event
                         if event.get("type") in {"message_start", "message_delta"}:
                             request_id = str(_get(message, "session_id", request_id))
+                            api_stop = (event.get("delta") or {}).get(
+                                "stop_reason"
+                            ) or api_stop
                             usage = _message_usage_snapshot(known_usage, event)
                             if usage.status != "unavailable":
                                 self._emit(
@@ -348,27 +366,49 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                                 request_id=request_id, usage_status=usage.status,
                                 **usage.as_dict(),
                             )
+                        stop = getattr(message, "stop_reason", None)
                         if (
                             message.is_error
                             or message.subtype != "success"
                             or getattr(message, "permission_denials", None)
                         ):
+                            # Claude Code reports limit stops and refusals as
+                            # errors; the streamed message_delta keeps the API
+                            # stop reason.
+                            reported = (
+                                stop
+                                if stop == "refusal"
+                                # Claude Code's API error text for an overlong
+                                # prompt, e.g. under unreadable managed settings.
+                                else "model_context_window_exceeded"
+                                if str(message.result or "").startswith(
+                                    "Prompt is too long"
+                                )
+                                else api_stop
+                            )
+                            classification = (
+                                _STOP_CLASSIFICATIONS.get(reported)
+                                if message.subtype == "success"
+                                and not getattr(message, "permission_denials", None)
+                                else None
+                            )
                             raise AgentProviderException(
                                 AgentError(
-                                    "incomplete_response",
+                                    classification or "incomplete_response",
                                     "Claude SDK did not complete analysis",
                                     False,
                                     request_id=request_id,
                                     usage=usage,
-                                    finish_reason=str(_get(message, "stop_reason") or message.subtype),
+                                    finish_reason=str(
+                                        reported
+                                        if classification
+                                        else stop or message.subtype
+                                    ),
                                 )
                             )
-                        stop = getattr(message, "stop_reason", None)
                         if stop not in {None, "end_turn"}:
-                            classification = (
-                                "output_limit_reached"
-                                if stop == "max_tokens"
-                                else "incomplete_response"
+                            classification = _STOP_CLASSIFICATIONS.get(
+                                stop, "incomplete_response"
                             )
                             raise AgentProviderException(
                                 AgentError(

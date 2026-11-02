@@ -177,3 +177,19 @@ def test_task_diagnostics_bounds_attempts_and_defects():
     assert first["omitted_defect_count"] == 50
     assert len(first["defects"][0]["allowed"]) == 50
     assert first["provider_attempts"] == 2
+
+
+def test_task_diagnostics_give_each_limit_stop_its_own_message():
+    categories = ("context_window_exceeded", "refusal", "input_limit")
+    result = recovery.task_diagnostics({"attempt_history": [
+        {"run": {"status": "failed", "error_classification": category}}
+        for category in categories
+    ]})
+    attempts = result["attempt_history"]
+    assert [item["category"] for item in attempts] == list(categories)
+    fallback = recovery.task_diagnostics({"attempt_history": [
+        {"run": {"status": "failed", "error_classification": "unlisted"}}
+    ]})["attempt_history"][0]["message"]
+    messages = [item["message"] for item in attempts]
+    assert len(set(messages)) == 3
+    assert fallback not in messages

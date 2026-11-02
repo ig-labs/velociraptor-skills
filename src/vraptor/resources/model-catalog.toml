@@ -1,0 +1,234 @@
+# Offline model hints for `vraptor ai setup`, analysis token budgets and effort
+# prompts. This is not an allowlist: any other model ID or Azure deployment name
+# is accepted and keeps saved or application budgets until its limits are given.
+# Token limits are the providers' published figures; update `checked` with them.
+#
+# models:  exact IDs (plus dated `snapshots`) with published limits. Entries with
+#          a `purpose` are also listed as setup examples.
+# efforts: effort ladders; the first entry whose `ids` or `prefixes` match wins.
+#          An empty ladder means the model takes no effort setting. Unmatched
+#          models keep free-form effort input. `adaptive_thinking = false`
+#          sends Claude effort without adaptive thinking.
+# claude_code_200k: the Claude Code route's limits for larger models without
+#          1M context: models marked `claude_code_1m_variant` unless the ID ends
+#          in `[1m]`, and every model when CLAUDE_CODE_DISABLE_1M_CONTEXT is set.
+checked = "2026-10-30"
+
+[providers.openai]
+label = "OpenAI"
+source = "https://developers.openai.com/api/docs/models/{model}"
+pricing_source = "https://developers.openai.com/api/docs/models/{model}"
+
+[[providers.openai.efforts]]
+label = "GPT-6 Astra, GPT-6.1 Sol"
+prefixes = ["gpt-6-astra", "gpt-6.1-sol"]
+levels = ["low", "medium", "high", "xhigh", "max"]
+
+[[providers.openai.efforts]]
+label = "GPT-6.1 Terra, GPT-6 Sol/Luna and GPT-5.6"
+prefixes = ["gpt-6.1-terra", "gpt-6-sol", "gpt-6-luna", "gpt-5.6"]
+levels = ["none", "low", "medium", "high", "xhigh", "max"]
+
+[[providers.openai.efforts]]
+label = "GPT-5"
+ids = ["gpt-5"]
+prefixes = ["gpt-5-2025-"]
+levels = ["minimal", "low", "medium", "high"]
+
+# Prompts over 272000 input tokens are billed at long-context rates.
+[[providers.openai.models]]
+id = "gpt-6-astra"
+purpose = "Demanding reasoning and complex workflows"
+context_tokens = 1050000
+standard_price_input_ceiling = 272000
+max_output_tokens = 128000
+
+[[providers.openai.models]]
+id = "gpt-6.1-sol"
+purpose = "Balanced coding and analysis"
+context_tokens = 1050000
+standard_price_input_ceiling = 272000
+max_output_tokens = 128000
+
+[[providers.openai.models]]
+id = "gpt-6.1-terra"
+purpose = "Lower-cost balanced analysis"
+context_tokens = 1050000
+standard_price_input_ceiling = 272000
+max_output_tokens = 128000
+
+[[providers.openai.models]]
+id = "gpt-6-luna"
+purpose = "Efficient, high-volume tasks"
+context_tokens = 1050000
+standard_price_input_ceiling = 272000
+max_output_tokens = 128000
+
+[[providers.openai.models]]
+id = "gpt-6-sol"
+purpose = "Previous Sol release"
+context_tokens = 1050000
+standard_price_input_ceiling = 272000
+max_output_tokens = 128000
+
+[[providers.openai.models]]
+id = "gpt-5.6-sol"
+purpose = "Previous-generation flagship"
+context_tokens = 1050000
+standard_price_input_ceiling = 272000
+max_output_tokens = 128000
+
+[[providers.openai.models]]
+id = "gpt-5.6-terra"
+purpose = "Previous-generation balanced option"
+context_tokens = 1050000
+standard_price_input_ceiling = 272000
+max_output_tokens = 128000
+
+[[providers.openai.models]]
+id = "gpt-5.6-luna"
+purpose = "Previous-generation economical option"
+context_tokens = 1050000
+standard_price_input_ceiling = 272000
+max_output_tokens = 128000
+
+[providers.anthropic]
+label = "Claude / Anthropic"
+source = "https://platform.claude.com/docs/en/about-claude/models/overview"
+pricing_source = "https://platform.claude.com/docs/en/about-claude/pricing"
+
+# Claude Code aliases on the Anthropic API
+# (https://code.claude.com/docs/en/model-config). Execution keeps the alias;
+# budgets and effort use the model it names. Remapped aliases can differ.
+[providers.anthropic.aliases]
+sonnet = "claude-sonnet-5-5"
+opus = "claude-opus-5-5"
+haiku = "claude-haiku-5-5"
+fable = "claude-fable-5-1"
+# Opus 5.5 where Fable is unavailable; both have the same limits and efforts.
+best = "claude-fable-5-1"
+# Already the native 1M window of Sonnet/Opus 5.5.
+"sonnet[1m]" = "claude-sonnet-5-5"
+"opus[1m]" = "claude-opus-5-5"
+# Opus plans and Sonnet executes; analysis requests are execution.
+opusplan = "claude-sonnet-5-5"
+
+# Claude Code's window without 1M context
+# (https://code.claude.com/docs/en/model-config). Leaves 16000 tokens
+# unallocated, as for Haiku 4.5; explicit input max allows 136000.
+[providers.anthropic.claude_code_200k]
+context_tokens = 200000
+standard_price_input_ceiling = 200000
+output_budget_tokens = 64000
+input_budget_tokens = 120000
+
+[[providers.anthropic.efforts]]
+label = "Fable 5/5.1, Opus 5/5.5, Sonnet 5/5.5, Haiku 5.5, Opus 4.7/4.8"
+prefixes = ["claude-fable-5", "claude-opus-5", "claude-sonnet-5", "claude-haiku-5", "claude-opus-4-7", "claude-opus-4-8"]
+levels = ["low", "medium", "high", "xhigh", "max"]
+
+[[providers.anthropic.efforts]]
+label = "Opus/Sonnet 4.6"
+prefixes = ["claude-opus-4-6", "claude-sonnet-4-6"]
+levels = ["low", "medium", "high", "max"]
+
+# Adaptive thinking starts with Claude 4.6; Opus 4.5 takes effort without it.
+[[providers.anthropic.efforts]]
+label = "Opus 4.5"
+prefixes = ["claude-opus-4-5"]
+levels = ["low", "medium", "high"]
+adaptive_thinking = false
+
+# No effort parameter: setup rejects one and runtime drops inherited values.
+[[providers.anthropic.efforts]]
+label = "Haiku 4.5"
+prefixes = ["claude-haiku-4-5"]
+levels = []
+
+# Claude 4.6 and later include the full context at standard prices, except
+# Haiku 5.5: prompts over 100000 tokens (cache included) use its higher rates.
+[[providers.anthropic.models]]
+id = "claude-haiku-5-5"
+purpose = "Fast extraction and simple classification"
+context_tokens = 1000000
+standard_price_input_ceiling = 100000
+max_output_tokens = 128000
+
+[[providers.anthropic.models]]
+id = "claude-sonnet-5-5"
+purpose = "Balanced analysis and coding"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+
+[[providers.anthropic.models]]
+id = "claude-opus-5-5"
+purpose = "Complex reasoning and demanding analysis"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+
+[[providers.anthropic.models]]
+id = "claude-fable-5-1"
+purpose = "Hard reasoning and long-running tasks"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+
+# Previous models still served: budget references only, no setup example.
+[[providers.anthropic.models]]
+id = "claude-sonnet-5"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+
+[[providers.anthropic.models]]
+id = "claude-fable-5"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+
+[[providers.anthropic.models]]
+id = "claude-opus-5"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+
+[[providers.anthropic.models]]
+id = "claude-opus-4-8"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+
+[[providers.anthropic.models]]
+id = "claude-opus-4-7"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+
+[[providers.anthropic.models]]
+id = "claude-opus-4-6"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+# Claude Code runs this model at 200K unless `[1m]` is selected; that variant
+# depends on the plan (https://code.claude.com/docs/en/model-config).
+claude_code_1m_variant = true
+
+[[providers.anthropic.models]]
+id = "claude-sonnet-4-6"
+context_tokens = 1000000
+standard_price_input_ceiling = 1000000
+max_output_tokens = 128000
+# Claude Code runs this model at 200K unless `[1m]` is selected; that variant
+# depends on the plan (https://code.claude.com/docs/en/model-config).
+claude_code_1m_variant = true
+
+[[providers.anthropic.models]]
+id = "claude-haiku-4-5"
+snapshots = ["claude-haiku-4-5-20251001"]
+context_tokens = 200000
+standard_price_input_ceiling = 200000
+max_output_tokens = 64000
+# Leaves 16000 context tokens unallocated; explicit input max allows 136000.
+input_budget_tokens = 120000
