@@ -3781,6 +3781,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "--max-review-tokens",
             "--include-review-rows",
             "--analysis-mode",
+            "--chunk-repair-limit",
         }
         supplied = analysis_cli_arguments.supplied_options(raw_argv, live_only)
         if supplied:
@@ -3848,7 +3849,8 @@ def main(argv: list[str] | None = None, *, existing_only: bool = False) -> int:
                 args.debug_chunk_prompts,
                 keep_failed=bool(getattr(args, "keep_failed_chunk_evidence", False)),
             ) as prompt_dump, chunk_repair.session(
-                chunk_repair.resolve_limit(getattr(args, "chunk_repair_limit", None))
+                0 if args.snapshot or getattr(args, "skip_ai", False)
+                else chunk_repair.resolve_limit(getattr(args, "chunk_repair_limit", None))
             ):
                 payload = command_analyze(args)
             if args.debug_chunk_prompts:

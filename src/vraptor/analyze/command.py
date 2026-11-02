@@ -2737,7 +2737,8 @@ async def async_main(argv: list[str] | None = None, *, existing_only: bool = Fal
                 global_args.debug_chunk_prompts,
                 keep_failed=global_args.keep_failed_chunk_evidence,
             ) as prompt_dump, chunk_repair.session(
-                chunk_repair.resolve_limit(getattr(global_args, "chunk_repair_limit", None))
+                0 if global_args.plan_only or global_args.skip_ai or global_args.rebuild_host_summary
+                else chunk_repair.resolve_limit(getattr(global_args, "chunk_repair_limit", None))
             ):
                 result = await run_analysis_async(
                     api,

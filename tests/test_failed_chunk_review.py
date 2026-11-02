@@ -4,6 +4,8 @@ import asyncio
 import json
 import re
 import stat
+from types import SimpleNamespace
+from unittest import mock
 
 import pytest
 import test_collection_analysis_runtime as runtime_fixtures
@@ -433,6 +435,46 @@ def _repair_workload(
             chunk_failed=lambda task, record, prompts: log("failed", task, record, prompts),
         ))
     return result, ledger, events, repair_prompts, calls, sorted(failed)
+
+
+def test_routes_without_model_calls_ignore_an_invalid_repair_limit(tmp_path, monkeypatch, capsys):
+    from vraptor.hunt import command as hunt
+
+    monkeypatch.setenv(chunk_repair.LIMIT_ENVIRONMENT, "99")
+    seen = []
+
+    def analyzed(*_args, **_kwargs):
+        seen.append(chunk_repair.active())
+        return {"status": "planned", "analyses": []}
+
+    snapshot = tmp_path / "snapshot.json"
+    snapshot.write_text("{}\n", encoding="utf-8")
+    live = ["analyze", "--id", "IR1", "--case-root", str(tmp_path), "--hunt-id", "H.1", "--no-progress"]
+    with mock.patch.object(hunt, "validate_live_engagement", return_value=None), mock.patch.object(
+        hunt, "command_analyze", side_effect=analyzed
+    ):
+        assert hunt.main(["analyze", "--snapshot", str(snapshot), "--no-progress"]) == 0
+        assert hunt.main([*live, "--skip-ai"]) == 0
+        assert hunt.main(live) == 1
+    context = SimpleNamespace(
+        engagement_id="IR1", server_profile="test", case_root=tmp_path,
+        api_client=tmp_path / "api.yaml", state_path=tmp_path / "engagement.json",
+    )
+    host = ["--id", "IR1", "--client-id", "C.1", "--no-progress"]
+    with (
+        mock.patch.object(command.engagement_context, "resolve", return_value=context),
+        mock.patch.object(command.operation_log, "bind_case"),
+        mock.patch.object(command.collection, "CASE_ROOT", tmp_path),
+        mock.patch.object(command, "VeloApiClient"),
+        mock.patch.object(command, "run_analysis_async", new_callable=mock.AsyncMock, side_effect=analyzed),
+    ):
+        for flag in ("--skip-ai", "--plan-only", "--rebuild-host-summary"):
+            assert asyncio.run(command.async_main([*host, flag])) == 0
+        assert asyncio.run(command.async_main(host)) == 1
+    assert seen == [None] * 5
+    assert capsys.readouterr().err.count("chunk repair limit must be an integer from 0 to 20") == 2
+    with pytest.raises(SystemExit):
+        hunt.parse_args(["analyze", "--snapshot", str(snapshot), "--chunk-repair-limit", "2"])
 
 
 def test_exhausted_chunk_is_logged_then_repaired_in_the_same_run(tmp_path):

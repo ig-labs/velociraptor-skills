@@ -87,13 +87,16 @@ whether or not they succeed; set `--chunk-repair-limit N` (0-20, 0 disables) on
 `analyze`, `collect analyze` or `hunt analyze`, or
 `AI_SKILLS_ANALYST_AGENT_CHUNK_REPAIR_LIMIT`. Chunks past the cap stay failed
 with `AI repair was skipped: per-run repair limit reached`. The continuation
-command keeps the flag. The repair prompt is checked against the input token
-limit before it is sent: an answer that does not fit is cut to the lines the
-defects cite (at most 120,000 characters are quoted in any case), and if even
-that does not fit the repair is skipped (`the repair prompt would exceed the
-input limit`) without using a slot. A failed repair call adds one attempt to the
-entry; the entry's final category stays the validation failure and the repair
-call's own category (for example `timeout`) is kept in its `repair` object.
+command keeps the flag. Runs that make no model call (`--skip-ai`,
+`--plan-only`, `--rebuild-host-summary`, snapshot replay) do not read the
+setting, and `--snapshot` or `--from` rejects the flag. The repair prompt is
+checked against the input token limit before it is sent: an answer that does
+not fit is cut to the lines the defects cite (at most 120,000 characters are
+quoted in any case), and if even that does not fit the repair is skipped (`the
+repair prompt would exceed the input limit`) without using a slot. A failed
+repair call adds one attempt to the entry; the entry's final category stays the
+validation failure and the repair call's own category (for example `timeout`)
+is kept in its `repair` object.
 
 ## Review chunks that fail every attempt
 
