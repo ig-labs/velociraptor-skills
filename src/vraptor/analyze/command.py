@@ -52,6 +52,7 @@ from vraptor.analyze import coordinator as flow_analysis_coordinator
 from vraptor.analyze import checkpoints as host_analysis_state
 from vraptor.collect import layout
 from vraptor.logging import operations as operation_log
+from vraptor.analyze import chunk_repair
 from vraptor.analyze import recovery
 from vraptor.api import VeloApiClient
 from vraptor.api import resolve_org_id
@@ -145,6 +146,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Retry failed analysis stages from the exact saved request, reusing validated chunks and artifacts. Requires --request-id.",
     )
     parser.add_argument(
+        "--waive-failed-chunk", action="append", default=[], metavar="KEY",
+        help=(
+            "Accept a reviewed coverage gap: do not send this failed chunk again and "
+            "publish its artifact from the accepted chunks, naming the unanalysed rows. "
+            "KEY comes from analysis/failed-chunks.json. Repeatable; implies --retry-failed; "
+            "requires --waive-reason."
+        ),
+    )
+    parser.add_argument(
+        "--waive-reason", default="",
+        help="Operator reason recorded with every --waive-failed-chunk in this run.",
+    )
+    parser.add_argument(
+        "--retry-waived", action="store_true",
+        help="Revoke this request's chunk waivers and retry those chunks; implies --retry-failed.",
+    )
+    parser.add_argument(
         "--rebuild-host-summary",
         action="store_true",
         help=(
@@ -173,6 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
     analysis_time_scope.add_arguments(parser)
     analysis_cli_arguments.add_skip_ai_argument(parser)
     analysis_cli_arguments.add_prompt_debug_argument(parser)
+    analysis_cli_arguments.add_chunk_repair_argument(parser)
     analysis_cli_arguments.add_query_timeout_argument(parser)
     model_options.add_arguments(parser)
     parser.add_argument(
@@ -206,6 +225,7 @@ def analysis_paths(
         "request_checkpoint": request_analysis / "request-analysis.json",
         "validation_debug": request_analysis / "host-analysis-validation-debug.json",
         "diagnostics": request_analysis / "analysis-diagnostics.json",
+        "failed_chunks": request_analysis / "failed-chunks.json",
         "chunk_recovery": request_analysis / "artifact-recovery",
         "artifact_reports_dir": request_analysis / "artifact-analysis",
         "host_artifact_reports_dir": host_root / "analysis",
@@ -503,6 +523,12 @@ def resume_analysis_command(
         resume_argv.extend(["--time-field", str(field)])
     if getattr(args, "no_autoruns_golden", False):
         resume_argv.append("--no-autoruns-golden")
+    # Model and budget options are part of the cache identity; dropping them would re-review accepted chunks.
+    for option in (*model_options.ROUTE_FIELDS, *model_options.BUDGET_FIELDS):
+        if getattr(args, option, None) is not None:
+            resume_argv.extend(["--" + option.replace("_", "-"), str(getattr(args, option))])
+    if getattr(args, "chunk_repair_limit", None) is not None:
+        resume_argv.extend(["--chunk-repair-limit", str(args.chunk_repair_limit)])
     if retry_failed:
         resume_argv.append("--retry-failed")
     return shlex.join(resume_argv)
@@ -1027,8 +1053,11 @@ def artifact_failure_result(
     request_id: str,
     error_class: str,
     failure_reason: str = "",
+    chunk_counts: dict[str, int] | None = None,
+    failed_chunks: list[dict[str, Any]] = (),
 ) -> dict[str, Any]:
     """Build one bounded terminal failure summary without persisting exceptions."""
+    counts = dict(chunk_counts or {})
     return {
         "artifact": artifact,
         "status": "failed",
@@ -1037,8 +1066,8 @@ def artifact_failure_result(
         "coverage": {
             "planned_rows": int(item.get("total_rows") or 0),
             "reviewed_rows": 0,
-            "planned_chunks": 0,
-            "accepted_chunks": 0,
+            "planned_chunks": int(counts.get("planned_chunks") or 0),
+            "accepted_chunks": int(counts.get("accepted_chunks") or 0),
         },
         "findings": [],
         "relevant_context": [],
@@ -1046,10 +1075,17 @@ def artifact_failure_result(
             f"Artifact analysis ended with {error_class or 'AnalysisError'}; "
             "no clean result is claimed.",
             *([failure_reason] if failure_reason else []),
+            *(analysis_summary.failed_chunk_line(chunk) for chunk in failed_chunks),
         ],
         "bounded_follow_up": [
-            f"Rerun only {artifact} with --reset-artifact {artifact} "
-            f"--request-id {request_id}."
+            f"Retry {artifact} with --retry-failed --request-id {request_id}; accepted "
+            "chunks are reused. "
+            + (
+                "After reviewing analysis/failed-chunks.json, --waive-failed-chunk KEY "
+                "--waive-reason TEXT publishes the accepted chunks with the gap named."
+                if failed_chunks
+                else f"--reset-artifact {artifact} discards accepted chunks."
+            )
         ],
     }
 
@@ -1067,7 +1103,7 @@ def analysis_failures_from_state(state: dict[str, Any]) -> list[dict[str, Any]]:
                 "artifact": name,
                 "state": status,
                 "error": (
-                    "local artifact analysis failed; use --reset-artifact to retry"
+                    "local artifact analysis failed; use --retry-failed to retry"
                     if status == "failed"
                     else "Velociraptor flow ended without analyzable output"
                 ),
@@ -1304,6 +1340,86 @@ async def _execute_incremental_analysis(
         }
     reset_pending = True
     diagnostics: dict[str, dict[str, Any]] = {}
+    chunk_ledger = recovery.FailedChunkLedger(
+        paths["failed_chunks"],
+        {
+            "kind": "host",
+            "client_id": str(initial_payload.get("client_id") or ""),
+            "request_id": str(initial_payload.get("request_id") or ""),
+        },
+    )
+    if getattr(args, "retry_waived", False):
+        chunk_ledger.revoke_waivers()
+    for value in getattr(args, "waive_failed_chunk", []) or []:
+        key = chunk_ledger.find(str(value))
+        if key is None:
+            raise RuntimeError(
+                f"--waive-failed-chunk {value} is not a chunk recorded in {paths['failed_chunks']}"
+            )
+        try:
+            chunk_ledger.waive(key, str(getattr(args, "waive_reason", "") or ""))
+        except ValueError as exc:
+            raise RuntimeError(str(exc)) from exc
+    chunk_counts: dict[str, dict[str, int]] = {}
+    retry_command = resume_analysis_command(args, initial_payload, retry_failed=True)
+
+    repaired_keys: list[str] = []
+
+    def chunk_evidence(
+        key: str, source_aliases: dict[str, dict[str, Any]], task: Any,
+        record: dict[str, Any], prompts: list[str] | None,
+    ) -> dict[str, Any] | None:
+        if prompts is None:
+            return None
+        aliases = set(task.metadata.get("source_aliases") or [])
+        return prompt_debug.capture_failed_chunk(
+            key=key,
+            prompts=prompts,
+            record=record,
+            source_ids=[
+                source_id
+                for source_id, entry in source_aliases.items()
+                if str(dict(entry).get("alias") or "") in aliases
+            ],
+        )
+
+    def record_repaired_chunk(
+        name: str, source_aliases: dict[str, dict[str, Any]], task: Any,
+        record: dict[str, Any], prompts: list[str],
+    ) -> None:
+        key = f"{name}:{task.task_id}"
+        repaired_keys.append(key)
+        chunk_ledger.resolve(
+            key, repair=record.get("repair"),
+            evidence=chunk_evidence(key, source_aliases, task, record, prompts),
+        )
+
+    def record_failed_chunk(
+        name: str,
+        flow_id: str,
+        source_aliases: dict[str, dict[str, Any]],
+        task: Any,
+        record: dict[str, Any],
+        prompts: list[str] | None,
+    ) -> None:
+        """``prompts`` is None for the record written before a repair call."""
+        key = f"{name}:{task.task_id}"
+        chunk_ledger.record_failure(
+            key,
+            recovery.task_diagnostics(record),
+            identity={"artifact": name, "flow_id": flow_id},
+            budget={
+                "validation_correction_attempts": limits.validation_correction_attempts,
+                "provider_max_retries": spec.max_retries,
+            },
+            next_steps={
+                "retry": retry_command,
+                "waive": retry_command + " " + shlex.join(
+                    ["--waive-failed-chunk", key, "--waive-reason", "REASON"]
+                ),
+            },
+            evidence=chunk_evidence(key, source_aliases, task, record, prompts),
+        )
 
     def save_diagnostics(run: dict[str, Any], artifact: str) -> None:
         for record in run.get("tasks") or []:
@@ -1535,7 +1651,32 @@ async def _execute_incremental_analysis(
                 schedule=schedule_worker,
                 perform_scope_synthesis=False,
                 chunk_recovery=chunk_checkpoint,
+                chunk_failed=lambda task, record, prompts: record_failed_chunk(
+                    name, str(item.get("flow_id") or ""),
+                    dict(artifact_plan.get("source_aliases") or {}), task, record, prompts,
+                ),
+                chunk_exhausted=lambda task, record: record_failed_chunk(
+                    name, str(item.get("flow_id") or ""),
+                    dict(artifact_plan.get("source_aliases") or {}), task, record, None,
+                ),
+                chunk_repaired=lambda task, record, prompts: record_repaired_chunk(
+                    name, dict(artifact_plan.get("source_aliases") or {}), task, record, prompts,
+                ),
+                chunk_waiver=lambda task: chunk_ledger.waiver(
+                    f"{name}:{task.task_id}", recovery.fingerprint(task.prompt),
+                ),
             ))
+        chunk_records = [
+            record for record in run.get("tasks") or [] if record.get("stage") == "chunk"
+        ]
+        chunk_counts[name] = {
+            "planned_chunks": len(chunk_records),
+            "accepted_chunks": sum(record.get("status") == "accepted" for record in chunk_records),
+        }
+        for record in chunk_records:
+            if record.get("status") == "accepted":
+                chunk_ledger.resolve(f"{name}:{record['task_id']}")
+        chunk_ledger.supersede(name, {f"{name}:{record['task_id']}" for record in chunk_records})
         save_diagnostics(run, name)
         state["artifacts"][name]["diagnostics"] = [
             recovery.task_diagnostics(record) for record in run.get("tasks") or []
@@ -1603,10 +1744,19 @@ async def _execute_incremental_analysis(
                 source_aliases,
             )
         except Exception as exc:
+            failed_chunks = [
+                recovery.failed_chunk_summary(key, entry)
+                for key, entry in chunk_ledger.entries("failed").items()
+                if entry.get("artifact") == name
+            ]
             failure_diagnostic = {
                 "task_id": name, "stage": "artifact", "status": "failed", "attempts": 0,
                 "category": "artifact_execution_failed", "exception_type": type(exc).__name__,
-                "message": "Artifact acquisition, planning or execution failed. Check flow status and analysis-diagnostics.json; no negative finding is inferred.",
+                "message": (
+                    "One or more chunks failed after every attempt. Review failed-chunks.json, then use --retry-failed or --waive-failed-chunk; no negative finding is inferred."
+                    if failed_chunks
+                    else "Artifact acquisition, planning or execution failed. Check flow status and analysis-diagnostics.json; no negative finding is inferred."
+                ),
             }
             # Preserve detailed validator diagnostics when execution finished before publication failed.
             state["artifacts"][name].setdefault("diagnostics", [failure_diagnostic])
@@ -1626,6 +1776,8 @@ async def _execute_incremental_analysis(
                 request_id=str(payload_snapshot.get("request_id") or ""),
                 error_class=type(exc).__name__,
                 failure_reason=failure_reason,
+                chunk_counts=chunk_counts.get(name),
+                failed_chunks=failed_chunks,
             )
             failure_time_filter = copy.deepcopy(request_time_filter)
             if name in set(request_time_filter.get("filtered_artifacts") or []):
@@ -1977,6 +2129,22 @@ async def _execute_incremental_analysis(
     host_result["troubleshooting"] = {
         "diagnostics_file": str(paths["diagnostics"]),
         "failed_stages": [item for item in diagnostics.values() if item["status"] == "failed"][:200],
+        **(
+            {
+                "failed_chunks_file": str(paths["failed_chunks"]),
+                "failed_chunks": [
+                    recovery.failed_chunk_summary(key, entry)
+                    for key, entry in chunk_ledger.entries("failed", "waived").items()
+                ][:50],
+                "repaired_chunks": [
+                    recovery.failed_chunk_summary(key, entry)
+                    for key, entry in chunk_ledger.entries("resolved").items()
+                    if key in repaired_keys
+                ][:50],
+            }
+            if chunk_ledger.entries("failed", "waived") or repaired_keys
+            else {}
+        ),
         "resume_command": resume_analysis_command(args, initial_payload, retry_failed=True),
         "resume": {
             "command": "vraptor analyze" if getattr(args, "existing_only", False) else "vraptor collect analyze", "request_id": str(initial_payload.get("request_id") or ""),
@@ -2049,6 +2217,11 @@ async def run_analysis_async(
         getattr(args, "reset_analysis", False)
         or list(getattr(args, "reset_artifact", []) or [])
     )
+    waivers = list(getattr(args, "waive_failed_chunk", []) or [])
+    if waivers and not str(getattr(args, "waive_reason", "") or "").strip():
+        raise RuntimeError("--waive-failed-chunk requires --waive-reason")
+    if waivers or getattr(args, "retry_waived", False):
+        args.retry_failed = True
     retry_failed = bool(getattr(args, "retry_failed", False))
     if retry_failed and (reset_requested or prepare_only or bool(getattr(args, "force_run", False))):
         raise RuntimeError("--retry-failed cannot be combined with reset, --force-run, --plan-only or --skip-ai")
@@ -2562,7 +2735,11 @@ async def async_main(argv: list[str] | None = None, *, existing_only: bool = Fal
             with prompt_debug.session(
                 context.case_root / context.engagement_id,
                 global_args.debug_chunk_prompts,
-            ) as prompt_dump:
+                keep_failed=global_args.keep_failed_chunk_evidence,
+            ) as prompt_dump, chunk_repair.session(
+                0 if global_args.plan_only or global_args.skip_ai or global_args.rebuild_host_summary
+                else chunk_repair.resolve_limit(getattr(global_args, "chunk_repair_limit", None))
+            ):
                 result = await run_analysis_async(
                     api,
                     global_args,

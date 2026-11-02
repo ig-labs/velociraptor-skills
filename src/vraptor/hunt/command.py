@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from vraptor.analyze import chunk_repair
 from vraptor.analyze import prompt_debug
 
 import argparse
@@ -3562,6 +3563,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     analysis_cli_arguments.add_skip_ai_argument(analyze)
     analysis_cli_arguments.add_prompt_debug_argument(analyze)
+    analysis_cli_arguments.add_chunk_repair_argument(analyze)
     model_options.add_arguments(analyze)
     analysis_cli_arguments.add_snapshot_review_arguments(analyze)
     analyze.add_argument(
@@ -3735,6 +3737,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.command == "analyze":
         if args.debug_chunk_prompts and args.snapshot:
             parser.error("--debug-chunk-prompts requires live host or hunt analysis")
+        if args.keep_failed_chunk_evidence and args.snapshot:
+            parser.error("--keep-failed-chunk-evidence requires live host or hunt analysis")
         if args.stack_max_total_rows is None and args.profile == "autoruns":
             args.stack_max_total_rows = 20
         elif args.stack_max_total_rows == 0:
@@ -3787,6 +3791,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "--max-review-tokens",
             "--include-review-rows",
             "--analysis-mode",
+            "--chunk-repair-limit",
         }
         supplied = analysis_cli_arguments.supplied_options(raw_argv, live_only)
         if supplied:
@@ -3852,7 +3857,11 @@ def main(argv: list[str] | None = None, *, existing_only: bool = False) -> int:
             with prompt_debug.session(
                 resolve_case_root(args) / investigation_id,
                 args.debug_chunk_prompts,
-            ) as prompt_dump:
+                keep_failed=bool(getattr(args, "keep_failed_chunk_evidence", False)),
+            ) as prompt_dump, chunk_repair.session(
+                0 if args.snapshot or getattr(args, "skip_ai", False)
+                else chunk_repair.resolve_limit(getattr(args, "chunk_repair_limit", None))
+            ):
                 payload = command_analyze(args)
             if args.debug_chunk_prompts:
                 payload["debug_chunk_prompts"] = prompt_dump.summary()

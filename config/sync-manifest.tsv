@@ -116,6 +116,7 @@ tests/test_vraptor_settings.py	tests/test_vraptor_settings.py	file
 tests/test_vraptor_setup.py	tests/test_vraptor_setup.py	file
 tests/test_analysis_operator_status.py	tests/test_analysis_operator_status.py	file
 tests/test_analysis_recovery.py	tests/test_analysis_recovery.py	file
+tests/test_failed_chunk_review.py	tests/test_failed_chunk_review.py	file
 tests/test_chunk_prompt_debug.py	tests/test_chunk_prompt_debug.py	file
 tests/test_export_mapping.py	tests/test_export_mapping.py	file
 tests/test_zip_mapping.py	tests/test_zip_mapping.py	file

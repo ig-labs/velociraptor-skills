@@ -237,7 +237,8 @@ For a large artifact, the automated generic stack lane:
    second validated tab-delimited analyst pass.
 10. Python owns supplied-part and row-count accounting. It validates sparse
    `FLAG` records and requires exactly one `ASSESSMENT` for every follow-up
-   GroupId. One invalid result receives one retry, then the run fails closed.
+   GroupId. One invalid result receives one retry, then the run fails closed
+   without a repair call or `hunt-failed-chunks.json` entry.
 11. Accounts expected groups compactly. Only notable or suspicious groups become
    live-query drill-down items.
 12. Requeries flagged groups using the original server-side scope and signature
@@ -478,8 +479,14 @@ All case-bound hunt commands append to the human-readable `<case-root>/<id>/logs
 The analyst prompt exposes `_SourceRef` as reference-only metadata. Analysts
 return canonical ATT&CK tactic names and one exact reference per `EVIDENCE` or
 `CONTEXT` line, never evidence values or field names. Python hydrates the
-authoritative row after validation. Final prose fields consume embedded tabs; fixed structural fields remain strict. Invalid output receives one bounded retry
-and is never mechanically rewritten into an accepted result.
+authoritative row after validation. Final prose fields consume embedded tabs; fixed structural fields remain strict. Invalid output receives bounded
+correction attempts (two by default, three calls in total) and is never mechanically
+rewritten into an accepted result. A chunk whose corrections all fail gets one
+AI repair call (`--chunk-repair-limit N`, default 4 per run, 0 disables) whose
+answer passes the same validator; an accepted repair is published with an
+`accepted after AI repair` limitation and listed in `repaired_chunk_ids`. A
+chunk that still fails is recorded
+value-free in `hunt-failed-chunks.json`; the error names the file and chunk IDs.
 A failed chunk or hard synthesis failure leaves the prior checkpoint and cursor
 unchanged. When every chunk is accepted but final narrative synthesis fails
 deterministic validation, publish the grounded `complete_with_failures` fallback
