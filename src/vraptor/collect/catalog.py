@@ -10,6 +10,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable
 
+from vraptor.common.hashing import canonical_json
+from vraptor.common.sequences import unique_ordered
+
 
 COLLECTION_POLICY_PATH = (
     Path(os.environ["VRAPTOR_COLLECTION_POLICY"]).expanduser().resolve()
@@ -123,26 +126,6 @@ ARTIFACT_GROUPS = {
 }
 
 SUPPORTED_COLLECTION_TYPES = tuple(ARTIFACT_GROUPS)
-
-
-def _stable_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    )
-
-
-def _ordered_unique(values: Iterable[str]) -> list[str]:
-    seen: set[str] = set()
-    result: list[str] = []
-    for value in values:
-        if value in seen:
-            continue
-        seen.add(value)
-        result.append(value)
-    return result
 
 
 def _require_string_list(value: Any, field_name: str) -> list[str]:
@@ -326,12 +309,12 @@ def collection_policy_metadata() -> dict[str, Any]:
     return {
         "policy_id": str(policy.get("policy_id") or ""),
         "schema_version": int(policy["schema_version"]),
-        "sha256": hashlib.sha256(_stable_json(policy).encode("utf-8")).hexdigest(),
+        "sha256": hashlib.sha256(canonical_json(policy, default=None).encode("utf-8")).hexdigest(),
     }
 
 
 def collection_policy_followups() -> dict[str, Any]:
-    return json.loads(_stable_json(load_collection_policy().get("followups") or {}))
+    return json.loads(canonical_json(load_collection_policy().get("followups") or {}, default=None))
 
 
 def resolve_collection_policy(
@@ -344,7 +327,7 @@ def resolve_collection_policy(
     policy = load_collection_policy()
     policy_groups = dict(policy["groups"])
     policy_bundles = dict(policy["bundles"])
-    requested_groups = _ordered_unique(str(item).strip() for item in groups if str(item).strip())
+    requested_groups = unique_ordered(str(item).strip() for item in groups if str(item).strip())
 
     bundle_name = str(bundle or "").strip()
     if bundle_name:
@@ -435,8 +418,8 @@ def resolve_collection_policy(
                 }
             )
 
-    selected_artifacts = _ordered_unique(selected_artifacts)
-    candidate_artifacts = _ordered_unique(candidate_artifacts)
+    selected_artifacts = unique_ordered(selected_artifacts)
+    candidate_artifacts = unique_ordered(candidate_artifacts)
     physical_sources: list[dict[str, Any]] = []
     for artifact in selected_artifacts:
         matching = [
@@ -454,9 +437,9 @@ def resolve_collection_policy(
         physical_sources.append(
             {
                 "artifact": artifact,
-                "groups": _ordered_unique(item["group"] for item in matching),
+                "groups": unique_ordered(item["group"] for item in matching),
                 "logical_sources": [item["source_key"] for item in matching],
-                "requirements": _ordered_unique(
+                "requirements": unique_ordered(
                     item["requirement"] for item in matching
                 ),
                 "default_parameters": default_parameters,

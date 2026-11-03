@@ -15,7 +15,11 @@ def workstation(tmp_path, monkeypatch):
     monkeypatch.setattr("vraptor.resources.repository_root", lambda: tmp_path)
     monkeypatch.setattr(workspace, "configuration_checks", lambda: {})
     monkeypatch.setattr(readiness, "publish_mapped_system_state", lambda *args: None)
+    monkeypatch.setattr(readiness, "verify_api_authorization", Mock(return_value={"status": "verified"}))
     monkeypatch.setattr(setup.sys.stdin, "isatty", lambda: False)
+    # Local log process identity is separate from setup's SSH/acquisition calls.
+    # Both modules use subprocess.run; keep setup call-count assertions scoped.
+    monkeypatch.setattr("vraptor.logging.operations.process_snapshot", lambda pid: ("running", "test-start"))
     return tmp_path
 
 
@@ -150,6 +154,67 @@ def test_fetch_does_not_enable_provisioning(workstation, monkeypatch):
     assert "fetch_config" not in saved(workstation)["setup"]
 
 
+@pytest.mark.parametrize("flag", ["--fetch-config", "--provision-api", "--regenerate-remote-api"])
+def test_api_acquisition_requires_selected_user_before_ssh(workstation, monkeypatch, capsys, flag):
+    run = Mock(side_effect=AssertionError("No SSH without a selected API user"))
+    monkeypatch.setattr(setup.subprocess, "run", run)
+    assert invoke(workstation, "start", "--mode", "live-remote", "--server-ip", "192.0.2.1", flag) == 1
+    assert "Configure api_user or pass --api-user" in capsys.readouterr().err
+    run.assert_not_called()
+    assert saved(workstation)["status"] == "needs_attention"
+
+
+def test_provisioning_uses_selected_user_through_fetch_and_readiness(workstation, monkeypatch):
+    def fetch(command, **kwargs):
+        assert "--provision-api" in command
+        assert kwargs["env"]["VELO_REMOTE_API_USER"] == "vraptor_alice"
+        Path(command[command.index("--output-path") + 1]).touch()
+        return Mock(returncode=0)
+
+    run = Mock(side_effect=fetch)
+    verify = Mock(side_effect=ready)
+    monkeypatch.setattr(setup.subprocess, "run", run)
+    monkeypatch.setattr(readiness, "validate_api_client_security", lambda _: {"identity": "vraptor_alice"})
+    monkeypatch.setattr(readiness, "command_live_remote", verify)
+    assert invoke(workstation, "start", "--mode", "live-remote", "--server-ip", "192.0.2.1",
+                  "--provision-api", "--api-account-ready", "--api-user", "vraptor_alice") == 0
+    run.assert_called_once()
+    assert verify.call_args.args[0].api_user == "vraptor_alice"
+    assert saved(workstation)["status"] == "ready"
+
+
+def test_provisioning_with_working_cached_yaml_skips_manual_account_step(workstation, monkeypatch, capsys):
+    api = workstation / "api.yaml"
+    api.touch()
+    monkeypatch.setattr(setup.subprocess, "run", Mock(side_effect=AssertionError("No SSH with cached YAML")))
+    monkeypatch.setattr("builtins.input", Mock(side_effect=AssertionError("No prompt")))
+    monkeypatch.setattr(readiness, "validate_api_client_security", lambda _: {"identity": "vraptor_alice"})
+    monkeypatch.setattr(readiness, "command_live_remote", ready)
+    assert invoke(workstation, "start", "--mode", "live-remote", "--api-client", str(api),
+                  "--provision-api", "--api-user", "vraptor_alice") == 0
+    readiness.verify_api_authorization.assert_called_once()
+    assert "--api-account-setup to run it anyway" in capsys.readouterr().err
+    assert saved(workstation)["status"] == "ready"
+    command = ("start", "--mode", "live-remote", "--api-client", str(api),
+               "--provision-api", "--api-account-setup", "--api-user", "vraptor_alice")
+    assert invoke(workstation, *command) == 1
+    assert "rerun the same setup command with --api-account-ready" in capsys.readouterr().err
+    # Following the printed instructions literally completes setup.
+    readiness.verify_api_authorization.reset_mock()
+    assert invoke(workstation, *command, "--api-account-ready") == 0
+    readiness.verify_api_authorization.assert_called_once()
+    assert saved(workstation)["status"] == "ready"
+
+
+def test_account_setup_flag_requires_provisioning(workstation, monkeypatch, capsys):
+    api = workstation / "api.yaml"
+    api.touch()
+    monkeypatch.setattr(readiness, "command_live_remote", Mock(side_effect=AssertionError("No readiness")))
+    assert invoke(workstation, "start", "--mode", "live-remote", "--api-client", str(api),
+                  "--api-user", "vraptor_alice", "--api-account-setup") == 1
+    assert "--api-account-setup requires --provision-api" in capsys.readouterr().err
+
+
 @pytest.mark.parametrize("interactive", [False, True])
 def test_manual_remote_preparation_requires_continue(workstation, monkeypatch, capsys, interactive):
     calls = []
@@ -173,7 +238,7 @@ def test_manual_remote_preparation_requires_continue(workstation, monkeypatch, c
     monkeypatch.setattr(readiness, "validate_api_client_security", lambda _: {"identity": "operator"})
     monkeypatch.setattr(readiness, "command_live_remote", ready)
     result = invoke(workstation, "start", "--mode", "live-remote", "--hostname", "host1",
-                    "--fetch-config", "--server-ip", "192.0.2.1", "--provision-api", "--api-user", "operator")
+                    "--fetch-config", "--server-ip", "192.0.2.1", "--provision-api", "--api-account-ready", "--api-user", "operator")
     if interactive:
         assert result == 0
         assert len(calls) == 2
@@ -212,6 +277,20 @@ def test_refresh_preserves_existing_credentials_on_failure(workstation, monkeypa
         setup._acquire(args, snapshot, state)
     assert api.read_text() == "original-credential"
     assert not list(root.glob(".setup-*"))
+
+
+def test_bound_case_rejects_selected_user_change_before_provisioning(workstation, monkeypatch):
+    args = setup.parser().parse_args([
+        "start", "--id", "case1", "--mode", "live-remote", "--server-profile", "lab",
+        "--api-user", "different", "--provision-api", "--case-root", str(workstation / "cases"),
+    ])
+    snapshot = settings.resolve("lab", vars(args))
+    provision = Mock(side_effect=AssertionError("No provisioning for a conflicting binding"))
+    monkeypatch.setattr(setup.api_provisioning, "prepare_account", provision)
+    previous = {"engagement_id": "case1", "api": {"identity": "original"}}
+    with pytest.raises(ValueError, match="API user differs"):
+        setup.start(args, snapshot, previous, workstation / "cases/case1/engagement.json")
+    provision.assert_not_called()
 
 
 def test_resume_preserves_local_ports_and_status_does_not_query(workstation, monkeypatch, capsys):
@@ -421,7 +500,7 @@ def multi_mapping(workstation, monkeypatch):
     root = workstation
     metadata = {"identity": "analyst", "server_fingerprint": "server-one", "org_id": "root",
                 "credential_sha256": "credential-one", "credential_security": {
-                    "certificate_status": "valid", "private_key_present": True,
+                    "certificate_status": "valid", "certificate_identity": "analyst", "private_key_present": True,
                     "group_or_other_access": False, "owner_matches_current_user": True}}
     monkeypatch.setattr(readiness_state, "api_metadata", lambda _: dict(metadata))
     monkeypatch.setattr(readiness, "validate_api_client_security", lambda _: dict(metadata))
@@ -574,3 +653,50 @@ def test_mapping_resume_reads_case_state_only_twice(multi_mapping, monkeypatch):
     monkeypatch.setattr(readiness_state, "load", read)
     assert invoke(root, "resume", "--mapping-id", "host1") == 0
     assert read.call_count == 2
+
+
+def test_cached_yaml_does_not_skip_explicit_account_preparation(workstation, monkeypatch):
+    api = workstation / "api.yaml"
+    api.write_text("cached")
+    events = []
+    def prepare(*a):
+        events.append("prepare")
+        return {"status": "existing", "api_user": "selected", "org_id": "root"}
+    monkeypatch.setattr(setup.api_provisioning, "prepare_account", prepare)
+    monkeypatch.setattr(readiness, "validate_api_client_security", lambda p: {"identity": "selected"})
+    monkeypatch.setattr(readiness, "verify_api_authorization", lambda *a, **kw: events.append("authorize"))
+    monkeypatch.setattr(readiness, "command_live_remote", ready)
+    fetch = Mock(side_effect=AssertionError("Cached YAML must not be fetched"))
+    monkeypatch.setattr(setup.subprocess, "run", fetch)
+    assert invoke(workstation, "start", "--mode", "live-remote", "--api-client", str(api),
+                  "--api-user", "selected", "--provision-api") == 0
+    assert events == ["prepare", "authorize"]
+    assert api.read_text() == "cached"
+    fetch.assert_not_called()
+
+
+def test_generic_account_prompt_stops_before_acquisition(workstation, monkeypatch, capsys):
+    fetch = Mock(side_effect=AssertionError("No SSH before manual account completion"))
+    monkeypatch.setattr(setup.subprocess, "run", fetch)
+    assert invoke(workstation, "start", "--mode", "live-remote", "--api-user", "selected",
+                  "--server-ip", "192.0.2.1", "--provision-api") == 1
+    assert "Manual API account setup required" in capsys.readouterr().err
+    assert saved(workstation)["status"] == "needs_attention"
+    fetch.assert_not_called()
+
+
+def test_evidence_prompts_name_collections_and_only_start_selects_type(workstation, monkeypatch, capsys):
+    prompts = []
+    monkeypatch.setattr(setup.sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr("builtins.input", lambda prompt="": prompts.append(prompt) or "")
+    assert invoke(workstation, "start", "--mode", "local-deaddisk") == 1
+    assert len(prompts) == 1 and "Velociraptor collection folder or ZIP" in prompts[0]
+    with pytest.raises(SystemExit):
+        readiness.build_parser().parse_args(["remote-deaddisk", "--help"])
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "Velociraptor collection folder or ZIP" in help_text and "--evidence-type" not in help_text
+    for command in (["remote-deaddisk", "--evidence-path", "x"], ["local-deaddisk"]):
+        with pytest.raises(SystemExit):
+            readiness.build_parser().parse_args([*command, "--evidence-type", "auto"])
+    selected = setup.parser().parse_args(["start", "--evidence-type", "velociraptor-kapefiles-zip"])
+    assert selected.evidence_type == "velociraptor-kapefiles-zip"

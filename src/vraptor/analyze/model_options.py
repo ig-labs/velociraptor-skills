@@ -8,6 +8,7 @@ from vraptor.agent.config import SourceProvenance, resolve_agent_execution
 from vraptor.agent.model_budgets import (
     MIN_INPUT_TOKENS,
     MIN_OUTPUT_TOKENS,
+    claude_code_window,
     model_budget,
 )
 from vraptor.analyze import limits as analysis_limits
@@ -56,7 +57,7 @@ def add_arguments(parser):
         ),
         (
             "max_output_tokens",
-            "Output budget; minimum 32000. max uses the model/deployment output maximum (including 64000 for Haiku).",
+            "Output budget; minimum 32000. max uses the model/deployment output maximum (64000 for Haiku 4.5).",
         ),
         (
             "model_context_tokens",
@@ -94,7 +95,12 @@ def resolve(args, *, resolver=None, allow_missing_credentials=False):
         cli_values=cli, allow_missing_credentials=allow_missing_credentials
     )
     route = execution.route
-    reference = model_budget(route.provider, route.model)
+    reference = model_budget(
+        route.provider,
+        route.model,
+        route.protocol,
+        claude_code_1m=route.claude_code_1m_context,
+    )
     # Superseded environment values must not fail validation before CLI values
     # are applied. Resolve unchanged fields first; validate the final pair below.
     preliminary = dict(route.analysis_profile)
@@ -134,15 +140,25 @@ def resolve(args, *, resolver=None, allow_missing_credentials=False):
             resolved = published
         return resolved
 
+    # Claude Code holds every model, listed or not, to its window.
+    window = None if route.claude_code_1m_context else claude_code_window()
     context = ceiling(
         "model_context_tokens",
-        reference.context_tokens if reference else None,
+        reference.context_tokens
+        if reference
+        else window["context_tokens"]
+        if window
+        else None,
         route.model_context_tokens
         or (reference.context_tokens if reference else baseline.model_context_tokens),
     )
     output_cap = ceiling(
         "model_max_output_tokens",
-        reference.max_output_tokens if reference else None,
+        reference.max_output_tokens
+        if reference
+        else window["context_tokens"] - MIN_INPUT_TOKENS
+        if window
+        else None,
         route.model_max_output_tokens
         or (reference.max_output_tokens if reference else context - 10),
     )

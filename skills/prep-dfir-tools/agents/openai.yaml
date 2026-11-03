@@ -1,0 +1,4 @@
+interface:
+  display_name: "Prepare DFIR Tools"
+  short_description: "Install vraptor, Velociraptor and DFIR tooling"
+  default_prompt: "Use $prep-dfir-tools to install or refresh the vraptor package, Velociraptor binary, Plaso, Volatility 3 or Sleuth Kit on macOS or Linux. Check the selected destination first because prep replaces an existing binary, and initialize a local Velociraptor GUI workspace only when required."

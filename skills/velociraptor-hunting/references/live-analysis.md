@@ -61,7 +61,12 @@ required. Supported run-only profile/model/token overrides are documented in
 [model execution](../../../docs/model-execution.md). Full live analysis, generic
 stacks and Autoruns stacks use the same resolved analyst specification. Inspect
 `vraptor ai config` at session initialization or after relevant changes, rather
-than repeating configuration discovery for each hunt.
+than repeating configuration discovery for each hunt. Setup saves per-profile
+input/output budgets and fills shared `[analysis_defaults]`. Limits resolve once
+per operation; Claude uses shared budgets when model limits are omitted.
+Analysis profiles choose only `high-volume`, `reasoning`, or `synthesis`; code
+derives the task. With `codex_app_server`, stack and chunk requests use
+shared-daemon ephemeral turns rather than one Codex process per request.
 
 ## Start or Continue
 
@@ -76,7 +81,7 @@ queried fresh. Group analysis, successful or failed retry attempts, and ordinary
 status/polling callers retain fresh metadata reads; there is no persistent cache.
 
 ```bash
-dfir hunt analyze \
+vraptor hunt analyze \
   --id IR1234 \
   --hunt-id H.1234 \
   --analysis-mode stack
@@ -86,7 +91,7 @@ Supply chat-derived field preferences when the operator wants the AI to assess
 a specific composite against the transient sample:
 
 ```bash
-dfir hunt analyze \
+vraptor hunt analyze \
   --id IR1234 \
   --hunt-id H.1234 \
   --analysis-mode stack \
@@ -143,8 +148,10 @@ its identity and reports `TotalRows`. Its transient source export contains
 `review.csv` and `stats.json`; canonical outputs are `analysis/autoruns_review.csv`,
 `analysis/autoruns_potential_golden.csv`, `analysis/hunt-analysis-state.json` and
 `analysis-hunt.md`. Sample hostnames are excluded from AI input and caches. Add reviewed
-schema-10 CSV rules through `autoruns regex-import`; legacy exact promotion does not
-apply to this workflow.
+schema-10 CSV rules through the
+[GoldenDB maintenance workflow](goldendb-maintenance.md#regex-only-database-migration-and-updates)
+(`regex-build` from the canonical CSV for the repository database, `regex-import`
+for standalone databases); legacy exact promotion does not apply to this workflow.
 
 Do not write returned rows to the case unless explicit evidence extraction is
 required. Review them in the current agent context. Query metadata contains a
@@ -155,6 +162,43 @@ Configured projection aliases are applied only after branch predicates. This
 is required because VQL makes aliases visible to `WHERE`; an alias such as
 `Detection.Name AS Detection` can shadow the source `Detection` object and
 silently turn a positive-count scope into a zero-row review query.
+
+## Acquisition and Transport Sizing
+
+These runtime bounds explain progress and failure messages; the ordinary command
+needs no chunking or transport option. The complete pipeline is in
+[velociraptor-hunt-flow-analysis.md](../../../docs/reference/velociraptor-hunt-flow-analysis.md).
+
+- Hunt status/preflight projects only client/flow IDs, state, collected-row
+  totals and artifact-result names from `hunt_flows(basic_info=FALSE)`. Full
+  flow records can repeat large compiled collector requests per endpoint and
+  exceed gRPC message limits. Transport metadata in 100-row batches without a
+  total-result limit; retain nested `Flow` fields needed by status and snapshot
+  routing.
+- The default non-Autoruns path enumerates `hunt_flows(..., basic_info=FALSE)`,
+  streams profile-projected `hunt_results()` once per selected artifact,
+  accounts for every row Velociraptor exposes—including rows already available
+  from open flows—and streams token-bounded transient chunks into artifact-named
+  lanes on one hunt-scoped async scheduler and shared client. It does not
+  construct a complete hunt plan or pending prompt queue; the global row-count,
+  32 MiB, item-credit, and token-weight bounds pause acquisition.
+- For a full run, stream the complete aggregate `hunt_results()` result set,
+  including rows Velociraptor exposes from open flows. For `--update`, stream
+  each selected successful-terminal `source()` result in server-side batches of
+  at most 250 flows. Keep gRPC packets bounded and form fixed logical segments
+  locally.
+- The coordinator holds one 5,000-row or 32 MiB logical segment, one partial
+  token chunk, and at most the configured number of active analyst prompts. It
+  releases each prompt and source-row validation map immediately after
+  validation.
+- API `max_row` is a streamed-response row target, not a total-result ceiling.
+  Full/update acquisition starts at 5,000 transport rows and retries
+  message-size failures at 2,500, 1,000, 500, 100, 10, and 1. Segments stop at
+  5,000 rows or 32 MiB. A single row larger than the configured gRPC receive
+  limit remains an explicit coverage failure.
+- Managed target coverage propagates into the general flow analyzer. An ad-hoc
+  review does not require a local baseline and uses `not_assessed` as a
+  nonblocking target-execution state.
 
 ## Adaptive Reduction
 
@@ -173,7 +217,7 @@ For a large artifact, the automated generic stack lane:
    treats all values as untrusted evidence and prohibits embedded instructions.
    Repeated `--stack-field-preference FIELD` values and optional bounded
    `--stack-field-guidance TEXT` are included as advisory operator intent.
-   Strict line-v2 output contains an optional scope field, one to three
+   Validated tab-delimited output contains an optional scope field, one to three
    signature fields, rationales, and explicit rejections, with at most three
    total dimensions. It contains field names only, never VQL.
 5. Deterministically rejects unknown or unsafe names, time and record IDs,
@@ -190,10 +234,11 @@ For a large artifact, the automated generic stack lane:
    and fleet statistics to the aggregate analyst.
 9. Requeries retained high-value groups for exact impacted endpoint identities
    and relevant original rows, then sends the enriched evidence through a
-   second strict line-v2 analyst pass.
+   second validated tab-delimited analyst pass.
 10. Python owns supplied-part and row-count accounting. It validates sparse
    `FLAG` records and requires exactly one `ASSESSMENT` for every follow-up
-   GroupId. One invalid result receives one retry, then the run fails closed.
+   GroupId. One invalid result receives one retry, then the run fails closed
+   without a repair call or `hunt-failed-chunks.json` entry.
 11. Accounts expected groups compactly. Only notable or suspicious groups become
    live-query drill-down items.
 12. Requeries flagged groups using the original server-side scope and signature
@@ -344,7 +389,7 @@ approved filters.
 Rerun with the decisions:
 
 ```bash
-dfir hunt analyze \
+vraptor hunt analyze \
   --id IR1234 \
   --hunt-id H.1234 \
   --analysis-mode stack \
@@ -397,6 +442,23 @@ coverage.
 These controls apply to generic and focused live review. The `autoruns`
 profile uses the separate source-export, AI-cache and report contract linked above.
 
+### Persistence classification and preflight
+
+`hunt-analysis-state.json` also records `source_identifiers`, normalized
+`coverage_state`, closure blockers, and `persistence_manifest`. The runtime
+classifies every live analysis file by both path and content. Row-shaped or
+oversized Markdown and JSON containing inline row arrays are rejected even when
+their filenames look allowed. Before live hunt processing, the command checks
+existing analysis files and analysis memory with the same classification rules
+used at publishing. Explicit hunts are checked before API discovery; groups are
+checked after hunt discovery but before processing any selected hunt.
+Incompatible files fail early with absolute paths, reasons, and recovery
+instructions in the terminal and sanitized progress-log diagnostics. Files are
+preserved by default. Move unrelated historical files into the case reviews
+directory outside the analysis tree, or correct their format/classification,
+then rerun. The final audit remains in place to reject incompatible outputs
+created during processing.
+
 ### Checkpoints, diagnostics, and references
 
 `hunt-analysis-state.json` is the schema-7 checkpoint for default and specialized
@@ -413,12 +475,18 @@ validation codes. The first failed attempt remains visible when a retry succeeds
 During execution these records are written immediately under `active_analysis`;
 at completion they are retained in the bounded `runs` entry.
 For targeted diagnosis on any live or snapshot hunt-analysis lane, add `--debug`. It atomically retains schema-3 value-free provider selection, configuration provenance, request-option presence, stage timing, usage, retries, HTTP status/error classification, validation failures, synthesis status, and the current operation id in `analysis/hunt-analysis-validation-debug.json`, capped at 512 attempt records and 1 MiB. Safe provider request IDs, known internal field names, and valid source references may be retained; unknown strings are hashed. Debug mode never enables prompt, model-output, raw-row, raw-stderr, raw-provider-payload, event-log, or runtime-file persistence. A later non-debug run preserves the last debug file but marks its reference as not current.
-All case-bound hunt commands append to the human-readable `<case-root>/<id>/logs/velociraptor-progress.log`; its `op-v1-*` id is shared with `DFIR-STATUS` and final structured output. Concurrent commands interleave safely under distinct operation ids and an adjacent mode-`0600` lock file serializes append and rotation with a bounded wait; logging failure never fails the hunt. Parallel task lifecycle events are unthrottled, API activity from worker threads remains correlated, and every operation ends with compact query/model/task/retry/row/batch/rotation/drop counts. INFO records bounded single-line sanitized server text and automatic numeric progress. Text may contain evidence-sensitive hostnames, usernames, paths, or VQL; recognized API keys, tokens, passwords, secrets, authorization values, URL credentials, PEM material, and configured credential values are redacted. Message length and SHA-256 are not logged. Queries have local `q-NNNN` ids and purposes; `response_rows` counts response records while `matched_rows` reports interpreted analysis counts. Unbounded queries, disk spills, and server silence are warned; silence is not proof of a remote stall. Unchanged queries receive five-minute reminders after initial wait/silence events. Set `VELO_PROGRESS_FILE_DEBUG=true`, or use analysis `--debug`, for batch/transport and provider detail. Use `logs status --id <id>` to check local process identity and retained operation overlaps; old logs without PID identity report `UNKNOWN`. Use `dfir logs show --id <id>` or `dfir logs follow --id <id>` with optional `--operation`, `--level`, `--since`, `--scope`, `--hunt-id`, and `--task-id` filters. Hunt status uses `hunt_flows()` metadata for aggregate collected-row counts rather than scanning `hunt_results()` with `count()`; per-artifact counts are emitted only for a single selected artifact, while multi-artifact counts remain `aggregate_only`.
+All case-bound hunt commands append to the human-readable `<case-root>/<id>/logs/velociraptor-progress.log`; its `op-v1-*` id is shared with `DFIR-STATUS` and final structured output. Concurrent commands interleave safely under distinct operation ids and an adjacent mode-`0600` lock file serializes append and rotation with a bounded wait; logging failure never fails the hunt. Parallel task lifecycle events are unthrottled, API activity from worker threads remains correlated, and every operation ends with compact query/model/task/retry/row/batch/rotation/drop counts. INFO records bounded single-line sanitized server text and automatic numeric progress. Text may contain evidence-sensitive hostnames, usernames, paths, or VQL; recognized API keys, tokens, passwords, secrets, authorization values, URL credentials, PEM material, and configured credential values are redacted. Message length and SHA-256 are not logged. Queries have local `q-NNNN` ids and purposes; `response_rows` counts response records while `matched_rows` reports interpreted analysis counts. Unbounded queries, disk spills, and server silence are warned; silence is not proof of a remote stall. Unchanged queries receive five-minute reminders after initial wait/silence events. Set `VELO_PROGRESS_FILE_DEBUG=true`, or use analysis `--debug`, for batch/transport and provider detail. Use `logs status --id <id>` to check local process identity and retained operation overlaps; old logs without PID identity report `UNKNOWN`. Use `vraptor logs show --id <id>` or `vraptor logs follow --id <id>` with optional `--operation`, `--level`, `--since`, `--scope`, `--hunt-id`, and `--task-id` filters. Hunt status uses `hunt_flows()` metadata for aggregate collected-row counts rather than scanning `hunt_results()` with `count()`; per-artifact counts are emitted only for a single selected artifact, while multi-artifact counts remain `aggregate_only`.
 The analyst prompt exposes `_SourceRef` as reference-only metadata. Analysts
 return canonical ATT&CK tactic names and one exact reference per `EVIDENCE` or
 `CONTEXT` line, never evidence values or field names. Python hydrates the
-authoritative row after validation. Final prose fields consume embedded tabs; fixed structural fields remain strict. Invalid output receives one bounded retry
-and is never mechanically rewritten into an accepted result.
+authoritative row after validation. Final prose fields consume embedded tabs; fixed structural fields remain strict. Invalid output receives bounded
+correction attempts (two by default, three calls in total) and is never mechanically
+rewritten into an accepted result. A chunk whose corrections all fail gets one
+AI repair call (`--chunk-repair-limit N`, default 4 per run, 0 disables) whose
+answer passes the same validator; an accepted repair is published with an
+`accepted after AI repair` limitation and listed in `repaired_chunk_ids`. A
+chunk that still fails is recorded
+value-free in `hunt-failed-chunks.json`; the error names the file and chunk IDs.
 A failed chunk or hard synthesis failure leaves the prior checkpoint and cursor
 unchanged. When every chunk is accepted but final narrative synthesis fails
 deterministic validation, publish the grounded `complete_with_failures` fallback
@@ -440,14 +508,15 @@ is available.
 
 ### Aggregate review and report rendering
 
-The hunt synthesis manager consolidates semantically equivalent observations and selects representative rows. Model-facing workers use strict line-v2 records; Python owns task, question, chunk, status, and coverage metadata and rejects model-generated JSON.
+The hunt synthesis manager consolidates semantically equivalent observations and selects representative rows. Model-facing workers use validated tab-delimited records; Python owns task, question, chunk, status, and coverage metadata and rejects model-generated JSON.
 `analysis-hunt.md` groups references under findings,
 includes hostname with client ID when available, and shows bounded examples. When a
 selected row contains materially useful long-form content—commonly EVTXHunter or
 PowerShell—the runtime writes `analysis/finding-evidence.md` with deduplicated full
 projected representative for rows sharing the same hydrated field set. This generic
-mechanism is available to any artifact. Full-row Markdown is capped at 2,000,000
-characters; omitted groups remain authoritative in Velociraptor. The primary
+mechanism is available to any artifact. The shared reporting policy defaults to
+2,000,000 characters of selected full-row fields per rendering; omitted groups
+remain authoritative in Velociraptor. The primary
 report and command response remain compact and link to the supplement.
 
 Generic stack analysis consumes deterministic server-side aggregate queries
@@ -460,16 +529,28 @@ retained in one pass. If more are flagged, coverage remains incomplete and the
 next decisions pass excludes accounted groups before rerunning. Prompts, model
 responses, aggregate rows, and part manifests remain transient.
 
-Stack-analysis human output groups exact repeated context, caps representative
-context at 10 groups and 10 endpoints per group, clips displayed field values
-to 320 characters, and sends compact specialized finding summaries through a
-validated semantic manager. Repeated accounting tables are capped at 100 rows
+Stack-analysis human output groups exact repeated context and sends compact
+specialized finding summaries through a validated semantic manager. Context and
+preview limits come from the shared reporting policy. Focused Autoruns context
+uses `context_items` groups and `examples_per_finding` endpoints per group; the
+specialized hunt excerpt uses `examples_per_finding` groups and up to ten endpoints
+per group. These presentation limits do not change retained source coverage.
+Repeated accounting tables are capped at 100 rows
 and narrative collections at 50 items before the hard output guard. Accounting,
 finding, filter, and normalization sections use independently bounded renderers.
-Generic finding summaries retain every compact finding and source group, render the
-first 20 findings in detail, and index every additional finding in one line. The chat
-summary has a 32,000-character guard. Canonical Markdown remains under
-the persistence policy's compact-report guard and preserves the next action.
+Generic and specialized finding summaries use the shared
+[reporting policy](../../../docs/reference/reporting-policy.md).
+They retain every available compact finding and source group, order by explicit
+priority, expand twenty findings by default and index the rest. Higher-priority
+findings displace lower-priority detail without deleting accepted findings.
+Confidence (`low`, `medium`, `high`) is separate from new report priority
+(`critical`, `high`, `medium`, `low`). Missing priority displays Not assessed;
+retained informational classifications stay intact. New informational observations
+use permitted relevant context. Apply the shared policy to generic, DetectRaptor
+and Autoruns paths, preserving native severity and evidence roles.
+Chat defaults to 32,000 characters;
+compact report pages default to 512 KiB, with linked overflow and preserved material
+coverage gaps. Profile, environment and CLI overrides resolve through one policy.
 Exact Autoruns rows remain authoritative
 in Velociraptor and are streamed through bounded drill-down validation; command
 JSON and state do not duplicate those rows. Compact state retains bounded named endpoints, persistence variants, omission counts, and query references; chat and canonical reports share a renderer and label legacy count-only host context.
@@ -540,8 +621,9 @@ Velociraptor queries. Consolidation state records compact
 model/timing/cache/fallback telemetry.
 Accounting, finding, filter, and normalization sections are independently
 bounded; tables are capped at 100 rows and narrative lists at 50 items before the
-hard guard. Canonical Markdown is subject to the compact-report persistence
-guard; chat Markdown is guarded at 32,000 characters. Command JSON returns compact
+hard guard. Canonical Markdown uses the configured compact-report publication
+budget; chat Markdown uses the configured chat budget (32,000 characters by
+default). Command JSON returns compact
 workflow counts and paths without duplicating transient suspicious context or a
 second raw context-detail payload.
 

@@ -13,13 +13,9 @@ from urllib.parse import unquote
 import yaml
 
 from .common.atomic_io import write_json_atomic, write_text_atomic
+from .common.hashing import sha256_file
 
 TYPES = ("auto", "windows-disk", "windows-directory", "velociraptor-export", "velociraptor-kapefiles-zip")
-
-
-def digest(path: Path) -> str:
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def detect(path: Path, requested: str = "auto") -> str:
@@ -126,7 +122,7 @@ def prepare(root: Path, remap: Path, binary: str, hostname: str) -> dict:
             raise ValueError("Export binding or remap changed; saved identity preserved")
         for item in saved["verified_files"]:
             path = Path(item["path"])
-            if path.is_symlink() or not path.resolve().is_relative_to(remap.parent.resolve()) or digest(path) != item["sha256"]:
+            if path.is_symlink() or not path.resolve().is_relative_to(remap.parent.resolve()) or sha256_file(path) != item["sha256"]:
                 raise ValueError("Export working copy changed")
         return saved
     remap.parent.mkdir(parents=True, exist_ok=True)
@@ -149,8 +145,8 @@ def prepare(root: Path, remap: Path, binary: str, hostname: str) -> dict:
         destination = folder.joinpath(*relative)
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(row["source"], destination)
-        source_hash = digest(Path(row["source"]))
-        if digest(destination) != source_hash:
+        source_hash = sha256_file(Path(row["source"]))
+        if sha256_file(destination) != source_hash:
             raise ValueError("Evidence changed during copy")
         verified.append(dict(path=str(destination), sha256=source_hash))
         destination.chmod(0o400)

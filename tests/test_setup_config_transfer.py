@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from vraptor import cli, paths, settings, setup_config
+from vraptor import cli, paths, settings
 
 
 @pytest.fixture

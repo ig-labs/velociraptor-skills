@@ -1,3 +1,5 @@
+import contextlib
+import io
 import unittest
 from unittest import mock
 
@@ -22,52 +24,19 @@ class VelociraptorCliTest(unittest.TestCase):
             },
         )
 
-    def test_hunt_registry_covers_public_and_compatibility_commands(self):
+    def test_hunt_registry_covers_public_commands(self):
         self.assertEqual(
             set(cli.HUNT_COMMAND_ROUTES),
             {
                 "analyze",
                 "analyze-saved",
-                "check",
-                "download-results",
-                "ensure",
-                "export-results",
-                "lookup",
                 "native",
-                "profiles",
                 "retry-missing",
-                "review-results",
                 "run",
-                "search",
                 "snapshot",
                 "status",
-                "stop",
             },
         )
-        compatibility = {
-            command
-            for command, route in cli.HUNT_COMMAND_ROUTES.items()
-            if route.lifecycle == "compatibility"
-        }
-        self.assertEqual(
-            compatibility,
-            {
-                "check",
-                "download-results",
-                "ensure",
-                "export-results",
-                "lookup",
-                "profiles",
-                "review-results",
-                "search",
-                "stop",
-            },
-        )
-        for command in compatibility:
-            self.assertEqual(
-                cli.HUNT_COMMAND_ROUTES[command].replacement, f"hunt native {command}"
-            )
-            self.assertIn(command, cli.NATIVE_HUNT_COMMANDS)
 
     def test_query_routes_to_client_query_service(self):
         with mock.patch.object(cli.client_query, "main", return_value=15) as main:
@@ -189,12 +158,32 @@ class VelociraptorCliTest(unittest.TestCase):
         self.assertEqual(result, 9)
         main.assert_called_once_with(["ensure", "--target", "linux"])
 
-    def test_compatibility_hunt_command_routes_explicitly(self):
-        with mock.patch.object(cli.hunting, "main", return_value=21) as main:
-            result = cli.main(["hunt", "check", "--profile", "persistence"])
+    def test_removed_hunt_aliases_point_to_native_namespace(self):
+        removed = cli.NATIVE_HUNT_COMMANDS - set(cli.HUNT_COMMAND_ROUTES)
+        self.assertEqual(
+            removed,
+            {
+                "check",
+                "download-results",
+                "ensure",
+                "export-results",
+                "lookup",
+                "profiles",
+                "review-results",
+                "search",
+                "stop",
+            },
+        )
+        for command in sorted(removed):
+            stderr = io.StringIO()
+            with self.subTest(command=command), mock.patch.object(
+                cli.hunting, "main"
+            ) as hunting_main, contextlib.redirect_stderr(stderr):
+                result = cli.main(["hunt", command, "--profile", "persistence"])
 
-        self.assertEqual(result, 21)
-        main.assert_called_once_with(["check", "--profile", "persistence"])
+                self.assertEqual(result, 1)
+                self.assertIn(f"Use: vraptor hunt native {command}", stderr.getvalue())
+                hunting_main.assert_not_called()
 
     def test_unknown_hunt_commands_are_rejected_before_dispatch(self):
         with mock.patch.object(cli.hunting, "main") as hunting_main:

@@ -12,17 +12,21 @@ from .resources import repository_root, resource_root
 HELP = """Usage: vraptor <command> [args]
 
 Commands: query, clients, artifacts, collect, analyze, summarize, analysis-results, hunt, export,
-          ai, tools prep, setup, config, mapped, autoruns, logs
+          reports, ai, tools prep, setup, config, mapped, autoruns, logs
 
 analyze selects exactly one existing source: --flow (with --client/--host),
 --request-id (with --client/--host), --hunt, or --from (hunt snapshot manifest).
 It never collects, retries clients, uploads GoldenDB or publishes business state.
 Existing case paths and --id/--case-root/--server-profile remain supported.
 Use --server as a connection-profile alias; --profile selects analysis behavior.
-dfir is an equivalent entrypoint. Use setup init --id ID once to prepare a folder.
+dfir remains a legacy alias of the same entry point. Use setup init --id ID once to prepare a folder.
 To configure AI, run vraptor ai setup; agent is a compatible alias.
 Inspect settings with config or ai config; both accept --view effective|defaults.
 Use --grpc-max-message-bytes to override the shared API transport limit.
+Use reports render --checkpoint PATH --output-dir PATH to render saved analysis offline.
+Report overrides use --report-FIELD (hyphenated), for example
+--report-detailed-findings 20 or --report-chat-chars 32000.
+Use ai doctor to inspect effective reporting limits and their sources.
 Use each command's --help for its supported options.
 """
 
@@ -80,13 +84,30 @@ def analyze(args):
 
 
 def main(argv=None):
+    from .logging import operations
+    args = list(sys.argv[1:] if argv is None else argv)
+    return operations.run_operation(args, _configured_main, defer_binding=True)
+
+
+def _ready(args, dispatch):
+    from .logging import operations
+    operations.bind_cli_destination(args)
+    return dispatch()
+
+
+def _configured_main(argv=None):
     args = list(sys.argv[1:] if argv is None else argv)
     if args[:1] == ["agent"]:
         args[0] = "ai"
     try:
+        # Local usage reporting must not load credentials, bind a logger, or
+        # depend on a working server configuration.
+        if args[:2] == ["logs", "usage"]:
+            from .logging.command import main as usage
+            return usage(args[1:])
         if args[:1] == ["config"] and (len(args) == 1 or args[1].startswith("-") or args[1] == "help"):
             from .settings import config_main
-            return config_main(["--help"] if args[1:] == ["help"] else _aliases(args[1:], "config"))
+            return _ready(args, lambda: config_main(["--help"] if args[1:] == ["help"] else _aliases(args[1:], "config")))
         if args[:1] == ["setup"] and (len(args) == 1 or args[1] in {"--help", "-h"}):
             print("Usage: vraptor setup <configure|show|migrate|export|deploy|reset|start|status|resume|stop|init|local-deaddisk|remote-deaddisk|live-remote> [args]")
             print("Use start for guided three-mode setup; existing mode commands retain their lower-level interfaces.")
@@ -96,21 +117,21 @@ def main(argv=None):
         if args[:1] == ["setup"] and len(args) > 1:
             if args[1] in {"export", "deploy", "reset"}:
                 from .setup_config import main as transfer
-                return transfer(_aliases(args[1:], "setup"))
+                return _ready(args, lambda: transfer(_aliases(args[1:], "setup")))
             if args[1] in {"configure", "show", "migrate"}:
                 from .settings import main as configure
-                return configure(_aliases(args[1:], "setup"))
+                return _ready(args, lambda: configure(_aliases(args[1:], "setup")))
             if args[1] in {"start", "status", "resume", "stop"}:
                 from .setup import main as setup
-                return setup(_aliases(args[1:], "setup"))
+                return _ready(args, lambda: setup(_aliases(args[1:], "setup")))
         # Offline snapshot validation must work without local credentials or
         # a usable connection configuration, just like the former utility.
         if args[:2] == ["artifacts", "validate-schema"]:
             from .artifacts.schema import main as validate_schema
-            return validate_schema(args[2:])
+            return _ready(args, lambda: validate_schema(args[2:]))
         defaults_view = args[:2] == ["ai", "config"] and (
             "--view=defaults" in args or any(args[i:i + 2] == ["--view", "defaults"] for i in range(len(args))))
-        if args and not defaults_view and not any(arg in {"-h", "--help", "help"} for arg in args):
+        if args and args[0] != "help" and not defaults_view and not any(arg in {"-h", "--help"} for arg in args):
             import argparse
             from . import settings
             selectors = argparse.ArgumentParser(add_help=False)
@@ -136,7 +157,8 @@ def main(argv=None):
                 if forwarded[:2] != ["setup", "init"]:
                     raise
                 from .workspace import main as initialize
-                return initialize(forwarded[2:], configuration_error=type(exc).__name__)
+                error_name = type(exc).__name__
+                return _ready(args, lambda: initialize(forwarded[2:], configuration_error=error_name))
             with settings.activate(snapshot):
                 return _main(forwarded)
         return _main(args)
@@ -146,19 +168,30 @@ def main(argv=None):
 
 
 def _main(argv=None):
+    from .analyze import reporting
     args = list(sys.argv[1:] if argv is None else argv)
+    return reporting.run_with_policy(args, _dispatch_main)
+
+
+def _dispatch_main(argv=None):
+    args = list(sys.argv[1:] if argv is None else argv)
+    from .logging import operations
+    operations.bind_cli_destination(args)
     if not args or args[0] in {"--help", "-h", "help"}:
         print(HELP)
         return 0
     command, args = args[0], (args[1:] if args[0] == "mapped" else _aliases(args[1:], args[0]))
     try:
+        if command == "reports":
+            from .analyze.report_command import main as render_reports
+            return render_reports(args)
         if command in {"summarize", "analysis-results"}:
             from .analyze import saved
             return saved.main(args, results_only=command == "analysis-results")
         if command == "case":
             raise ValueError("Case management was removed. Use setup init --id ID, then setup and analysis commands.")
         if command == "velociraptor":
-            raise ValueError("The velociraptor namespace was removed. Use dfir <command> or vraptor <command>.")
+            raise ValueError("The velociraptor namespace was removed. Use vraptor <command>.")
         if command == "setup" and args[:1] == ["init"]:
             from vraptor.workspace import main as initialize
             return initialize(args[1:])
@@ -204,6 +237,14 @@ The agent alias is supported; ai is the preferred command.""")
                 return 0
             if args.pop(0) != "prep":
                 raise ValueError("Unknown tools command; use tools prep")
+            if not {"-h", "--help"} & set(args):
+                # Analysis tokenizes evidence even without AI; cache the encoding
+                # now so later offline analysis works.
+                from vraptor.common import token_budget
+                try:
+                    token_budget.token_encoder()
+                except token_budget.TokenBudgetError as exc:
+                    print(f"[WARN]  {exc}", file=sys.stderr)
             from . import settings
             active = settings.current()
             env = dict(active.environment if active else os.environ, AI_SKILLS_REPO_ROOT=str(repository_root()))
@@ -215,12 +256,7 @@ The agent alias is supported; ai is the preferred command.""")
             from vraptor import query as client_query
             if command == "clients" and (not args or args[0].startswith("--")):
                 args.insert(0, "find" if _has(args, "--name") else "list")
-            from vraptor.logging import operations as operation_log
-            forwarded, options = operation_log.extract_global_options([command, *args])
-            with operation_log.OperationLogger(command, options=options) as logger:
-                status = client_query.main(forwarded)
-                logger.finalize(status="complete" if status == 0 else "failed", exit_code=status)
-                return status
+            return client_query.main([command, *args])
         from vraptor import legacy_cli as legacy
         if command == "collect" and (not args or args[0].startswith("--")):
             args.insert(0, "ensure")

@@ -91,7 +91,7 @@ Autoruns and GoldenDB controls.
 Use these only for already exported Windows evidence. They do not replace live
 flow analysis.
 
-Reuse the exact saved request or flow through `dfir analyze`; explicitly exported files can be reviewed with the detached-data skills.
+Reuse the exact saved request or flow through `vraptor analyze`; explicitly exported files can be reviewed with the detached-data skills.
 
 Escalate a confirmed cross-host question to `velociraptor-hunting`; do not turn
 one-host review into an implicit fleet hunt.

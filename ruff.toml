@@ -1,0 +1,7 @@
+# Lint gate shared by agents, contributors and CI. Keep the same file in both
+# repositories; widen the rule set in its own change (F401 and F841 next).
+target-version = "py311"
+extend-exclude = ["build", ".local"]
+
+[lint]
+select = ["E9", "F63", "F7", "F82"]

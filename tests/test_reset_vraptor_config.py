@@ -72,8 +72,8 @@ def test_preview_apply_and_repeat_preserve_secrets_and_exact_backups(workspace, 
     assert active.environment["AZURE_OPENAI_API_KEY"] == "secret-selected"
     assert active.environment["AI_SKILLS_ANALYST_AGENT_MODEL"] == "chosen"
     assert active.values["velociraptor_bin"] == str(home / "velociraptor/velociraptor")
-    assert active.values["api_user"] == "vraptor"
-    assert active.sources["api_user"] == "default"
+    assert "api_user" not in active.values
+    assert "api_user" not in active.sources
     assert all(path.read_text() == "unchanged" for path in untouched)
     assert os.environ["VELO_BIN"] == "secret-process-value"
     assert "secret-" not in result.out + result.err

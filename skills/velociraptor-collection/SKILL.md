@@ -1,48 +1,45 @@
 ---
 name: velociraptor-collection
-description: Ensure or exactly reuse, monitor, analyze, and explicitly export one-host Velociraptor flows. Use for the canonical collect analyze workflow, focused artifacts, bounded timelines, saved-request recovery, deterministic artifact-scoped AI execution, and immutable exports.
+description: Queue or exactly reuse (ensure), monitor, analyze through collect analyze, and explicitly export one-host Velociraptor flows, including collection groups such as run execution, focused artifacts, bounded timelines and saved-request recovery. Use for one-host collection and collect analyze runs and immutable exports. Not for open-ended host investigation; use velociraptor-host-analysis.
 ---
 
 # Velociraptor Collection
 
-**Required server prerequisite:** follow the shared
-[DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md)
-for every new local server and connected live/remote server. If the live catalog
-contains no `DetectRaptor.` artifacts, run `Server.Import.Extras` with the
-DetectRaptor CSV row and verify installation before proceeding. Reuse a successful
-session check; a failed import blocks the workflow. Explicit read-only/no-import
-instructions and offline-only work retain their scope.
+**Server prerequisite:** complete the [DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md) for each new local or connected live/remote server before server work; a failed import blocks the workflow.
 
-The standalone `vraptor` CLI uses the same case paths and configuration. Use
-`vraptor analyze --flow F.ID --client C.ID --id ID` or
-`vraptor analyze --hunt H.ID --id ID` for existing evidence only. Collection,
-client retries and GoldenDB uploads remain explicit. Legacy `dfir`
-routes retain their behavior. See the [shared CLI contract](../../docs/contracts/cli.md).
+Use this skill for one-host collection mechanics. Use `velociraptor-host-analysis`
+for investigations and `velociraptor-hunting` for cross-host questions. For
+existing evidence only, `vraptor analyze --flow F.ID --client C.ID --id ID`
+never collects; see the [shared CLI contract](../../docs/contracts/cli.md).
 
-When a calling analyst such as Codex will write the assessment, pass
-`--synthesis none` and review the validated preliminary candidates in the caller.
-Use `--synthesis full` for a standalone harness report. The shared
+The CLI defaults to `--synthesis full`; use it for normal analysis, including
+when Codex is the caller. Add `--synthesis none` only when preliminary-only
+analysis or caller-only final review is requested, then review the validated
+candidates in the caller. Use `--skip-ai` when only deterministic preparation is
+requested; it takes precedence and prevents all model calls, and a prepared
+result is not an AI assessment. Save caller-reviewed host conclusions as
+`assessment-host.md` and hunt conclusions as `assessment-hunt.md`. Before using
+these modes, read the shared
 [synthesis contract](../../docs/reference/analysis-synthesis.md)
-covers candidate/context pagination, saved-summary-only execution and coverage.
+(candidate/context pagination, saved-summary-only execution, coverage, and the
+[caller assessment files](../../docs/reference/analysis-synthesis.md#caller-assessment-files)
+provenance and freshness rules) or the
+[no-AI preparation contract](../../docs/reference/analysis-skip-ai.md)
+(outputs, limitations and review status).
 
-The CLI defaults to `--synthesis none`; request `--synthesis full` explicitly
-for harness synthesis. Save caller-reviewed host conclusions as
-`assessment-host.md` and hunt conclusions as `assessment-hunt.md`, following
-the provenance and freshness requirements in the shared
-[synthesis contract](../../docs/reference/analysis-synthesis.md#caller-assessment-files).
-
-Use `--skip-ai` on the analysis command when only deterministic preparation is
-requested. Follow the shared [no-AI preparation contract](../../docs/reference/analysis-skip-ai.md)
-for outputs, limitations and review status. A prepared result is not an AI assessment.
-
-Use this skill for one-host collection mechanics. Use `velociraptor-host-analysis` for investigations and `velociraptor-hunting` for cross-host questions.
 For explicitly requested prompt inspection, use `--debug-chunk-prompts [N]`
 (one prompt by default when enabled), optionally with host `--skip-ai`.
 This retains evidence-bearing prompts and, when AI runs, their raw responses
 and correction retries. With `--skip-ai`, only prompts are saved. Follow the shared
 [prompt export contract](../../docs/reference/chunk-prompt-debug.md).
-Apply the [authorization policy](../../docs/reference/velociraptor-operation-authorization.md),
-[analysis reduction contract](../../docs/reference/analysis-reduction-contract.md), [finding enrichment workflow](../../docs/reference/indicator-enrichment-workflow.md), and [server-profile/engagement context](../../docs/reference/velociraptor-engagement-context.md).
+
+Read the shared [authorization policy](../../docs/reference/velociraptor-operation-authorization.md)
+before `--force-run`, retries, cancellation or any action beyond normal
+collection, reuse, monitoring and explicit export; the
+[analysis reduction contract](../../docs/reference/analysis-reduction-contract.md)
+before scoping a question, judging coverage or handing results to another
+workflow; and the [server-profile/engagement context](../../docs/reference/velociraptor-engagement-context.md)
+when choosing `--server-profile`, case paths or readiness.
 
 ## Core rules
 
@@ -74,7 +71,7 @@ verify the saved analysis checkpoint, final review, and coverage before closing.
 Run one command:
 
 ```bash
-dfir collect analyze \
+vraptor collect analyze \
   --investigation-id IR1234 \
   --server-profile lab7 \
   --client-id C.1234abcd \
@@ -89,7 +86,7 @@ dfir collect analyze \
 4. manage one batched poll cycle for all saved Flow IDs;
 5. fan each newly terminal artifact once into the coordinator's in-memory queue while
    polling continues;
-6. project preferred fields and query each result component through repeatable 100,000-row `source()` windows, streamed in 5,000-row gRPC packets;
+6. project preferred fields and query each result component through repeatable 100,000-row `source()` windows, streamed in 5,000-row gRPC packets (packet growth and size fallback: [export-and-state.md](references/export-and-state.md#state-paths));
 7. create one logical task per artifact;
 8. send a fitting artifact directly to one read-only analyst;
 9. split only oversized artifacts into contiguous token-bounded chunks;
@@ -101,8 +98,9 @@ dfir collect analyze \
 14. refresh cumulative `analysis-host.md`, then publish compact JSON and current-request `host-analysis-state.json`.
 
 Collection analysis returns material findings to the owning host coordinator.
-That coordinator invokes the bounded CTI enrichment decision and merges the
-result; collection workers and CTI workers do not compete to write
+That coordinator applies the bounded
+[finding enrichment workflow](../../docs/reference/indicator-enrichment-workflow.md)
+and merges the result; collection workers and CTI workers do not compete to write
 `analysis-host.md`.
 
 The standard readiness state is `<case-root>/<id>/engagement.json`; use `--readiness-manifest PATH` only for an explicit diagnostic override. The CLI owns one polling coordinator, in-memory scheduling/deduplication, retry, and 30-second/event-driven reconciliation. It does not create a persistent analysis lock.
@@ -110,7 +108,7 @@ Client ID defaults to `all`; use one collection type or repeated artifacts.
 Resume saved flows after timeout; a missing flow ID requires a corrected new request:
 
 ```bash
-dfir collect analyze \
+vraptor collect analyze \
   --investigation-id IR1234 \
   --client-id C.1234abcd \
   --request-id REQUEST_ID \
@@ -119,7 +117,12 @@ dfir collect analyze \
 
 Missing non-terminal local analysis is reconstructed from the saved Velociraptor
 flows. Use `--retry-failed --request-id REQUEST_ID` to resume failed stages while
-reusing accepted chunks and artifact candidates. `--reset-artifact NAME` and
+reusing accepted chunks and artifact candidates. A chunk whose corrections all
+fail gets one AI repair call in the run (`--chunk-repair-limit N`, default 4, 0
+disables) and, if accepted, is labelled `accepted after AI repair`. Chunks that
+still fail are named in the summary and the request's `analysis/failed-chunks.json`; after
+review, `--waive-failed-chunk KEY --waive-reason TEXT` publishes the accepted
+chunks with that gap. `--reset-artifact NAME` and
 `--reset-analysis` explicitly discard accepted local work. These options require
 the exact request and never recollect evidence. Read the shared
 [correction and recovery contract](../../docs/reference/analysis-recovery.md)
@@ -129,7 +132,7 @@ Use `--rebuild-host-summary` to rebuild the cumulative host report from complete
 Inspect sizing without launching analyst agents:
 
 ```bash
-dfir collect analyze \
+vraptor collect analyze \
   --investigation-id IR1234 \
   --client-id C.1234abcd \
   --collection-type execution \
@@ -137,57 +140,18 @@ dfir collect analyze \
   --plan-only
 ```
 
-## Analyst runtime contract
+## Analyst settings
 
-Configure reusable analyst profiles with `vraptor ai setup`, or accept the AI
-handoff in bare `vraptor setup configure`. No repository `.env` is required.
-Process environment and optional credential/dotenv files can override saved
-profiles. This compatibility example selects Codex-managed OpenAI routing;
-inspect effective values with `dfir ai config` before relying on saved settings:
+**AI analyst settings:** inspect with `vraptor ai config` and `vraptor ai doctor`; run-only overrides include `--model`, `--reasoning-effort`, `--execution-profile`, `--ai-config-file`, `--max-input-tokens` and `--max-output-tokens` ([full list](../../docs/model-execution.md#analysis-model-overrides)). Setup: [AI analyst configuration](../velociraptor-engagement-setup/references/configuration.md#ai-analyst-configuration). Budgets and execution: [model execution](../../docs/model-execution.md).
 
-```dotenv
-AI_SKILLS_ANALYST_AGENT_ENABLED=true
-AI_SKILLS_ANALYST_AGENT_TRANSPORT=codex_app_server
-AI_SKILLS_ANALYST_AGENT_PROVIDER=openai
-AI_SKILLS_ANALYST_AGENT_MODEL=gpt-5.6-luna
-AI_SKILLS_ANALYST_AGENT_REASONING_EFFORT=high
-```
-`codex_app_server` uses the installed Codex managed login and does not expose its
-credential to Python; set the transport to `api` to use environment-backed
-provider credentials and endpoints from `config/example.env`. Workers receive
-bounded prompts without resumable provider or Codex conversation state. The
-app-server adapter requests a read-only, no-network, ephemeral turn and
-interrupts any observed tool, file, web, MCP, interaction, or subagent item.
-The token, row, and byte envelope is also shared. `CONFIG.md` is the prose
-overview; `config/example.env` lists optional override names,
-`dfir ai config --view defaults` reports machine-independent code defaults,
-and `dfir ai config` reports effective values and provenance.
-
-Saved TOML execution profiles configure OpenAI, Azure and Anthropic.
-Use `vraptor ai setup` and offline `vraptor ai doctor`; see
-repository `docs/model-execution.md` for native Codex/Claude login and API setup.
-Setup reruns preserve saved settings and use the existing harness path as the
-prompt default; verify an Azure model value against its deployment name.
-Setup saves per-profile input/output budgets and fills shared `[analysis_defaults]`.
-`collect analyze` accepts run-only AI profile/model and token overrides, including
-`--max-input-tokens max --max-output-tokens max`. See repository
-`docs/model-execution.md` under **Analysis model overrides** for precedence,
-deployment ceilings and the conditional 100000 input floor.
-Model envelopes tighten chunk/input/output limits; Claude uses shared budgets
-when model limits are omitted.
-Execution profiles are separate from analysis profiles.
-Planning and runner admission apply the same model limits and retain valid
-caller-supplied budgets.
-
-The packet may rise to 20,000 rows after two full 5,000-row responses at most 2 MiB
-with no row above 64 KiB; EVTX and PowerShell stay at 5,000. Size failures retry to
-one row and later 100,000-row windows continue without changing logical chunks.
-
-Environment values override code defaults; the immutable envelope resolves
-once per operation, and input reserves scale down with smaller model contexts. Chunk,
-artifact-correlation, and final synthesis stages
-use the code-owned `high-volume`, `reasoning`, and `synthesis` routes. The stdin runner
-disables user config, persists no prompts/CSV, and hydrates values in Python.
+`collect analyze` accepts `--max-input-tokens max --max-output-tokens max`; see
+[analysis model overrides](../../docs/model-execution.md#analysis-model-overrides)
+for precedence, deployment ceilings and the input/output minimums. Chunk,
+artifact-correlation, and final synthesis stages use the code-owned
+`high-volume`, `reasoning`, and `synthesis` routes. The stdin runner disables
+user config, persists no prompts/CSV, and hydrates values in Python. Transports,
+credential boundaries and the read-only, no-network Codex app-server turn are in
+[provider analyst execution](../../docs/reference/provider-api-execution.md).
 
 ## Collection routing
 
@@ -215,7 +179,7 @@ Before a new IR bundle, use the read-only resolution command when the operator
 needs to inspect capability and applicability without flow lookup or mutation:
 
 ```bash
-dfir collect plan \
+vraptor collect plan \
   --investigation-id IR1234 \
   --client-id C.1234abcd \
   --bundle ir-standard-live
@@ -243,7 +207,7 @@ option does not change endpoint execution, overall polling or model timeouts.
 Use only after evidence identifies an interval:
 
 ```bash
-dfir collect analyze \
+vraptor collect analyze \
   --investigation-id IR1234 \
   --client-id C.1234abcd \
   --collection-type timeline \
@@ -259,51 +223,28 @@ operations. Their output explicitly notes that they do not run analysis or final
 review. Do not interpret a collection command completing as analysis completion. `queue` and `ensure` poll by default. Pass the exact `--request-id` when
 recovering saved state.
 
-These commands, `export`, `export-registry-hunter`, and `hydrate` emit flushed,
-evidence-free `DFIR-STATUS v=1 scope=collection` markers on stderr and append
-the same `op-v1-*` correlation id to the human-readable
-`<case-root>/<id>/logs/velociraptor-progress.log`, while keeping their JSON
-result on stdout. The file includes stage progress, safe query purposes,
-command scope, model/provider identity and usage, retries, counts, timings,
-query-aware heartbeats, and sanitized server messages.
-Set `VELO_PROGRESS_FILE_DEBUG=true` for normal plus verbose DEBUG file lines.
-DEBUG adds response part/query IDs, server-reported totals, transport sizing,
-and provider lifecycle detail. The submitted VQL, evidence rows, prompts, model
-responses, environment values, provider bodies, and raw stderr remain excluded.
-Inspect with
-`dfir logs show --id <id>` or monitor with `dfir logs follow
---id <id>`; both accept `--operation`, `--level`, `--since`, `--scope`,
-`--hunt-id`, and `--task-id`. Concurrent commands interleave safely under
-distinct operation ids. Parallel task lifecycle events are not throttled,
-heartbeats aggregate task state, and every operation ends with query, model,
-task, retry, row, batch, rotation, and dropped-event counts when applicable.
-The mode-`0600` adjacent `.lock` file serializes cross-process append and
-rotation with a bounded wait; logging failure never fails collection. Use `--no-progress`
-when stderr is not drained and
-`--progress-interval-seconds N` to adjust heartbeat frequency. Treat durable
-request state, coverage, and export manifests as authoritative; progress markers
-are transient operational visibility.
-INFO records bounded, single-line sanitized server messages and automatically
-extracts valid numeric completed, total, percent, rows-scanned, bytes-scanned,
-and elapsed-seconds fields under `progress_*`. Server text may contain
-evidence-sensitive hostnames, usernames, paths, or VQL. Recognized API keys,
-tokens, passwords, secrets, authorization values, URL credentials, PEM material,
-and configured credential values are redacted. Message length and SHA-256 are
-not logged. Each query has a local `q-NNNN` identifier and one heartbeat with
-elapsed and server-idle time; unbounded queries and server silence are warned.
-Unchanged queries receive five-minute reminders. `logs status --id <id>` checks
-local PID/start identity and retained operation overlap; old logs without PID
-identity report `UNKNOWN`. Silence is not proof of a remote stall.
+Progress: these commands, `export`, `export-registry-hunter`, and `hydrate` emit
+flushed, evidence-free `DFIR-STATUS v=1 scope=collection` markers on stderr and
+append the same `op-v1-*` correlation id to
+`<case-root>/<id>/logs/velociraptor-progress.log`, keeping their JSON result on
+stdout. Inspect with `vraptor logs show|follow|status --id <id>`; `show` and
+`follow` filter by `--operation`, `--level`, `--since`, `--scope`, `--hunt-id`,
+and `--task-id`. Use `--no-progress` when stderr is not drained and
+`--progress-interval-seconds N` to adjust heartbeat frequency. Progress is
+transient visibility: durable request state, coverage, and export manifests stay
+authoritative, and silence is not proof of a remote stall. Details:
+[logging reference](../../docs/reference/velociraptor-logging.md#progress-logging)
+and the collection [progress log](references/export-and-state.md#progress-log).
 
 Inventory validation precedes flow lookup. Submission/discovery are bounded to 60
 seconds; `artifact_preflight` and `queue_progress` expose failures and provenance.
-A replacement names the no-flow failed request with `--supersedes-request-id`; its
-available/unavailable sets must partition the failed request exactly.
+When preflight reports unavailable artifacts, follow
+[server-capability recovery](../velociraptor-artifact-selection/SKILL.md#server-capability-recovery).
 
 Export only for immutable preservation, offline review, or interoperability:
 
 ```bash
-dfir collect export \
+vraptor collect export \
   --investigation-id IR1234 \
   --client-id C.1234abcd \
   --request-id REQUEST_ID \
@@ -324,6 +265,6 @@ Read [export-and-state.md](references/export-and-state.md) and
 - Do not infer absence from zero rows without applicability and adjacent evidence.
 - Fail if effective server arguments differ from the request.
 - Fail closed when the analyst runner is disabled, missing, or exceeds token limits.
-- Exhausting the configured correction budget is a coverage limitation; do not sample around it.
+- A chunk that still fails after its correction budget and one AI repair call is a coverage limitation; do not sample around it. Report `accepted after AI repair` labels with any finding from those rows.
 - Do not write evidence, prompts, model output, or review decisions under `/tmp`.
 - Raw analyst output, stderr and execution manifests are transient, except explicitly requested prompt exports. Durable summaries, checkpoints and current state contain compact results, provenance, failures, retry counts and coverage. Reference-only accepted chunk decisions support failed-stage recovery; bounded value-free diagnostics are saved normally. Source aliases bind request, organization, client, Flow, artifact and result component; chunking never renumbers source rows. Derived host-state snapshots are no longer archived on request switching.

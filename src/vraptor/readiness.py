@@ -18,7 +18,6 @@ from vraptor.common import atomic_io
 from vraptor.common.labels import parse_label_values
 from vraptor import case_layout
 
-SCRIPT_DIR = Path(__file__).resolve().parent
 from vraptor.resources import repository_root
 REPO_ROOT = repository_root()
 
@@ -77,11 +76,6 @@ def run_command(
     )
 
 
-def write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8")
-
-
 def validate_api_client_security(path: Path) -> dict[str, Any]:
     metadata = engagement_state.api_metadata(path)
     failures = engagement_state.credential_security_failures(metadata)
@@ -104,17 +98,14 @@ def validate_api_client_security(path: Path) -> dict[str, Any]:
     return metadata
 
 
-def build_leaf_manifest_path(manifest_out: str | None, prefix: str) -> Path:
+def build_leaf_manifest_path(prefix: str) -> Path:
     with tempfile.NamedTemporaryFile(prefix=prefix, suffix=".json", delete=False) as tmp_file:
         return Path(tmp_file.name)
 
 
 @contextmanager
-def managed_leaf_manifest_path(
-    manifest_out: str | None,
-    prefix: str,
-) -> Iterator[Path]:
-    path = build_leaf_manifest_path(manifest_out, prefix)
+def managed_leaf_manifest_path(prefix: str) -> Iterator[Path]:
+    path = build_leaf_manifest_path(prefix)
     try:
         yield path
     finally:
@@ -312,14 +303,19 @@ def verify_api_authorization(
 
     rows = remote_query(
         config_path,
-        "SELECT name, roles, effective_policy FROM gui_users() WHERE name = whoami()",
+        "SELECT whoami() AS identity, name, org_id, roles, effective_policy FROM gui_users() WHERE name = whoami()",
     )
-    if not rows:
+    if len(rows) != 1:
         raise RuntimeError("Could not verify the live API user's server-side roles.")
     row = dict(rows[0])
     returned_user = str(row.get("name") or row.get("Name") or "").strip()
-    if returned_user and returned_user != api_user:
+    if returned_user != api_user or row.get("identity") != api_user:
         raise RuntimeError("Live API role verification returned a different identity.")
+    from vraptor.api import resolve_org_id
+    from vraptor.api_provisioning import normalized_org
+    expected_org = resolve_org_id(None)
+    if "org_id" not in row or normalized_org(row["org_id"]) != normalized_org(expected_org):
+        raise RuntimeError("Live API role verification returned a different organization.")
     roles = _string_list(row.get("roles") or row.get("Roles"))
     policy_value = (
         row.get("effective_policy")
@@ -347,13 +343,17 @@ def verify_api_authorization(
             f"Live API role profile {role_profile} is missing required roles: "
             + ", ".join(missing)
         )
-    if role_profile == "investigation" and "administrator" in roles:
+    effective = set(effective_permissions)
+    if role_profile == "investigation" and (
+        "administrator" in roles or {"SERVER_ADMIN", "SUPER_USER"} & effective
+    ):
         raise RuntimeError(
-            "Live API credential has administrator but the investigation profile "
+            "Live API credential has administrator permissions but the investigation profile "
             "was selected. Use a least-privilege credential or explicitly select "
             "--api-role-profile provisioning-admin."
         )
-    effective = set(effective_permissions)
+    if "ANY_QUERY" not in effective:
+        raise RuntimeError("Live API credential is missing effective ANY_QUERY permission.")
     if role_profile == "investigation":
         required_permissions = {
             "ANY_QUERY",
@@ -375,6 +375,7 @@ def verify_api_authorization(
     return {
         "status": "verified",
         "api_user": api_user,
+        "org_id": expected_org,
         "role_profile": role_profile,
         "roles": roles,
         "effective_permissions": effective_permissions,
@@ -398,7 +399,7 @@ def verify_hostname_visible(config_path: Path, hostname: str, *, use_local_cli: 
         "os_info.fqdn AS Fqdn, "
         "timestamp(epoch=last_seen_at) AS LastSeen "
         f"FROM clients() WHERE os_info.hostname =~ '^{escaped}$' OR os_info.fqdn =~ '^{escaped}$' "
-        "ORDER BY LastSeen DESC LIMIT 1"
+        "ORDER BY LastSeen DESC"
     )
     query_fn = local_query if use_local_cli else remote_query
     rows = query_fn(config_path, query)
@@ -409,6 +410,14 @@ def verify_hostname_visible(config_path: Path, hostname: str, *, use_local_cli: 
             "hostname": hostname,
             "last_seen": "",
         }
+    # Match collection's get_client: a re-enrolled host must not pass readiness
+    # by silently picking the newest of several client IDs.
+    client_ids = sorted({str(row.get("client_id") or "").strip() for row in rows} - {""})
+    if len(client_ids) > 1:
+        raise RuntimeError(
+            f"Hostname {hostname!r} resolves to multiple Velociraptor clients "
+            f"({', '.join(client_ids)}). Use --client-id."
+        )
     row = rows[0]
     return {
         "target_visible": True,
@@ -631,49 +640,32 @@ def command_local_deaddisk(args: argparse.Namespace) -> dict[str, Any]:
     ensure_local_runtime(api_client_path)
     if not args.client_id and not args.hostname:
         raise RuntimeError("Local readiness requires --client-id or --hostname for explicit target verification.")
-    with managed_leaf_manifest_path(
-        args.manifest_out,
-        "velo-engage-local-",
-    ) as leaf_manifest_path:
-        server_reachable = verify_api_reachable(api_client_path, use_local_cli=True)
-        if args.client_id:
-            target = verify_client_id_visible(api_client_path, args.client_id, use_local_cli=True)
-        else:
-            target = verify_hostname_visible(api_client_path, args.hostname, use_local_cli=True)
-        if not server_reachable:
-            raise RuntimeError("Local Velociraptor API did not answer.")
-        if not target["target_visible"]:
-            raise RuntimeError("Requested local client is not visible through the Velociraptor API.")
-        write_json(
-            leaf_manifest_path,
-            {
-                "status": "verified",
-                "api_client_config": str(api_client_path),
-                "evidence_path": str(args.evidence_path or ""),
-                "client_id": str(target.get("client_id") or ""),
-                "hostname": str(target.get("hostname") or ""),
-            },
-        )
-        return build_unified_manifest(
-            engagement_id=selected_engagement_id(args),
-            engagement_id_source=selected_engagement_id_source(args),
-            server_profile=selected_server_profile(args),
-            mode="local_dead_disk",
-            source_skill="velociraptor-engagement-setup",
-            api_client_path=api_client_path,
-            verification={
-                "server_reachable": server_reachable,
-                **target,
-            },
-            next_step_hint="Proceed to velociraptor-collection for one-host deep dive or velociraptor-hunting if scope is still cross-host.",
-        )
+    server_reachable = verify_api_reachable(api_client_path, use_local_cli=True)
+    if args.client_id:
+        target = verify_client_id_visible(api_client_path, args.client_id, use_local_cli=True)
+    else:
+        target = verify_hostname_visible(api_client_path, args.hostname, use_local_cli=True)
+    if not server_reachable:
+        raise RuntimeError("Local Velociraptor API did not answer.")
+    if not target["target_visible"]:
+        raise RuntimeError("Requested local client is not visible through the Velociraptor API.")
+    return build_unified_manifest(
+        engagement_id=selected_engagement_id(args),
+        engagement_id_source=selected_engagement_id_source(args),
+        server_profile=selected_server_profile(args),
+        mode="local_dead_disk",
+        source_skill="velociraptor-engagement-setup",
+        api_client_path=api_client_path,
+        verification={
+            "server_reachable": server_reachable,
+            **target,
+        },
+        next_step_hint="Proceed to velociraptor-collection for one-host deep dive or velociraptor-hunting if scope is still cross-host.",
+    )
 
 
 def command_remote_deaddisk(args: argparse.Namespace) -> dict[str, Any]:
-    with managed_leaf_manifest_path(
-        args.manifest_out,
-        "velo-engage-remote-disk-",
-    ) as leaf_manifest_path:
+    with managed_leaf_manifest_path("velo-engage-remote-disk-") as leaf_manifest_path:
         return _command_remote_deaddisk(args, leaf_manifest_path)
 
 
@@ -826,10 +818,7 @@ def verify_mapped_readiness(args, mapping, api_client_path, *, mode):
 
 
 def command_live_remote(args: argparse.Namespace) -> dict[str, Any]:
-    with managed_leaf_manifest_path(
-        args.manifest_out,
-        "velo-engage-live-",
-    ) as leaf_manifest_path:
+    with managed_leaf_manifest_path("velo-engage-live-") as leaf_manifest_path:
         return _command_live_remote(args, leaf_manifest_path)
 
 
@@ -932,11 +921,6 @@ def live_api_identity(
     return api_client_path, api_user
 
 
-def recoverable_live_api_auth_error(error: RuntimeError) -> bool:
-    message = str(error).lower()
-    return "user not found:" in message or "requires permission any_query" in message
-
-
 def _command_live_remote(
     args: argparse.Namespace,
     leaf_manifest_path: Path,
@@ -961,6 +945,8 @@ def _command_live_remote(
     ).strip()
     fetch_started = time.monotonic()
     supplied_api = getattr(args, "api_client", None)
+    if getattr(args, "provision_api", False) and not supplied_api:
+        raise RuntimeError("Account provisioning requires vraptor setup start --provision-api; readiness never repairs accounts or replaces credentials.")
     if supplied_api:
         api_path = Path(supplied_api).expanduser().resolve()
         identity = validate_api_client_security(api_path)["identity"]
@@ -977,30 +963,7 @@ def _command_live_remote(
         api_client_path, api_user = live_api_identity(leaf_manifest)
     fetch_seconds = time.monotonic() - fetch_started
     api_reachability_started = time.monotonic()
-    recovery_attempted = regenerate_remote_api
-    try:
-        server_reachable = verify_api_reachable(api_client_path, use_local_cli=False)
-    except RuntimeError as exc:
-        if (supplied_api or regenerate_remote_api or not getattr(args, "provision_api", False)
-                or not recoverable_live_api_auth_error(exc)):
-            raise
-        recovery_server_ip = str(
-            getattr(args, "server_ip", None)
-            or leaf_manifest.get("server_ip")
-            or ""
-        ).strip()
-        recovery_started = time.monotonic()
-        leaf_manifest = run_live_api_fetch(
-            args,
-            leaf_manifest_path,
-            fetch_env,
-            regenerate_remote_api=True,
-            server_ip=recovery_server_ip,
-        )
-        fetch_seconds += time.monotonic() - recovery_started
-        recovery_attempted = True
-        api_client_path, api_user = live_api_identity(leaf_manifest)
-        server_reachable = verify_api_reachable(api_client_path, use_local_cli=False)
+    server_reachable = verify_api_reachable(api_client_path, use_local_cli=False)
     api_reachability_seconds = time.monotonic() - api_reachability_started
     if not server_reachable:
         raise RuntimeError("Fetched remote API client but could not query the remote Velociraptor API.")
@@ -1053,7 +1016,7 @@ def _command_live_remote(
         "api_reachability_seconds": round(api_reachability_seconds, 3),
         "target_verification_seconds": round(target_verification_seconds, 3),
         "total_seconds": round(time.monotonic() - setup_started, 3),
-        "remote_recovery_attempted": recovery_attempted,
+        "remote_recovery_attempted": False,
         "fetch_detail": dict(leaf_manifest.get("timing") or {}),
     }
     return build_unified_manifest(
@@ -1096,7 +1059,7 @@ def add_engagement_state_args(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Verify Velociraptor readiness. Prepare the folder separately with 'dfir setup init --id ID'."
+        description="Verify Velociraptor readiness. Prepare the folder separately with 'vraptor setup init --id ID'."
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -1118,7 +1081,10 @@ def build_parser() -> argparse.ArgumentParser:
     remote_disk_cmd.add_argument(
         "--evidence-path",
         required=True,
-        help="Local E01/raw image or mounted Windows directory to expose read-only.",
+        help=(
+            "Local E01/raw image, mounted Windows directory, or Windows Velociraptor "
+            "collection folder or ZIP to expose read-only; the layout is auto-detected."
+        ),
     )
     remote_disk_cmd.add_argument(
         "--api-client",
@@ -1147,7 +1113,7 @@ def build_parser() -> argparse.ArgumentParser:
     live_cmd.add_argument("--server-ip", dest="server_ip", help="Remote SSH host, required when fetching credentials.")
     live_cmd.add_argument("--api-client", help="Use existing API credentials directly, without SSH provisioning.")
     live_cmd.add_argument("--client-id", help="Require this live client to be visible.")
-    live_cmd.add_argument("--provision-api", action="store_true", help="Allow generation of missing remote API credentials and one authentication recovery attempt.")
+    live_cmd.add_argument("--provision-api", action="store_true", help="Use setup start --provision-api for account creation; readiness never repairs authentication failures.")
     live_cmd.add_argument(
         "--server-profile",
         "--engagement-code",

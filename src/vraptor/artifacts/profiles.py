@@ -3,7 +3,6 @@ from __future__ import annotations
 from vraptor.resources import resource_root
 
 import csv
-import hashlib
 import json
 import re
 from copy import deepcopy
@@ -11,6 +10,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 from vraptor.analyze import limits as analysis_limits
+from vraptor.common.hashing import sha256_json
 SCHEMA_VERSION = 4
 SUPPORTED_SCHEMA_VERSIONS = {SCHEMA_VERSION}
 TIME_FIELD_EXPRESSION_RE = re.compile(
@@ -119,12 +119,8 @@ SAFE_VQL_EXPRESSION_PROHIBITED_RE = re.compile(
 )
 
 
-def canonical_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-
-
 def sha256_value(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()
+    return sha256_json(value, default=None)
 
 
 def unique_ordered(values: Iterable[str]) -> list[str]:
@@ -139,7 +135,11 @@ def unique_ordered(values: Iterable[str]) -> list[str]:
     return output
 
 
-def _require_string_list(value: Any, label: str) -> list[str]:
+def artifact_base_name(name: str) -> str:
+    return str(name).split("[", 1)[0].strip()
+
+
+def require_string_list(value: Any, label: str) -> list[str]:
     if value is None:
         return []
     if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
@@ -147,7 +147,7 @@ def _require_string_list(value: Any, label: str) -> list[str]:
     return unique_ordered(value)
 
 
-def _reject_unknown_keys(value: dict[str, Any], allowed: set[str], label: str) -> None:
+def reject_unknown_keys(value: dict[str, Any], allowed: set[str], label: str) -> None:
     unknown = sorted(set(value) - allowed)
     if unknown:
         raise RuntimeError(f"{label} contains unsupported keys: {', '.join(unknown)}")
@@ -189,7 +189,7 @@ def _validate_time_filter(value: Any, label: str) -> dict[str, Any]:
         return {}
     if not isinstance(value, dict):
         raise RuntimeError(f"{label} must be an object.")
-    _reject_unknown_keys(value, {"default_roles", "roles"}, label)
+    reject_unknown_keys(value, {"default_roles", "roles"}, label)
     roles_value = value.get("roles") or {}
     if not isinstance(roles_value, dict):
         raise RuntimeError(f"{label}.roles must be an object.")
@@ -200,7 +200,7 @@ def _validate_time_filter(value: Any, label: str) -> dict[str, Any]:
             raise RuntimeError(f"{label}.roles contains invalid role {raw_role!r}.")
         if not isinstance(raw_contract, dict):
             raise RuntimeError(f"{label}.roles.{role} must be an object.")
-        _reject_unknown_keys(
+        reject_unknown_keys(
             raw_contract,
             {"semantics", "expressions"},
             f"{label}.roles.{role}",
@@ -208,7 +208,7 @@ def _validate_time_filter(value: Any, label: str) -> dict[str, Any]:
         semantics = str(raw_contract.get("semantics") or "").strip()
         if not semantics:
             raise RuntimeError(f"{label}.roles.{role}.semantics is required.")
-        expressions = _require_string_list(
+        expressions = require_string_list(
             raw_contract.get("expressions"),
             f"{label}.roles.{role}.expressions",
         )
@@ -236,7 +236,7 @@ def _validate_time_filter(value: Any, label: str) -> dict[str, Any]:
                 for index, expression in enumerate(expressions)
             ],
         }
-    defaults = _require_string_list(value.get("default_roles"), f"{label}.default_roles")
+    defaults = require_string_list(value.get("default_roles"), f"{label}.default_roles")
     missing = [role for role in defaults if role not in roles]
     if missing:
         raise RuntimeError(
@@ -267,7 +267,7 @@ def validate_profile(
             "review.timestamp_fields, and review.host_fields, with only summary_fields "
             "or max_source_fields under review.saved_hunt_projection."
         )
-    _reject_unknown_keys(normalized, TOP_LEVEL_PROFILE_KEYS, f"Profile {artifact_name!r}")
+    reject_unknown_keys(normalized, TOP_LEVEL_PROFILE_KEYS, f"Profile {artifact_name!r}")
 
     for key in ("signal_type", "row_volume_risk", "time_bound_support"):
         if key in normalized and not isinstance(normalized[key], str):
@@ -280,13 +280,13 @@ def validate_profile(
         raise RuntimeError(f"Profile {artifact_name!r} selection must be an object.")
     if "selection" in normalized or apply_defaults:
         normalized["selection"] = selection
-    _reject_unknown_keys(selection, SELECTION_KEYS, f"Profile {artifact_name!r} selection")
+    reject_unknown_keys(selection, SELECTION_KEYS, f"Profile {artifact_name!r} selection")
     for key in ("bias", "interpretation_caveat", "preferred_use_case"):
         if key in selection and not isinstance(selection[key], str):
             raise RuntimeError(f"Profile {artifact_name!r} selection.{key} must be a string.")
     for key in SELECTION_LIST_KEYS:
         if key in selection or apply_defaults:
-            selection[key] = _require_string_list(
+            selection[key] = require_string_list(
                 selection.get(key),
                 f"Profile {artifact_name!r} selection.{key}",
             )
@@ -296,12 +296,12 @@ def validate_profile(
         raise RuntimeError(f"Profile {artifact_name!r} review must be an object.")
     if "review" in normalized or apply_defaults:
         normalized["review"] = review
-    _reject_unknown_keys(review, REVIEW_KEYS, f"Profile {artifact_name!r} review")
+    reject_unknown_keys(review, REVIEW_KEYS, f"Profile {artifact_name!r} review")
     if "strategy" in review and not isinstance(review["strategy"], str):
         raise RuntimeError(f"Profile {artifact_name!r} review.strategy must be a string.")
     for key in REVIEW_LIST_KEYS:
         if key in review or apply_defaults:
-            review[key] = _require_string_list(
+            review[key] = require_string_list(
                 review.get(key),
                 f"Profile {artifact_name!r} review.{key}",
             )
@@ -332,14 +332,14 @@ def validate_profile(
             raise RuntimeError(
                 f"Profile {artifact_name!r} review.saved_hunt_projection must be an object."
             )
-        _reject_unknown_keys(
+        reject_unknown_keys(
             saved_hunt_projection,
             SAVED_HUNT_PROJECTION_KEYS,
             f"Profile {artifact_name!r} review.saved_hunt_projection",
         )
         normalized_projection: dict[str, Any] = {}
         if "summary_fields" in saved_hunt_projection:
-            normalized_projection["summary_fields"] = _require_string_list(
+            normalized_projection["summary_fields"] = require_string_list(
                 saved_hunt_projection.get("summary_fields"),
                 f"Profile {artifact_name!r} review.saved_hunt_projection.summary_fields",
             )
@@ -368,7 +368,7 @@ def validate_profile(
             raise RuntimeError(
                 f"Profile {artifact_name!r} review.evtx_stack must be an object."
             )
-        _reject_unknown_keys(
+        reject_unknown_keys(
             evtx_stack,
             EVTX_STACK_KEYS,
             f"Profile {artifact_name!r} review.evtx_stack",
@@ -417,7 +417,7 @@ def validate_profile(
                 f"Profile {artifact_name!r} review.known_bad[{index}] must be an object."
             )
         rule = deepcopy(raw_rule)
-        _reject_unknown_keys(
+        reject_unknown_keys(
             rule,
             KNOWN_BAD_KEYS,
             f"Profile {artifact_name!r} review.known_bad[{index}]",
@@ -476,7 +476,7 @@ def validate_profile(
         if not isinstance(raw_stack, dict):
             raise RuntimeError(f"Profile {artifact_name!r} stack {stack_id!r} must be an object.")
         stack = deepcopy(raw_stack)
-        _reject_unknown_keys(stack, STACK_KEYS, f"Profile {artifact_name!r} stack {stack_id!r}")
+        reject_unknown_keys(stack, STACK_KEYS, f"Profile {artifact_name!r} stack {stack_id!r}")
         for key in ("purpose", "analysis_route", "analysis_role"):
             if key in stack and not isinstance(stack[key], str):
                 raise RuntimeError(f"Profile {artifact_name!r} stack {stack_id!r} {key} must be a string.")
@@ -524,7 +524,7 @@ def validate_profile(
             stack.setdefault("enabled", True)
         for key in STACK_LIST_KEYS:
             if key in stack or apply_defaults:
-                stack[key] = _require_string_list(
+                stack[key] = require_string_list(
                     stack.get(key),
                     f"Profile {artifact_name!r} stack {stack_id!r} {key}",
                 )
@@ -607,7 +607,7 @@ def validate_profile(
         if not isinstance(item, dict):
             raise RuntimeError(f"Profile {artifact_name!r} normalizer {index} must be an object.")
         entry = deepcopy(item)
-        _reject_unknown_keys(entry, NORMALIZER_KEYS, f"Profile {artifact_name!r} normalizer {index}")
+        reject_unknown_keys(entry, NORMALIZER_KEYS, f"Profile {artifact_name!r} normalizer {index}")
         output = str(entry.get("output") or "").strip()
         kind = str(entry.get("kind") or "").strip()
         if not output or not kind:
@@ -617,7 +617,7 @@ def validate_profile(
         normalizer_outputs.add(output)
         entry["output"] = output
         entry["kind"] = kind
-        entry["source_fields"] = _require_string_list(
+        entry["source_fields"] = require_string_list(
             entry.get("source_fields"),
             f"Profile {artifact_name!r} normalizer {output!r} source_fields",
         )
@@ -684,7 +684,7 @@ def validate_reference_document(payload: Any, *, source: Path) -> dict[str, dict
             f"profile structure ({', '.join(legacy_keys)}). Move artifact policy under "
             "schema_version 4 profiles.<artifact>.review; no compatibility loader is available."
         )
-    _reject_unknown_keys(payload, DOCUMENT_KEYS, f"Artifact reference {source}")
+    reject_unknown_keys(payload, DOCUMENT_KEYS, f"Artifact reference {source}")
     schema_version = payload.get("schema_version")
     if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise RuntimeError(
@@ -757,7 +757,7 @@ def resolve_profile_match(
     artifact_name: str,
     profiles: dict[str, dict[str, Any]],
 ) -> tuple[str, dict[str, Any] | None, str]:
-    normalized = str(artifact_name).split("[", 1)[0].strip()
+    normalized = artifact_base_name(artifact_name)
     candidates = [(normalized, "exact")]
     parent = normalized.partition("/")[0]
     if parent and parent != normalized:

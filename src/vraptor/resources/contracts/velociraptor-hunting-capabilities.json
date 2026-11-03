@@ -1,7 +1,7 @@
 {
   "version": 7,
   "canonical_skill": "velociraptor-hunting",
-  "runtime_command": "./dfir hunt",
+  "runtime_command": "./vraptor hunt",
   "resource_ownership_contract": "config/skill-resource-ownership.json",
   "source_of_truth": "Velociraptor server hunt state and result rows",
   "capabilities": [

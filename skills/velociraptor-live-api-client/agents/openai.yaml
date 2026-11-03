@@ -1,0 +1,4 @@
+interface:
+  display_name: "Velociraptor Live API Client"
+  short_description: "Run bounded VQL and find or list clients"
+  default_prompt: "Use $velociraptor-live-api-client to connect with existing Velociraptor API credentials, run bounded operator-provided VQL, find or list clients, or explicitly fetch remote API or endpoint configurations over SSH. Keep VQL read-only unless a server mutation is explicitly authorized, and use $velociraptor-engagement-setup for investigation setup and offline-evidence mapping."

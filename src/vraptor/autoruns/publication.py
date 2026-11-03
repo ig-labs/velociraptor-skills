@@ -19,6 +19,9 @@ from vraptor.analyze import flow as flow_analysis
 from vraptor.hunt import live as live_hunt_analysis
 from vraptor.artifacts import persistence as persistence_policy
 from vraptor.analyze import coordinator
+from vraptor.analyze import summary as analysis_summary
+from vraptor.analyze.report_priority import RETAINED_PRIORITIES, display_priority, priority_metadata
+from vraptor.analyze.reporting import current_policy
 
 CANDIDATE_FIELDS = (
     "Category",
@@ -145,7 +148,7 @@ def read_review_rows(path, record):
     return rows
 
 
-def render_summary(record, results):
+def render_summary(record, results, *, bounded=True):
     """Summarize completed work with bounded, terminal-safe finding examples."""
     counts = record["counts"]
     selection = record.get("ai_selection") or {}
@@ -154,6 +157,8 @@ def render_summary(record, results):
     suspicious = results.get("suspicious_rows", [])
     candidates = results.get("potential_golden_rows", [])
     lines = [
+        "## Autoruns review summary",
+        f"- Result review: `{record['result_review']}`.",
         f"Source records: {counts['SourceRows']:,}; GoldenDB matched: {counts['MatchedRows']:,}.",
         f"Residual identities: {counts['GroupCount']:,}, representing {counts['ResidualRows']:,} records.",
         f"AI-reviewed identities: {record.get('manifest', {}).get('model_reviewed_group_count', 0):,}; result review: {record['result_review']}.",
@@ -179,20 +184,27 @@ def render_summary(record, results):
         lines.append(f"Suspicious identities: {len(suspicious):,} ({severity}).")
         lines.append(f"GoldenDB prospects: {len(candidates):,} (require review).")
         ordered = sorted(suspicious, key=lambda r: (
-            ("critical", "high", "medium", "low").index(r["Severity"]),
+            RETAINED_PRIORITIES.index(priority_metadata(r)["report_priority"]),
             -r["TotalRows"], r["Category"], r["ImagePath"], r["LaunchString"]))
         if ordered:
-            lines.append("Representative findings (up to 5):")
-        for row in ordered[:5]:
+            lines.append(f"Representative findings (up to {current_policy().detailed_findings}):")
+        for row in ordered[:current_policy().detailed_findings]:
             text = f"{row['Severity'].upper()} | {row['Category']} | {row['ImagePath']} | {row['Reason']}"
             text = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", text)
-            lines.append("- " + (text[:497] + "..." if len(text) > 500 else text))
+            lines.append("- " + (text[:current_policy().preview_chars - 1] + "…" if len(text) > current_policy().preview_chars else text))
+        for row in ordered[current_policy().detailed_findings:]:
+            text = f"{row.get('IdentityId', '')} — {row.get('Reason', '')}"
+            text = re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", text)
+            lines.append(f"- Indexed [{display_priority(row)}]: "
+                         + text[:current_policy().preview_chars])
     else:
         lines.append("AI review is incomplete or skipped; no clean conclusion is available.")
+    lines.append("### Limitations")
     if selection.get("excluded_group_count") or source_selection.get("excluded_group_count"):
-        lines.append("High-count entries were not assessed by AI; frequency is not a benign classification.")
-    lines.append("Findings are review leads; presence and signer labels do not prove execution or compromise.")
-    return "\n".join(lines)
+        lines.append("- High-count entries were not assessed by AI; frequency is not a benign classification.")
+    lines.append("- Findings are review leads; presence and signer labels do not prove execution or compromise.")
+    rendered = "\n".join(lines)
+    return analysis_summary.bound_chat_markdown(rendered) if bounded else rendered
 
 
 def render_section(record, csv_path):
@@ -210,7 +222,7 @@ def render_section(record, csv_path):
         "- Normalized paths and source signer labels do not prove execution or independently verify signatures.",
         "",
     ]
-    lines += ["### Summary", "", render_summary(record, results), ""]
+    lines += ["### Summary", "", render_summary(record, results, bounded=False), ""]
     if not record["review_complete"]:
         lines += [
             "AI review is incomplete. Empty candidate output is not a clean finding.",

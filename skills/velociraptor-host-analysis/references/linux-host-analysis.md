@@ -18,7 +18,7 @@ The executable mode and capability contract is
 Export or exactly reuse a Linux artifact inventory:
 
 ```bash
-dfir artifacts inventory \
+vraptor artifacts inventory \
   --api-client /path/to/api_client.yaml \
   --output-dir <case_root>/IR1234/.cache/velociraptor/artifacts \
   --name-regex '^(Linux\.|Generic\.Client\.Info)'
@@ -27,7 +27,7 @@ dfir artifacts inventory \
 Resolve one mode without starting collection:
 
 ```bash
-dfir artifacts linux-plan \
+vraptor artifacts linux-plan \
   --inventory <output-dir>/artifact_definitions_inventory.json \
   --mode standard \
   --distro debian \
@@ -72,7 +72,7 @@ role, or acquisition mode.
 Bounded web-server planning:
 
 ```bash
-dfir artifacts linux-plan \
+vraptor artifacts linux-plan \
   --inventory <case_root>/<id>/.cache/velociraptor/artifacts/artifact_definitions_inventory.json \
   --mode deep \
   --focus web-server \
@@ -107,7 +107,7 @@ method, or status code as the sole search term.
 Bounded timeline planning:
 
 ```bash
-dfir artifacts linux-plan \
+vraptor artifacts linux-plan \
   --inventory <case_root>/<id>/.cache/velociraptor/artifacts/artifact_definitions_inventory.json \
   --mode timeline \
   --investigation-id IR1234 \

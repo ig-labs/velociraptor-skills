@@ -1,8 +1,11 @@
 # Prepare analysis without AI
 
-Add `--skip-ai` to `dfir hunt analyze` or
-`dfir collect analyze` (including host-analysis workflows).
+Add `--skip-ai` to `vraptor hunt analyze` or
+`vraptor collect analyze` (including host-analysis workflows).
 The switch bypasses AI credentials, model calls and semantic consolidation.
+It takes precedence over the default `--synthesis full` and any explicit
+`--synthesis` value. `--synthesis none` alone disables synthesis but still runs
+artifact/chunk AI analysis.
 Readiness, source selection, collection reuse and source validation still apply.
 It does not prevent an otherwise authorized collection or configured missing-client
 retry; use exact existing requests and hunts when collection reuse is required.
@@ -13,7 +16,7 @@ retry; use exact existing requests and hunts when collection reuse is required.
 | Generic live hunt (stream) | Projected, time-filtered evidence is streamed through token chunk planning. Counts, source aliases and policy provenance are written to `analysis/analysis-preparation.json`; raw evidence stays transient. DetectRaptor EVTX retains detection partitioning and `--detection-regex` selection. |
 | Specialized live hunt (stack) | Existing deterministic reduction, stack outputs and bounded review items; no AI classification or finding consolidation. Uses curated stacks or the existing bounded fallback; AI field selection is disabled. Existing saved findings can remain in cumulative reports. |
 | Host / collection | Existing collection resolution and deterministic evidence preparation, followed by request-local `analysis/analysis-plan.json`. No AI checkpoint or cumulative AI report is advanced. The older `--plan-only` remains available for this same preparation path. |
-| Snapshot / `hunt analyze-saved` | These workflows already perform deterministic preparation without model execution. `--skip-ai` is accepted for command consistency. Existing explicit snapshot/export persistence settings still apply. |
+| Snapshot / `hunt analyze-saved` | These workflows already perform deterministic preparation without model execution. `--skip-ai` is accepted for command consistency. Existing explicit snapshot/export persistence settings still apply. Snapshot results report `status: prepared`, and `vraptor analyze --from` exits 2 with or without `--skip-ai`. |
 
 Results carry `ai_review_status: skipped` and `review_complete: false`.
 Preparation is not a clean finding or completed AI review, even when zero rows
@@ -31,10 +34,10 @@ a failed scan leaves the previous summary intact.
 operate on existing review state. Preparation covers the current selected scope.
 
 ```bash
-./dfir hunt analyze --id IR1234 --hunt-id H.EXAMPLE \
+./vraptor hunt analyze --id IR1234 --hunt-id H.EXAMPLE \
   --artifact IG.Windows.Sysinternals.Autoruns --profile autoruns --skip-ai
 
-./dfir collect analyze --id IR1234 --client-id C.EXAMPLE \
+./vraptor collect analyze --id IR1234 --client-id C.EXAMPLE \
   --request-id REQUEST_ID --question "Review persistence" --skip-ai
 ```
 
@@ -59,15 +62,4 @@ inserts the source query and normalization expressions, substitutes rule and
 host/count limits, and binds compressed GoldenDB rule data. Normalization VQL is
 assembled by `autoruns.py`; native deduplication and regex matching are defined
 in the VQL file and executed by Velociraptor. Python validates and publishes the
-returned stacks. Development files under `vql/autoruns_test/` are not the
-production entry point.
-
-## Validation
-
-Run the focused no-AI contract tests from the repository root:
-
-```bash
-PYTHONPATH=src .venv/bin/python -m pytest -q \
-  tests/test_analysis_skip_ai.py tests/test_autoruns_workflow.py \
-  tests/test_autoruns_dedup_ai.py
-```
+returned stacks.

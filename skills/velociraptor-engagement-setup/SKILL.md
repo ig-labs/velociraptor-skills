@@ -1,30 +1,27 @@
 ---
 name: velociraptor-engagement-setup
-description: Start or resume Velociraptor investigations using a local server and mapped client, a remote server and mapped client, or remote live endpoints. Configure reusable settings, verify readiness, and inspect or stop owned local resources; excludes case databases and task management.
+description: Set up and map local, remote and live Velociraptor engagements, including local-server and remote dead-disk mapping. Initialize or resume an investigation, configure reusable operational and AI analyst settings, verify readiness, and inspect or stop owned local resources. Not for collection, hunting, analysis or direct VQL; use velociraptor-collection, velociraptor-hunting, velociraptor-host-analysis or velociraptor-live-api-client.
 ---
 
 # Velociraptor Engagement Setup
+
 
 For first installation, follow [Install and set up vraptor](../../docs/vraptor-installation.md):
 install the package and selected AI extras, use the combined operational/AI
 configuration wizard, verify settings, then select an investigation mode.
 Package installation and configuration alone do not establish server readiness.
 
-**Required server prerequisite:** follow the shared
-[DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md)
-for every new local server and connected live/remote server. If the live catalog
-contains no `DetectRaptor.` artifacts, run `Server.Import.Extras` with the
-DetectRaptor CSV row and verify installation before proceeding. Reuse a successful
-session check; a failed import blocks the workflow. Explicit read-only/no-import
-instructions and offline-only work retain their scope.
+**Server prerequisite:** complete the [DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md) for each new local or connected live/remote server before server work; a failed import blocks the workflow.
+The bootstrap's [example Details CSV](references/import-extras.csv) includes the
+DetectRaptor row.
 
 Prepare a durable investigation workspace, then prove Velociraptor readiness.
-`dfir` and `vraptor` use the same CLI. Initialization is standalone and does not
+Use the shared `vraptor` CLI. Initialization is standalone and does not
 contact a server or collect evidence.
 
 Read the [operation authorization policy](../../docs/reference/velociraptor-operation-authorization.md)
 and [engagement context contract](../../docs/reference/velociraptor-engagement-context.md)
-when selecting a connection or recovering readiness. Normal authorized readiness
+before selecting a connection or recovering readiness. Normal authorized readiness
 and configuration work needs no additional approval prompt.
 
 ## Inputs and workspace
@@ -37,9 +34,9 @@ the operation requires one. Preserve the ID's spelling.
 Initialize once at the beginning of work:
 
 ```bash
-dfir setup init --id ir1234
+vraptor setup init --id ir1234
 # Or select a different investigations parent:
-dfir setup init --id ir1234 --case-root /investigations
+vraptor setup init --id ir1234 --case-root /investigations
 ```
 
 An explicit `--investigation-dir /investigations/ir1234` is also supported; its
@@ -49,6 +46,10 @@ use in later commands. Initialization creates only the folder and a minimal
 rejects a conflicting readiness identity, and lists up to 500 existing report,
 request and checkpoint paths without reading their contents. A truncated listing
 is not complete coverage. It does not validate the old readiness against a server.
+It also runs offline dotenv and analyst checks; read `configuration_checks` as
+described in [configuration checks](references/configuration.md#configuration-checks-during-setup-init).
+Exit 0 means the folder was initialized even when configuration needs attention,
+and a passing offline check does not prove live access.
 
 New guidance uses the packaged `resources/templates/investigation-agents.md`
 template in the `vraptor` Python package. Edit the template for future defaults;
@@ -62,193 +63,24 @@ is created.
 
 ## Environment and analyst configuration
 
-Use bare `vraptor setup configure` in a terminal for the complete operational
-wizard and optional AI handoff. No repository `.env` is required: save reusable
-preferences in TOML and reference existing credential files or process credentials.
-Environment/dotenv overrides remain supported and can mask wizard changes;
-inspect effective sources before changing a saved value again.
+Run bare `vraptor setup configure` in a terminal for the operational wizard and
+its optional AI handoff; setting flags such as `--case-root` make targeted
+updates without the wizard. Configuration writes settings only: it does not
+connect, fetch credentials, provision accounts or start resources. Inspect
+effective values and their sources with `vraptor setup show --server-profile NAME`
+or `vraptor config`, and analyst settings with `vraptor ai config`;
+environment/dotenv overrides can mask saved TOML. Configure `api_user` or pass
+`--api-user` before fetching or provisioning API credentials. Infrastructure
+setup does not require AI credentials. Writable investigation, runtime and
+fetched-credential paths must stay outside mounted evidence; setup rejects
+overlaps.
 
-Remote profiles inherit `api_user` and `api_role_profile` from
-`[connection_defaults]`, including previously unseen profile names. Precedence is
-CLI > environment/dotenv > named connection > connection defaults > application
-defaults (`vraptor`, `provisioning-admin`). Interactive configure offers
-`Remote API username [vraptor]:` on a fresh setup; Enter saves it. Explicit saved
-identities remain authoritative. `setup show --server-profile NAME` reports values
-and sources. Without an explicit analyst path, the default is
-`~/.config/vraptor/analyst-agents.toml` (XDG-aware); the legacy `ai_skills` file
-migrates only when the destination is absent, preserving contents and permissions.
-`[connection_defaults]` also supports shared SSH user/key, remote configuration
-paths, binary and service account. Named profiles may select `org_id`.
-`[api].grpc_max_message_bytes` and `[mapping].startup_timeout_seconds` /
-`ready_timeout_seconds` expose validated transport and startup/readiness limits.
-Leave unused environment overrides empty so TOML remains effective.
-
-Interactive configure offers an **AI analyst configuration** section with
-`Configure AI analyst settings [Y/n]:`. Enter or Yes saves operational settings,
-then opens the existing `vraptor ai setup` wizard using that settings file. No
-skips it. New setups suggest server name `live` and AI provider `openai`; saved
-selections remain authoritative. Enter `-` at the server-name prompt for shared
-defaults/local-only configuration. Preview never launches AI setup; a failed wizard leaves operational settings
-saved and reports a retry command. AI wizard output goes to stderr.
-
-The AI wizard groups **Analysis token budgets** separately and saves
-`max_input_tokens` / `max_output_tokens` in the selected analyst profile. New
-OpenAI/Azure profiles suggest 272000 / 128000, deriving 400000 context and keeping
-the shared 200000 evidence ceiling. Known models default to maximum available input
-and their output recommendation, including reruns;
-smaller model/deployment limits still apply. Inspect the resolved values and
-sources with `vraptor ai config`. Setup displays the resolved model's published
-context, standard-price input ceiling, output maximum and reference defaults.
-`--no-auto-token-budgets` retains saved budgets within the allowed range, with a
-note if they differ from the reference.
-Oversized saved budgets default to the applicable maximum, with a reduction note.
-Setup selects output first and shows the exact remaining input maximum. `max` or
-`auto` at a prompt fills that field's available capacity. Oversized interactive
-entries are adjusted with an explanation; invalid CLI flags fail before writing.
-The default `--auto-token-budgets` replaces saved budgets with model output recommendations
-and maximum remaining standard-price input. JSON reports include maxima and
-adjustments; runtime environment precedence is unchanged.
-Input has a 100000-token minimum when the available maximum is at least 100000;
-smaller available contexts retain a lower minimum. Prompt brackets show the
-calculated default, e.g. `Maximum input tokens [872000] (Enter to keep):`.
-Haiku 4.5 recommends 32000 output (model maximum 64000) and 168000 input;
-Sonnet 5 recommends 128000 output and 872000 input. The fixed 25% context reduction
-is removed from setup and runtime; evidence reserves remain inside input. Known
-models record their context on new and existing profiles, preserving explicit
-smaller deployment caps. Unknown IDs/custom deployments/short harness
-aliases show unverified limits and use saved/application fallbacks. Do not treat
-these offline API references as account discovery or managed-plan price guarantees.
-See
-[`docs/model-execution.md`](../../docs/model-execution.md#shared-token-budgets)
-for reserve calculation, environment precedence and legacy compatibility.
-
-When AI setup is skipped, or after successful start/resume, setup prints
-`To configure AI, run: vraptor ai setup`, retaining any explicit settings-file
-selector. `agent` remains an alias for `ai`. The note goes to stderr so JSON
-stdout remains parseable; the wizard is not started automatically.
-
-Configure reusable operational defaults independently of analyst settings:
-
-Inspect operational settings with `vraptor config` and analyst settings with
-`vraptor ai config`. Both accept `--view effective` (default) or `--view defaults`
-and print JSON; defaults inspection ignores local files and environment overrides.
-`vraptor config --server NAME` reports the same effective values and sources as
-`setup show`. Use `setup configure` and `ai setup` to configure each subsystem.
-
-```bash
-dfir setup configure
-# Targeted updates skip the interactive wizard and AI handoff:
-dfir setup configure --case-root ~/cases
-dfir setup configure --server-profile lab --api-client /configs/lab_api_client.yaml
-dfir setup show --server-profile lab
-dfir setup migrate --server-profile lab          # Preview legacy env migration
-dfir setup migrate --server-profile lab --write  # Apply nonconflicting settings
-```
-
-The default file is `$XDG_CONFIG_HOME/vraptor/config.toml`, otherwise
-`~/.config/vraptor/config.toml`; `--settings-file` selects another file.
-`workstation.binary` defaults to `~/velociraptor/velociraptor` and is shared by
-installation and execution. Use `setup configure --velociraptor-bin PATH` before
-installing elsewhere or after moving an existing binary.
-With no setting flags or template, `configure` runs a terminal wizard grouped
-under spaced headings: workstation, remote connection, remote SSH access, local
-server, mapped evidence, advanced paths/API transport, and credentials. Optional
-sections can be skipped; Enter preserves saved fields. `--server-profile NAME`
-edits that named connection; a blank name edits shared connection defaults.
-The wizard writes settings only and does not connect, fetch credentials, provision
-accounts or start resources. It supports `--preview` and `--template`, and keeps
-one backup when replacing an existing file. TOML holds
-workstation paths, optional named connections, a credential-env-file reference
-and advanced lifecycle defaults. It references native API YAML and SSH-key paths;
-never copy credential contents into TOML. `show` reports effective non-secret
-values and their sources. Migration preserves conflicting TOML values and leaves
-the original dotenv files and their override behavior intact.
-
-Optionally select a shared analyst TOML with `setup configure
---analyst-config-file PATH`, stored as `[analyst].config_file`. `setup show`
-reports the selected analyst path, existence and an `inspect_command` for
-`vraptor ai config`, without dumping analyst settings or loading a provider.
-Use the reported command to retain the same operational settings file and
-credential source. Analyst `--config-file` and the existing
-`AI_SKILLS_ANALYST_AGENT_CONFIG_FILE` environment/dotenv override take precedence.
-
-Operational precedence is explicit arguments, process environment, explicitly
-selected credential dotenv, repository `.env`, shared `~/.codex/.env`, named
-connection, connection defaults, then application defaults. Other TOML sections
-also override application defaults. Settings resolve once per operation. The selected credential dotenv
-also feeds analyst operations; analyst profiles remain in `analyst-agents.toml`.
-Infrastructure setup does not require AI credentials.
-Writable investigation, runtime and fetched-credential paths must stay outside
-mounted evidence and must not overwrite an evidence image; setup rejects these
-overlaps before creating the affected outputs.
-
-When setup includes the analyst agent, inspect the selected profile with
-`dfir ai config`, run `dfir ai setup` interactively to review/configure it,
-then rerun `dfir ai config` and `dfir ai doctor`. Carry the same operational
-`--settings-file`, analyst `--config-file` and `--execution-profile` selectors
-where explicitly selected. Reuse the intended provider/model and preserve shared
-analysis budgets. Configure this shared profile once across investigations;
-operational export/deploy transfers its file reference, not analyst settings or
-credentials. Report the effective profile and offline diagnostic status separately
-from server readiness. See the [setup test guide](../../docs/velociraptor-setup-testing.md#configure-the-analyst-agent-once)
-for the command sequence and limits of offline checks.
-
-Use `vraptor ai setup --from-harness codex` to reuse Codex settings, or
-`--from-harness claude_code` for Claude-managed login. Claude settings discovery
-prefers an explicit/saved file, then
-`~/Library/Application Support/Claude/settings.json`, then
-`~/.claude/settings.json`; enter a model if neither automatic file exists.
-Use `--provider anthropic --model MODEL_ID` for a separate Anthropic API-key
-profile. The wizard offers advanced API settings and optional native Claude
-login; it never imports Desktop `config.json` tokens. `vraptor ai setup --help`
-lists grouped options and offline OpenAI/Claude model examples. The model prompt
-shows provider-specific suggestions while accepting other supported IDs and
-preserving saved defaults. These examples do not establish account access;
-the reasoning-effort prompt likewise lists model-specific choices, including
-`xhigh` where supported. Enter preserves/inherits effort; recognized Claude models
-with effort support default to `medium` only if no explicit, saved, shared or native
-effort exists. Haiku and unknown models receive no automatic effort setting.
-Azure requires the deployment name. A native login check is not an inference or server check.
-
-`setup init` also checks repository `.env` and shared `~/.codex/.env` sources,
-reporting their paths, loading status and accepted key counts without values.
-It reuses the offline `dfir ai doctor` checks for the selected analyst config
-file/profile, provider, transport, model, credential presence, dependencies and
-analysis limits. Explicit process values retain precedence over repository and
-shared dotenv defaults; analyst TOML/harness selection follows the normal resolver.
-An investigation-local `.env` is not a configuration source.
-
-Save/deploy/reset reusable operational settings with:
-
-```bash
-dfir setup export --output ~/.config/vraptor/presets/current.toml
-dfir setup deploy --from ~/.config/vraptor/presets/current.toml
-dfir setup deploy --from ~/.config/vraptor/presets/current.toml --apply
-dfir setup reset
-dfir setup reset --apply
-```
-
-Export captures effective settings and all named connections without copying
-secrets; local home paths become `~`. An environment-only connection needs
-`--server-profile NAME`. Deploy and reset preview unless `--apply` is supplied;
-an existing export is never overwritten. Reset backs up changed files and clears
-only operational preferences/overrides while preserving credential and analyst
-references, investigations and tools. Deploy merges snapshot values into the
-selected settings file and preserves unrelated entries. Follow user-authorized
-deployment/reset scope and inspect `setup show` afterward; see
-[configuration recovery](../../CONFIG.md#export-and-deploy-current-settings).
-
-Read `configuration_checks.status` and `configuration_checks.analyst_agent.issues`.
-Missing dotenv files are allowed when configuration comes from other sources.
-Invalid configuration, missing dependencies/credentials and disabled analysts are
-reported as needing attention. They do not prevent folder creation or reuse:
-exit 0 means initialization succeeded, even when configuration needs fixing.
-Use `dfir ai doctor` for diagnostics and `dfir ai setup` to configure the
-analyst, then rerun initialization or the doctor before analyst execution.
-
-Checks do not modify dotenv, analyst configuration or existing investigation
-guidance. Authentication and inference remain untested; startup makes no server
-or model requests. A successful offline check does not prove live access.
+Read [setup configuration](references/configuration.md) before changing saved
+settings, precedence or credential sources, or before export, deploy or reset.
+When setup includes the analyst agent, follow
+[AI analyst configuration](references/configuration.md#ai-analyst-configuration)
+and report the effective profile and offline `vraptor ai doctor` status
+separately from server readiness.
 
 ## Concurrent work and switching projects
 
@@ -278,7 +110,7 @@ than blindly resubmitting a collection.
 ### Live remote
 
 ```bash
-dfir setup start --mode live-remote --id ir1234 --server-profile lab \
+vraptor setup start --mode live-remote --id ir1234 --server-profile lab \
   --api-client /configs/lab_api_client.yaml
 ```
 
@@ -294,9 +126,23 @@ Resume retains saved target checks. An explicit selection replaces the previous
 selection; use the compatible `--environment-only-ok` flag to clear saved target
 checks and return to server-only verification. Dead-disk bindings are unchanged.
 
-Existing API YAML connects directly. For remote credential acquisition, supply
-`--server-ip` and explicitly select `--fetch-config`. Generation of missing
-API credentials additionally requires `--provision-api`. Endpoint YAML and
+For a setup request with an explicitly configured API user (CLI,
+environment/dotenv or saved settings), pass `--provision-api` without a separate
+approval prompt, even with cached YAML. Cached YAML or an application fallback
+alone does not count; honor no-provision, read-only and fetch-only requests; local
+dead-disk setup never provisions. Full rule:
+[API-user provisioning](../../docs/reference/velociraptor-operation-authorization.md#api-user-provisioning).
+
+Existing API YAML can otherwise connect directly. For remote credential acquisition, supply
+`--server-ip` and explicitly select `--fetch-config`. `--provision-api` starts account setup before generating missing API credentials,
+including when operational YAML is cached. Generic installations prompt the
+operator to create/verify the account in the running server; continue or rerun
+with `--api-account-ready` only after completing that manual step. If the kept
+cached YAML already passes the selected user's role checks, setup skips the manual step
+and says so; add `--api-account-setup` only when the operator asks to run it. They have no
+built-in administrator API account. An explicitly configured remote bootstrap
+connection may automate this step; its identity is never used operationally.
+See the [shared account procedure](../velociraptor-live-api-client/references/service-account-config.md). Endpoint YAML and
 `--provision-client` apply to remote dead-disk setup below.
 `--force` refreshes the local copy when fetching is selected;
 `--regenerate-remote-api` explicitly replaces the selected remote API YAML.
@@ -313,15 +159,19 @@ permissions. Preserve the selected credential profile during recovery.
 
 ### Local server and mapped client
 
-Both `local-deaddisk` and `remote-deaddisk` accept `--evidence-type`:
+`setup start --mode local-deaddisk|remote-deaddisk` accepts `--evidence-type`:
 `auto` (default), `windows-disk`, `windows-directory`, `velociraptor-export`, or
-`velociraptor-kapefiles-zip`.
-Auto detects extracted exports by `uploads.json`; it rejects ambiguous directories.
+`velociraptor-kapefiles-zip`. The lower-level `setup remote-deaddisk` always
+auto-detects and `setup local-deaddisk` only verifies an existing mapping;
+neither accepts `--evidence-type`.
+Auto detects collections by `uploads.json` (or a protected `data.zip`) and rejects
+ambiguous directories. Collections map Windows drive uploads only; results-only
+collector ZIPs are rejected.
 See [extracted collection exports](../velociraptor-mapped-client/SKILL.md#extracted-velociraptor-kapefiles-collection)
 for mapping behavior and coverage limits.
 
 ```bash
-dfir setup start --mode local-deaddisk --id ir1234 \
+vraptor setup start --mode local-deaddisk --id ir1234 \
   --evidence-path /evidence/disk.E01
 ```
 
@@ -347,7 +197,7 @@ The additional credential is the matching endpoint YAML, needed to enroll the ma
 See [shared generation and manual fallback](../velociraptor-live-api-client/references/service-account-config.md).
 
 ```bash
-dfir setup start --mode remote-deaddisk --id ir1234 --server-profile lab \
+vraptor setup start --mode remote-deaddisk --id ir1234 --server-profile lab \
   --api-client /configs/lab_api_client.yaml \
   --client-config /configs/lab_client.config.yaml \
   --evidence-path /evidence/disk.E01 --hostname evidence-host
@@ -372,12 +222,12 @@ image. For example, put both local images in `test-local` and both remote images
 in `test-remote`, under the configured case root:
 
 ```bash
-dfir setup start --mode local-deaddisk --id test-local --mapping-id wkstn01 \
+vraptor setup start --mode local-deaddisk --id test-local --mapping-id wkstn01 \
   --evidence-path /evidence/wkstn01.E01 --hostname test-local-wkstn01
-dfir setup start --mode local-deaddisk --id test-local --mapping-id wkstn05 \
+vraptor setup start --mode local-deaddisk --id test-local --mapping-id wkstn05 \
   --evidence-path /evidence/wkstn05.E01 --hostname test-local-wkstn05
-dfir setup resume --id test-local --mapping-id wkstn01
-dfir setup status --id test-local --mapping-id wkstn05
+vraptor setup resume --id test-local --mapping-id wkstn01
+vraptor setup status --id test-local --mapping-id wkstn05
 ```
 
 The case shares one server/organization/API identity and, for managed local
@@ -394,10 +244,10 @@ selecting an exact host validates that host's own saved readiness independently.
 ### Resume, inspect and stop
 
 ```bash
-dfir setup status --id ir1234
-dfir setup resume --id ir1234
-dfir setup stop --id ir1234
-dfir setup stop --id ir1234 --stop-server
+vraptor setup status --id ir1234
+vraptor setup resume --id ir1234
+vraptor setup stop --id ir1234
+vraptor setup stop --id ir1234 --stop-server
 ```
 
 `status` inspects saved state and local process ownership; its `api_checked=false`
@@ -435,13 +285,6 @@ Then route the authorized request:
 - Cross-host scope: `velociraptor-hunting`.
 - One-host review: `velociraptor-host-analysis`.
 - Explicit acquisition: `velociraptor-collection` (`collect analyze` may collect).
-- Existing flow/request/hunt: `dfir analyze`, which cannot collect or retry clients.
+- Existing flow/request/hunt: `vraptor analyze`, which cannot collect or retry clients.
 
 See the [CLI contract](../../docs/contracts/cli.md).
-
-## Required DetectRaptor installation
-
-The [shared bootstrap procedure](../../docs/reference/detectraptor-bootstrap.md)
-is mandatory for local and remote server setup, including reused connections.
-The [example Details CSV](references/import-extras.csv) includes DetectRaptor;
-preserve the connected server's current entries when preparing the import.

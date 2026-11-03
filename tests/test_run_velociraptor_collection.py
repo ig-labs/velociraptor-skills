@@ -1063,7 +1063,6 @@ class RunVelociraptorCollectionTest(unittest.TestCase):
         state = self.module.build_state_payload(
             client,
             "case-123",
-            "host01",
             request,
             [status],
         )

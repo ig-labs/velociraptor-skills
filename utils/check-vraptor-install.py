@@ -5,6 +5,7 @@ Run with the repository .venv Python. Only a temporary validation environment is
 installed; tool-preparation commands are help-only and APIs are mocked.
 """
 from pathlib import Path
+import json
 import os
 import shutil
 import subprocess
@@ -21,7 +22,7 @@ CORE_FIXTURE_MODULES = (
     "typing_extensions",
 )
 
-RESOURCE_AND_API_CHECK = '''import importlib.util, json
+RESOURCE_AND_API_CHECK = '''import importlib.util, json, shlex
 assert importlib.util.find_spec("openai") is None
 assert importlib.util.find_spec("dfir_case_tools") is None
 from vraptor.artifacts import policy as artifact_policy
@@ -42,7 +43,7 @@ assert initialize("package-check", case_root)["guidance_created"]
 guidance = case_root / "package-check/AGENTS.md"
 text = guidance.read_text()
 assert "# Investigation package-check" in text.splitlines()
-assert f"--id 'package-check' --case-root {str(case_root)!r}" in text
+assert f"--id package-check --case-root {shlex.quote(str(case_root))}" in text
 guidance.write_text("Operator guidance\\n")
 assert not initialize("package-check", case_root)["guidance_created"]
 assert guidance.read_text() == "Operator guidance\\n"
@@ -63,15 +64,25 @@ print("ISOLATED_RESOURCES_AND_MOCK_API_OK")
 
 def validate_install(root: Path):
     repository = Path(__file__).resolve().parents[1]
+    # Upstream keeps the package in packages/vraptor; the public export keeps it at the root.
+    package_root = repository / "packages/vraptor"
+    if not package_root.is_dir():
+        package_root = repository
     print("Validation directory:", root, flush=True)
     wheels = root / "wheels"
     wheels.mkdir()
     subprocess.run([sys.executable, "-m", "venv", str(root)], check=True)
     build_source = root / "source"
     build_source.mkdir()
-    shutil.copy2(repository / "pyproject.toml", build_source / "pyproject.toml")
-    shutil.copytree(repository / "src", build_source / "src",
+    shutil.copy2(package_root / "pyproject.toml", build_source / "pyproject.toml")
+    shutil.copytree(package_root / "src", build_source / "src",
                     ignore=shutil.ignore_patterns("build", "dist", "*.egg-info", "__pycache__", "*.pyc"))
+    golden = build_source / "src/vraptor/resources/golden"
+    (golden / "backups").mkdir(exist_ok=True)
+    runtime_files = (".autoruns-golden.sqlite.lock", "autoruns-golden.sqlite-journal",
+                     "autoruns-golden.sqlite-shm", "autoruns-golden.sqlite-wal", "backups/fixture.sqlite")
+    for name in runtime_files:
+        (golden / name).write_text("synthetic local runtime state")
     # Call the declared setuptools backend directly. uv-created development
     # environments need not contain pip; installation uses the temporary venv.
     subprocess.run(
@@ -84,6 +95,7 @@ def validate_install(root: Path):
         names = archive.namelist()
         assert not any("__pycache__" in name or name.endswith(".pyc") for name in names)
         assert not any(name.startswith("vraptor/velociraptor/") for name in names)
+        assert all(f"vraptor/resources/golden/{name}" not in names for name in runtime_files)
     python = root / "bin/python"
     subprocess.run(
         [str(python), "-m", "pip", "install", "--force-reinstall", "--no-deps",
@@ -114,16 +126,23 @@ def validate_install(root: Path):
         ["tools", "prep", "--help"], ["query", "--help"], ["clients", "--help"],
         ["artifacts", "--help"], ["collect", "--help"], ["analyze", "--help"],
         ["hunt", "--help"], ["export", "--help"],
+        ["setup", "init", "--id", "fixture", "--case-root", str(work / "investigations")],
     ]
-    for args in commands:
-        result = subprocess.run(
-            [str(root / "bin/vraptor"), *args], cwd=work, env=env,
-            text=True, capture_output=True,
-        )
-        print(" ".join(args), result.returncode)
-        if result.returncode:
-            print(result.stderr)
-            return result.returncode
+    for entrypoint in ("vraptor", "dfir"):
+        for args in commands:
+            result = subprocess.run(
+                [str(root / "bin" / entrypoint), *args], cwd=work, env=env,
+                text=True, capture_output=True,
+            )
+            print(" ".join(args), result.returncode)
+            if result.returncode:
+                print(result.stderr)
+                return result.returncode
+            if args[:2] == ["setup", "init"]:
+                payload = json.loads(result.stdout)
+                assert payload["configuration_checks"]["status"] == "needs_attention"
+                assert payload["configuration_checks"]["mode"] == "offline"
+                assert payload["readiness_checked"] is False
     result = subprocess.run(
         [str(python), "-c", RESOURCE_AND_API_CHECK], cwd=work, env=env,
         text=True, capture_output=True,

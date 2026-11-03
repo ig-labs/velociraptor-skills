@@ -5,8 +5,8 @@ description: Install or refresh shared DFIR tooling on macOS or Linux, including
 
 # Prepare DFIR Tools
 
-`vraptor tools prep` and `dfir tools prep` share the same preparation handler,
-options and targets. Use `vraptor ai config` for safe configuration inspection;
+`vraptor tools prep` runs the shared preparation handler with its options and
+targets. Use `vraptor ai config` for safe configuration inspection;
 neither inspection nor preparation needs a case. See the [shared CLI contract](../../docs/contracts/cli.md).
 
 Use the shared installer through:
@@ -15,9 +15,10 @@ Use the shared installer through:
 vraptor tools prep [OPTIONS]
 ```
 
-Use the installed command from the activated environment below. In `ai_skills`,
-the repository launcher `./dfir` is also available. The implementation lives
-under `packages/vraptor`. Keep this skill documentation-only.
+Use the installed command from the activated environment below. In a source
+checkout, the repository launcher `./vraptor` is also available. The
+implementation is the `vraptor` Python package; keep this skill
+documentation-only.
 
 ## Install the Generic Package
 
@@ -27,8 +28,8 @@ Interactive `vraptor setup configure` saves operational settings and offers the
 AI wizard; setting-value flags skip those questions. This skill covers package
 and native tool preparation details.
 
-Use Python 3.11 or newer. Start in the exported `velociraptor-skills` checkout
-root containing `pyproject.toml`:
+Use Python 3.11 or newer. Start in the source checkout root; these commands
+assume the package's `pyproject.toml` is at that root:
 
 ```bash
 python3 -m venv .venv
@@ -38,20 +39,23 @@ vraptor --help
 vraptor tools prep --help
 ```
 
-From the `ai_skills` root, keep `.venv` there and replace the pip command with
-`.venv/bin/python -m pip install ./packages/vraptor`. Existing environments can
-be reused. For a supplied wheel, install its local path instead of the source
-directory. Do not assume the package is published on PyPI.
+When the checkout keeps `pyproject.toml` in a package subdirectory instead,
+keep `.venv` at the checkout root and replace the pip target `.` with that
+subdirectory's relative path; the
+[installation guide](../../docs/vraptor-installation.md#1-install-the-package)
+gives the exact target for each checkout. Existing environments can be reused.
+For a supplied wheel, install its local path instead of the source directory.
+Do not assume the package is published on PyPI.
 
-The base package installs the `vraptor` and `dfir` commands and core API
-dependencies. It does not install the native Velociraptor executable, link agent
-skills, or start a server. Existing remote API credentials need no site integration,
-Slack, Azure or AI setup.
+The base package installs the `vraptor` command and core API dependencies. It
+does not install the native Velociraptor executable, link agent skills, or start
+a server. Existing remote API credentials need no site integration, Slack, Azure
+or AI setup.
 
 Install an optional extra only for the chosen analyst provider by replacing the
 pip target above with `'.[ai]'`, `'.[azure]'`, `'.[anthropic]'` or `'.[claude]'`
-for OpenAI, Azure, Anthropic Messages or Claude managed login respectively. In
-`ai_skills`, use the corresponding `'./packages/vraptor[EXTRA]'` target. Configure
+for OpenAI, Azure, Anthropic Messages or Claude managed login respectively. For a
+package subdirectory, append the extra to that path (`'SUBDIR[EXTRA]'`). Configure
 the analyst through the optional AI section of `vraptor setup configure`, or
 directly with `vraptor ai setup` later.
 
@@ -173,10 +177,17 @@ relocation.
 - `VELO_BIN`: legacy override of that executable path
 - `AI_SKILLS_TOOLS_DATA_ROOT`: shared mutable tools-data root for other tools
 - `VELO_LOCAL_VERSION_TAG`: optional pinned Velociraptor release tag
-- `VELO_LOCAL_API_USER`: local GUI/API user, default `velociraptor`
+- `VELO_LOCAL_API_USER`: local GUI/API user, default `vraptor`
 - `VELO_LOCAL_API_PASSWORD`: optional local GUI/API bootstrap password
 - `VELO_LOCAL_PORTS`: local workspace ports checked during shutdown
 - `PLASO_VERSION`: Plaso version, default `20260512`
+
+Earlier helper scripts defaulted the local API user to `velociraptor` (ai_skills)
+or `codex` (velociraptor-skills). A workspace initialized with that default keeps
+its API user only when `VELO_LOCAL_API_USER` (or the saved `[local_server]
+api_user` setting) names the old user; otherwise
+the next `--init-velociraptor-workspace` run rewrites `api_client.yaml` for a new
+`vraptor` API user, and the mapped-client `--runas` fallback uses `vraptor`.
 
 The installer prints the `setup configure --velociraptor-bin` command for the
 installed path. Run it when changing the execution default, such as after `-d`

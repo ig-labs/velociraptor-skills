@@ -8,7 +8,6 @@ import json
 import re
 import shutil
 import sys
-from datetime import datetime, timezone
 from json import JSONDecodeError
 from pathlib import Path
 from typing import Any, Iterator
@@ -24,10 +23,12 @@ from vraptor.autoruns import pipeline as autoruns
 from vraptor.analyze import records as evidence_records
 from vraptor.analyze import planning as review_planning
 
+from vraptor import case_layout
 from vraptor.paths import add_case_root_arg
 from vraptor.paths import default_case_root
 from vraptor.paths import load_repo_env
 from vraptor.common import token_budget
+from vraptor.common.clock import now_utc
 from vraptor.common.sequences import unique_ordered
 
 load_repo_env(REPO_ROOT)
@@ -116,10 +117,6 @@ def configure_csv_field_limit() -> None:
 configure_csv_field_limit()
 
 
-def now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def read_json(path: Path, description: str = "JSON file") -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -151,13 +148,6 @@ def normalize_target_os(value: str | None) -> str:
     return target if target in TARGET_CHOICES else ""
 
 
-def target_namespace(value: str | None) -> str:
-    target = str(value or "").strip().lower()
-    if target == UNSCOPED_TARGET_NAMESPACE:
-        return UNSCOPED_TARGET_NAMESPACE
-    return normalize_target_os(target) or UNSCOPED_TARGET_NAMESPACE
-
-
 def normalize_case_root(path_value: str | None) -> Path:
     if path_value:
         return Path(path_value).expanduser().resolve()
@@ -179,11 +169,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--download-manifest", help="Optional path to downloads/velociraptor-hunting-download.json.")
     parser.add_argument("--investigation-id", help="Case folder name when resolving --hunt-id.")
     add_case_root_arg(parser)
-    parser.add_argument(
-        "--target",
-        choices=TARGET_NAMESPACES,
-        help="Optional target namespace when resolving --hunt-id. Use all for unscoped or label-scoped hunts.",
-    )
+    parser.add_argument("--target", choices=TARGET_NAMESPACES, help=argparse.SUPPRESS)
     parser.add_argument(
         "--artifact",
         action="append",
@@ -236,8 +222,8 @@ def artifact_matches_selector(entry: dict[str, Any], selectors: list[str]) -> bo
     return any(selector in values for selector in selectors)
 
 
-def find_saved_state_by_hunt_id(case_root: Path, investigation_id: str, hunt_id: str, target: str | None = None) -> Path | None:
-    state_path = case_root / investigation_id / "hunts" / hunt_id / "state.json"
+def find_saved_state_by_hunt_id(case_root: Path, investigation_id: str, hunt_id: str) -> Path | None:
+    state_path = case_layout.hunt_dir(case_root, investigation_id, hunt_id) / "state.json"
     return state_path if state_path.exists() else None
 
 
@@ -248,7 +234,7 @@ def resolve_state_path(args: argparse.Namespace, case_root: Path) -> Path | None
             raise RuntimeError(f"State file {path} was not found.")
         return path
     if args.hunt_id:
-        state_path = find_saved_state_by_hunt_id(case_root, str(args.investigation_id), str(args.hunt_id), args.target)
+        state_path = find_saved_state_by_hunt_id(case_root, str(args.investigation_id), str(args.hunt_id))
         if state_path is not None:
             return state_path
         raise RuntimeError(
@@ -280,6 +266,12 @@ def manifest_with_path(path: Path | None) -> dict[str, Any] | None:
         return None
     payload = read_json_object(path, "Manifest")
     payload.setdefault("manifest_file", str(path))
+    # A relative output file belongs to the manifest folder, not the process CWD.
+    for key in ("exported_files", "downloaded_files"):
+        for item in payload.get(key) or []:
+            value = str(item.get("output_file") or "").strip() if isinstance(item, dict) else ""
+            if value and not Path(value).expanduser().is_absolute():
+                item["output_file"] = str(path.parent / value)
     return payload
 
 
@@ -2298,6 +2290,7 @@ def analyze_snapshot(
         write_json(model_review_manifest_path, model_review_manifest)
 
     summary = {
+        "status": "prepared",
         "ai_review_status": "skipped",
         "review_complete": False,
         "analysis_version": STACK_ANALYSIS_VERSION,

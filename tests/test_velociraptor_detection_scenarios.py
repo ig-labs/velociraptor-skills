@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 
 from vraptor.artifacts import policy as artifact_policy
-from vraptor.artifacts import profiles as artifact_profiles
 from vraptor.artifacts import scenario_cli as detection_scenario_cli
 from vraptor.artifacts import scenarios as detection_scenarios
 

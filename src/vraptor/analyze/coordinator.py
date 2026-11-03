@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from vraptor.analyze import chunk_repair
 from vraptor.analyze import prompt_debug
 
 import asyncio
@@ -24,6 +25,9 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from vraptor.agent import diagnostics as agent_diagnostics
 from vraptor.analyze import limits as analysis_limits
 from vraptor.analyze import recovery
+from vraptor.analyze.reporting import current_policy
+from vraptor.analyze.report_priority import display_priority, priority_key, priority_metadata, rank_findings
+from vraptor.analyze.report_publication import publish_report
 from vraptor.common import atomic_io
 from vraptor.common import token_budget
 from vraptor.agent.config import ResolvedAgentExecution
@@ -58,6 +62,7 @@ from vraptor.logging import operations as operation_log
 
 
 STATE_FILENAME = "hunt-analysis-state.json"
+FAILED_CHUNKS_FILENAME = "hunt-failed-chunks.json"
 REPORT_FILENAME = "analysis-hunt.md"
 VALIDATION_DEBUG_FILENAME = "hunt-analysis-validation-debug.json"
 OUTPUT_CONTRACT = "validated-hunt-analysis-summary-v3"
@@ -67,10 +72,6 @@ REVIEW_SCOPES = {
     REVIEW_SCOPE_MANAGED_COLLECTION,
     REVIEW_SCOPE_AD_HOC,
 }
-MAX_SPECIALIZED_ARTIFACTS = 100
-MAX_SPECIALIZED_FINDINGS = 10
-MAX_SPECIALIZED_EXAMPLES = 10
-MAX_SPECIALIZED_TEXT_CHARS = 320
 MAX_SPECIALIZED_FINDING_INPUT_GROUPS = 200
 MAX_RUN_RECORDS = 20
 MAX_FAILED_CHUNK_ERROR_CHARS = 2048
@@ -92,9 +93,6 @@ MAX_DETECTRAPTOR_TRANSPORT_ERRORS = 5
 MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS = 20
 DETECTRAPTOR_CONTEXT_FILENAME = "detectraptor-interesting-context.json"
 DETECTRAPTOR_UPLIFT_FILENAME = "detectraptor_whitelist_candidates.csv"
-MAX_DETECTRAPTOR_REPORT_NOTES = 100
-MAX_DETECTRAPTOR_REPORT_EVENTS = 3
-MAX_DETECTRAPTOR_REPORT_SOURCE_REFS = 3
 DETECTRAPTOR_UPLIFT_FIELDS = (
     "Detection",
     "Scope",
@@ -353,11 +351,12 @@ def _summarize_detectraptor_uplift_csv(path: Path) -> dict[str, int]:
     return summary
 
 
-def _compact_specialized_text(value: Any) -> str:
+def _compact_specialized_text(value: Any, *, limit: int | None = None) -> str:
+    limit = current_policy().preview_chars if limit is None else limit
     text = " ".join(str(value or "").split()).replace("|", "\\|")
-    if len(text) <= MAX_SPECIALIZED_TEXT_CHARS:
+    if len(text) <= limit:
         return text
-    return text[: MAX_SPECIALIZED_TEXT_CHARS - 1].rstrip() + "…"
+    return text[: limit - 1].rstrip() + "…"
 
 
 def _detectraptor_event_identity(event: Mapping[str, Any]) -> str:
@@ -400,12 +399,12 @@ def _detectraptor_representative_events(
         identity = _detectraptor_event_identity(event)
         if identity and identity not in selected_identities:
             add(event)
-        if len(selected) >= MAX_DETECTRAPTOR_REPORT_EVENTS:
+        if len(selected) >= current_policy().detectraptor_events:
             return selected
     if ordered:
         for index in (0, len(ordered) // 2, len(ordered) - 1):
             add(ordered[index])
-            if len(selected) >= MAX_DETECTRAPTOR_REPORT_EVENTS:
+            if len(selected) >= current_policy().detectraptor_events:
                 break
     return selected
 
@@ -442,6 +441,7 @@ def _detectraptor_direct_report_groups(
             groups.append(
                 {
                     "detection": detection,
+                    **priority_metadata(finding),
                     "confidence": str(finding.get("confidence") or "unknown"),
                     "summary": str(finding.get("summary") or "Reportable finding"),
                     "count": occurrence_count or 1,
@@ -475,6 +475,7 @@ def _consolidate_detectraptor_report_groups(
             key,
             {
                 "detection": detection,
+                **priority_metadata(raw),
                 "confidence": confidence,
                 "summary": summary,
                 "count": 0,
@@ -487,6 +488,8 @@ def _consolidate_detectraptor_report_groups(
                 "direct_partition": False,
             },
         )
+        if priority_key(raw) < priority_key(item):
+            item.update(priority_metadata(raw))
         item["count"] += max(1, int(raw.get("count") or 1))
         events = [
             event
@@ -518,9 +521,7 @@ def _consolidate_detectraptor_report_groups(
     return sorted(
         consolidated.values(),
         key=lambda item: (
-            {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(
-                str(item["confidence"]), 4
-            ),
+            priority_key(item),
             -int(item["count"]),
             str(item["detection"]),
             str(item["summary"]),
@@ -538,7 +539,7 @@ def _render_detectraptor_report_notes(
     if not consolidated:
         return ["- No malicious or potentially malicious findings selected yet."]
     lines: list[str] = []
-    for item in consolidated[:MAX_DETECTRAPTOR_REPORT_NOTES]:
+    for item in rank_findings(consolidated)[:current_policy().detectraptor_notes]:
         confidence = _compact_specialized_text(item["confidence"]).upper()
         summary = _compact_specialized_text(item["summary"])
         lines.extend(
@@ -546,6 +547,7 @@ def _render_detectraptor_report_notes(
                 f"### {confidence} — {_compact_specialized_text(item['detection'])}",
                 "",
                 summary,
+                f"- Report priority: `{display_priority(item)}`",
                 "",
             ]
         )
@@ -595,7 +597,7 @@ def _render_detectraptor_report_notes(
                 )
         source_refs = sorted(item["source_refs"])
         if source_refs:
-            visible = source_refs[:MAX_DETECTRAPTOR_REPORT_SOURCE_REFS]
+            visible = source_refs[:current_policy().detectraptor_source_refs]
             suffix = (
                 f", plus {len(source_refs) - len(visible)} more"
                 if len(source_refs) > len(visible)
@@ -611,9 +613,13 @@ def _render_detectraptor_report_notes(
                 f"- Full hydrated events: `{_compact_specialized_text(context_ledger)}`"
             )
         lines.append("")
-    if len(consolidated) > MAX_DETECTRAPTOR_REPORT_NOTES:
+    if len(consolidated) > current_policy().detectraptor_notes:
+        lines.extend("- Indexed [" + display_priority(item) + "]: "
+                     + _compact_specialized_text(item.get("detection")) + " — "
+                     + _compact_specialized_text(item.get("summary"))
+                     for item in rank_findings(consolidated)[current_policy().detectraptor_notes:])
         lines.append(
-            f"- {len(consolidated) - MAX_DETECTRAPTOR_REPORT_NOTES} additional "
+            f"- {len(consolidated) - current_policy().detectraptor_notes} additional "
             "assessment group(s) are retained in the context ledger."
         )
     return lines
@@ -640,9 +646,9 @@ def _specialized_finding_inputs(
     for raw in findings:
         if not isinstance(raw, Mapping):
             continue
-        artifact = _compact_specialized_text(raw.get("artifact") or "unknown")
+        artifact = _compact_specialized_text(raw.get("artifact") or "unknown", limit=320)
         summary = _compact_specialized_text(
-            raw.get("summary") or raw.get("title") or "Finding recorded"
+            raw.get("summary") or raw.get("title") or "Finding recorded", limit=320
         )
         key = (artifact, summary)
         record = grouped.setdefault(
@@ -650,10 +656,13 @@ def _specialized_finding_inputs(
             {
                 "artifact": artifact,
                 "summary": summary,
+                **priority_metadata(raw),
                 "count": 0,
                 "review_ids": set(),
             },
         )
+        if priority_key(raw) < priority_key(record):
+            record.update(priority_metadata(raw))
         record["count"] += 1
         review_id = str(raw.get("review_id") or "").strip()
         if review_id:
@@ -665,6 +674,7 @@ def _specialized_finding_inputs(
     return [
         {
             "source_id": f"S{index}",
+            **priority_metadata(item),
             "artifact": item["artifact"],
             "summary": item["summary"],
             "count": int(item["count"]),
@@ -680,7 +690,7 @@ def _deterministic_specialized_finding_summary(
     source_hash: str,
     error: str = "",
 ) -> dict[str, Any]:
-    visible = inputs[:MAX_SPECIALIZED_FINDING_INPUT_GROUPS]
+    visible = rank_findings(inputs)[:MAX_SPECIALIZED_FINDING_INPUT_GROUPS]
     limitations = [
         "Semantic finding consolidation was unavailable; exact normalized summaries "
         "remain separate."
@@ -702,6 +712,7 @@ def _deterministic_specialized_finding_summary(
         "groups": [
             {
                 "summary": item["summary"],
+                **priority_metadata(item),
                 "artifacts": [item["artifact"]],
                 "source_ids": [item["source_id"]],
                 "record_count": int(item["count"]),
@@ -733,7 +744,7 @@ def _parse_specialized_finding_output(
             if len(fields) != 3:
                 raise ValueError("specialized GROUP requires id and summary")
             group_id = fields[1].strip()
-            summary = _compact_specialized_text(fields[2])
+            summary = _compact_specialized_text(fields[2], limit=320)
             if not group_id or not summary or group_id in groups:
                 raise ValueError("specialized finding manager GROUP is invalid")
             groups[group_id] = {"summary": summary, "source_ids": []}
@@ -827,7 +838,7 @@ async def consolidate_specialized_findings_async(
         state["specialized_finding_summary"] = result
         return result
 
-    visible = inputs[:MAX_SPECIALIZED_FINDING_INPUT_GROUPS]
+    visible = rank_findings(inputs)[:MAX_SPECIALIZED_FINDING_INPUT_GROUPS]
     if spec is None and execute is None:
         result = _deterministic_specialized_finding_summary(
             inputs,
@@ -917,7 +928,7 @@ async def consolidate_specialized_findings_async(
         seen: set[str] = set()
         groups: list[dict[str, Any]] = []
         for raw_group in raw_groups:
-            summary = _compact_specialized_text(raw_group.get("summary"))
+            summary = _compact_specialized_text(raw_group.get("summary"), limit=320)
             source_ids = raw_group.get("source_ids")
             if not summary or not isinstance(source_ids, list) or not source_ids:
                 raise ValueError(
@@ -935,6 +946,7 @@ async def consolidate_specialized_findings_async(
             groups.append(
                 {
                     "summary": summary,
+                    **priority_metadata(min(sources, key=priority_key)),
                     "artifacts": sorted({item["artifact"] for item in sources}),
                     "source_ids": normalized_ids,
                     "record_count": sum(int(item["count"]) for item in sources),
@@ -1139,6 +1151,7 @@ def _compact_synthesis_result(value: Mapping[str, Any]) -> dict[str, Any]:
             "limitations",
             "bounded_follow_up",
             "domain_assessments",
+            "priority_schema_version",
             "analysis_status", "review_status", "synthesis_mode", "result_role", "groups",
         )
         if key in source
@@ -1152,6 +1165,7 @@ def _compact_synthesis_result(value: Mapping[str, Any]) -> dict[str, Any]:
             for key in ("id", "artifact", "confidence", "domains", "summary")
             if key in raw_finding
         }
+        finding.update(priority_metadata(raw_finding))
         evidence_rows: list[dict[str, Any]] = []
         for raw_evidence in raw_finding.get("evidence") or []:
             if not isinstance(raw_evidence, Mapping):
@@ -1162,7 +1176,7 @@ def _compact_synthesis_result(value: Mapping[str, Any]) -> dict[str, Any]:
                 if key in raw_evidence
             }
             fields = analysis_summary.preview_fields(
-                dict(raw_evidence.get("fields") or {})
+                dict(raw_evidence.get("fields") or {}), limit=320,
             )
             if fields:
                 evidence["fields"] = fields
@@ -1182,7 +1196,7 @@ def _compact_synthesis_result(value: Mapping[str, Any]) -> dict[str, Any]:
             if key in raw_context
         }
         fields = analysis_summary.preview_fields(
-            dict(raw_context.get("fields") or {})
+            dict(raw_context.get("fields") or {}), limit=320,
         )
         if fields:
             context["fields"] = fields
@@ -1841,6 +1855,123 @@ def _compact_chunk_attempt_failure(
     return result
 
 
+def _cap_attempt_failures(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep terminal failures first under the cap, then report in chunk order."""
+    def order(item: dict[str, Any]) -> tuple[int, str, int]:
+        return int(item["ordinal"]), str(item["chunk_id"]), int(item["attempt"])
+
+    kept = sorted(records, key=lambda item: (item["status"] != "failed", *order(item)))
+    return sorted(kept[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN], key=order)
+
+
+def _manifest_references(manifest: Mapping[str, Any]) -> dict[str, str]:
+    return {
+        key: str(manifest[key])
+        for key in ("first_reference", "last_reference")
+        if manifest.get(key)
+    }
+
+
+def _failed_chunk_review(outcome: Mapping[str, Any]) -> dict[str, Any]:
+    """Value-free review record, rebuilt from compact attempt codes if absent."""
+    if isinstance(outcome.get("review"), Mapping):
+        return dict(outcome["review"])
+    return recovery.task_diagnostics(
+        {
+            "stage": "chunk",
+            "status": "failed",
+            "attempts": int(outcome.get("attempts") or 0),
+            "attempt_history": [
+                {
+                    "attempt": item.get("attempt"),
+                    "status": item.get("status"),
+                    "diagnostics": [
+                        {"code": code} for code in item.get("diagnostic_codes") or []
+                    ],
+                    "run": {
+                        "status": "failed",
+                        "error_classification": str(item.get("failure_type") or ""),
+                    },
+                }
+                for item in outcome.get("attempt_failures") or []
+                if isinstance(item, Mapping)
+            ],
+        }
+    )
+
+
+class DetectRaptorChunkError(RuntimeError):
+    """A partition chunk failed every attempt; carries value-free outcomes for the hunt ledger."""
+
+    def __init__(
+        self,
+        outcomes: Iterable[Mapping[str, Any]],
+        manifests: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        super().__init__("DetectRaptor detection chunk analysis was not accepted.")
+        self.outcomes = [
+            {str(key): value for key, value in dict(item).items() if str(key) != "result"}
+            for item in outcomes
+        ]
+        self.manifests = {str(key): dict(value) for key, value in manifests.items()}
+
+
+def _record_hunt_failed_chunks(
+    path: Path,
+    *,
+    hunt_id: str,
+    org_id: str,
+    failed: Mapping[str, Mapping[str, Any]],
+    outcomes: Iterable[Mapping[str, Any]],
+    manifests: Mapping[str, Mapping[str, Any]],
+    budget: Mapping[str, int],
+    rerun: str = (
+        "Rerun the same hunt analysis command; hunt analysis has no "
+        "chunk-level resume and reviews every chunk again."
+    ),
+) -> None:
+    """Record failed and repaired hunt chunks value-free; resolve accepted ones."""
+    accepted = {
+        str(outcome.get("chunk_id") or ""): outcome
+        for outcome in outcomes
+        if str(outcome.get("status") or "") == "accepted"
+        and str(outcome.get("chunk_id") or "") not in failed
+    }
+    repaired = {key: outcome for key, outcome in accepted.items() if outcome.get("repair")}
+    ledger = recovery.FailedChunkLedger(
+        path, {"kind": "hunt", "hunt_id": hunt_id, "org_id": org_id},
+    )
+    for chunk_id, outcome in sorted({**failed, **repaired}.items()):
+        # Repaired chunks are logged as failures first, then resolved by the repair.
+        ledger.record_failure(
+            chunk_id,
+            _failed_chunk_review(outcome),
+            identity={
+                "artifact": str(dict(manifests.get(chunk_id) or {}).get("artifact") or ""),
+                "hunt_id": hunt_id,
+                "chunk_id": chunk_id,
+            },
+            budget=dict(budget),
+            next_steps={"rerun": rerun},
+            evidence=outcome.get("evidence"),
+        )
+    for chunk_id in sorted(accepted):
+        ledger.resolve(chunk_id, repair=dict(repaired.get(chunk_id) or {}).get("repair"))
+
+
+def _failed_closed_error(path: Path, chunk_ids: Iterable[str]) -> RuntimeError:
+    """The fail-closed hunt error names the review file and the failed chunk IDs."""
+    keys = sorted(chunk_ids)
+    return RuntimeError(
+        f"Hunt analysis failed closed: {len(keys)} chunk(s) were not accepted. "
+        "No synthesis checkpoint or update cursor was advanced. "
+        f"Review {path} (chunks: "
+        + ", ".join(keys[:10])
+        + (", ..." if len(keys) > 10 else "")
+        + ")."
+    )
+
+
 def _bounded_chunk_attempt_failures(
     outcomes: Iterable[Mapping[str, Any]],
     manifests: Mapping[str, Mapping[str, Any]],
@@ -1884,18 +2015,11 @@ def _bounded_chunk_attempt_failures(
                     "artifact": str(manifest.get("artifact") or "unknown"),
                     "row_count": int(manifest.get("row_count") or 0),
                     "input_tokens": int(manifest.get("input_tokens") or 0),
+                    **_manifest_references(manifest),
                     **compact,
                 }
             )
-    records.sort(
-        key=lambda item: (
-            int(item["ordinal"]),
-            str(item["chunk_id"]),
-            int(item["attempt"]),
-        )
-    )
-    total = len(records)
-    return records[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN], total
+    return _cap_attempt_failures(records), len(records)
 
 
 def compact_persisted_evidence(state: dict[str, Any]) -> None:
@@ -1961,13 +2085,6 @@ def _profile_for_artifact(
 ) -> dict[str, Any] | None:
     profile_map = profiles if isinstance(profiles, dict) else dict(profiles)
     return artifact_profiles.resolve_profile(artifact, profile_map)
-
-
-def _profile_for_source(
-    source: flow_analysis.FlowSource,
-    profiles: dict[str, dict[str, Any]],
-) -> dict[str, Any] | None:
-    return _profile_for_artifact(source.artifact, profiles)
 
 
 def _live_projections(
@@ -2064,7 +2181,7 @@ def _project_segment(
     client_identities: Mapping[str, Mapping[str, str]] | None = None,
     flow_ids_by_client: Mapping[str, str] | None = None,
 ) -> tuple[list[dict[str, Any]], list[str], str]:
-    profile = _profile_for_source(segment.source, profiles)
+    profile = _profile_for_artifact(segment.source.artifact, profiles)
     preferred = artifact_profiles.analysis_fields(profile)
     field_sources = collection_analysis.profile_field_sources(profile)
     projected, fields = collection_analysis.project_rows(
@@ -2644,6 +2761,8 @@ def iter_streaming_chunk_work(
             "artifact": str(public_chunk["artifact"]),
             "row_count": int(public_chunk["row_count"]),
             "input_tokens": int(public_chunk["input_tokens"]),
+            "first_reference": next(iter(source_rows), ""),
+            "last_reference": next(reversed(source_rows), ""),
         }
         if on_chunk is not None:
             on_chunk(manifest)
@@ -2698,6 +2817,45 @@ def iter_streaming_chunk_work(
         del work
 
 
+def _streaming_review_record(
+    base_task: AgentRequest,
+    chunk: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    review_history: list[dict[str, Any]],
+    attempts: int,
+    repair: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Raw record for recovery.task_diagnostics; it never leaves the chunk coroutine unfiltered."""
+    return {
+        "task_id": base_task.task_id,
+        "stage": "chunk",
+        "status": "accepted" if dict(repair or {}).get("outcome") == "repaired" else "failed",
+        "attempts": attempts,
+        "attempt_history": review_history,
+        "coverage": {
+            key: chunk[key]
+            for key in ("row_start", "row_end", "row_count", "task_chunk_index", "task_chunk_count")
+        },
+        "inputs": {
+            "input_sha256": recovery.fingerprint(base_task.prompt),
+            **{key: manifest[key] for key in ("ordinal", "input_tokens") if key in manifest},
+            **_manifest_references(manifest),
+        },
+        **({"repair": repair} if repair else {}),
+    }
+
+
+def _repaired_chunk_line(artifact: str, manifest: Mapping[str, Any], repair: Any) -> str:
+    """Hunt chunks are named by reference range and ledger key; their row positions are per-chunk."""
+    return analysis_summary.failed_chunk_line({
+        **_manifest_references(dict(manifest)),
+        "artifact": artifact,
+        "key": str(manifest.get("chunk_id") or ""),
+        "status": "resolved",
+        "repair": recovery.safe_repair(repair),
+    })
+
+
 async def _execute_streaming_chunk_work_async(
     work: Mapping[str, Any],
     *,
@@ -2723,9 +2881,23 @@ async def _execute_streaming_chunk_work_async(
     final_error = "chunk analysis failed"
     final_diagnostics: list[dict[str, Any]] = []
     attempt_failures: list[dict[str, Any]] = []
+    # Raw outputs stay in this coroutine; only value-free review data leaves it.
+    review_history: list[dict[str, Any]] = []
+    attempt_prompts: list[str] = []
+    correction_defects: list[dict[str, Any]] = []
     correction_attempts = analysis_limits.correction_attempts(work.get(
         "correction_attempts", analysis_limits.DEFAULT_VALIDATION_CORRECTION_ATTEMPTS))
-    for attempt in range(1, correction_attempts + 2):
+    policy = chunk_repair.active()
+    repair_reply: chunk_repair.RepairReply | None = None
+    repair_attempt = 0
+    findings_before = 0
+    skipped_repair = ""
+    for attempt in range(1, correction_attempts + 3):
+        repairing = attempt == repair_attempt
+        if attempt > correction_attempts + 1 and not repairing:
+            break
+        started_at = flow_analysis.now_utc()
+        attempt_prompts.append(task.prompt)
         run = None
         failure_type = "agent_failed"
         error_class = ""
@@ -2765,9 +2937,29 @@ async def _execute_streaming_chunk_work_async(
             failure_type = f"agent_{str(run.status or 'failed')}"
             final_diagnostics = []
             if run.status == "succeeded":
-                try:
-                    normalized = collection_analysis.validate_context_worker_result(
+                text: str | None = run.output
+                if repairing:
+                    repair_reply = chunk_repair.parse_repair_response(
                         run.output,
+                        defect_codes=[str(item.get("code") or "") for item in correction_defects],
+                        source_refs=set(source_rows),
+                        previous_line_count=len(
+                            str(review_history[-1]["run"].get("output") or "").splitlines()
+                        ),
+                    )
+                    text = repair_reply.body
+                try:
+                    if text is None:
+                        raise collection_analysis.WorkerResultError(
+                            "repair response has no REPAIRED body",
+                            diagnostics=[{
+                                "code": "repair_unrepairable"
+                                if repair_reply is not None and repair_reply.unrepairable
+                                else "repair_missing_body"
+                            }],
+                        )
+                    normalized = collection_analysis.validate_context_worker_result(
+                        text,
                         artifact=str(chunk["artifact"]),
                         chunk_index=int(chunk["task_chunk_index"]),
                         chunk_count=int(chunk["task_chunk_count"]),
@@ -2796,6 +2988,20 @@ async def _execute_streaming_chunk_work_async(
                 )
                 artifact_result["question"] = str(work["question"]).strip()
                 _add_provenance(artifact_result, dict(work["provenance"]))
+                repair = (
+                    chunk_repair.summary(
+                        repair_reply, outcome="repaired", attempt=attempt,
+                        findings_before=findings_before,
+                        findings_after=len(normalized.get("findings") or []),
+                    )
+                    if repairing
+                    else None
+                )
+                if repair is not None:
+                    artifact_result["limitations"] = [
+                        *list(artifact_result.get("limitations") or []),
+                        _repaired_chunk_line(str(chunk["artifact"]), dict(work["manifest"]), repair),
+                    ]
                 if progress_callback is not None:
                     progress_callback(
                         {
@@ -2813,6 +3019,25 @@ async def _execute_streaming_chunk_work_async(
                     "result": artifact_result,
                     "attempt_failures": attempt_failures,
                 }
+                if repair is not None:
+                    review_history.append({
+                        "attempt": attempt, "status": "accepted", "repair": True,
+                        "error": "", "diagnostics": [],
+                        "started_at": started_at, "completed_at": flow_analysis.now_utc(),
+                        "run": {"status": run.status, "output": run.output},
+                    })
+                    outcome["repair"] = repair
+                    outcome["review"] = recovery.task_diagnostics(
+                        _streaming_review_record(base_task, chunk, dict(work["manifest"]), review_history, attempt, repair)
+                    )
+                    outcome["evidence"] = prompt_debug.capture_failed_chunk(
+                        key=str(dict(work["manifest"])["chunk_id"]),
+                        prompts=attempt_prompts,
+                        record={"attempt_history": review_history},
+                        source_ids=sorted(
+                            {str(row.get("_SourceId") or "") for row in source_rows.values()} - {""}
+                        ),
+                    )
                 release_ephemeral_payload()
                 return outcome
         except Exception as exc:  # executor failures must become bounded outcomes
@@ -2829,20 +3054,62 @@ async def _execute_streaming_chunk_work_async(
         # model request is only a semantic correction for a successful provider
         # response that failed deterministic output validation.
         retryable = attempt <= correction_attempts and failure_type == "validation_failed"
+        # A validation failure that used the whole budget gets one repair call.
+        repair_next = (
+            not retryable and not repairing and policy is not None
+            and failure_type == "validation_failed"
+        )
+        repair_prompt: str | None = None
+        if repair_next:
+            runner_limits = getattr(runner, "limits", None)
+            repair_prompt = chunk_repair.build_repair_prompt(
+                base_task.prompt,
+                defects=final_diagnostics,
+                earlier_defects=correction_defects,
+                previous_output=str(getattr(run, "output", "") or ""),
+                rejected_count=attempt,
+                fits=chunk_repair.input_fits(
+                    getattr(runner_limits, "maximum_input_tokens", None),
+                    getattr(runner_limits, "token_encoding", None),
+                ),
+            )
+            if repair_prompt is None:
+                repair_next, skipped_repair = False, "repair_prompt_too_large"
+            elif not policy.claim():
+                repair_next, skipped_repair = False, "repair_limit_reached"
+        if final_error.startswith("Agent prompt exceeds maximum input tokens"):
+            failure_type = "input_limit"
         attempt_failures.append(
             _compact_chunk_attempt_failure(
                 attempt=attempt,
-                status="retrying" if retryable else "failed",
-                failure_type=(
-                    "input_limit"
-                    if final_error.startswith(
-                        "Agent prompt exceeds maximum input tokens"
-                    )
-                    else failure_type
-                ),
+                status="retrying" if retryable or repair_next else "failed",
+                failure_type=failure_type,
                 error=final_error,
                 diagnostics=[*initial_diagnostics, *final_diagnostics],
             )
+        )
+        completed_run = run is not None and not inspect.isawaitable(run)
+        review_history.append(
+            {
+                "attempt": attempt,
+                "status": "retrying" if retryable or repair_next else "failed",
+                **({"repair": True} if repairing else {}),
+                "error": final_error,
+                "diagnostics": initial_diagnostics or final_diagnostics,
+                "started_at": started_at,
+                "completed_at": flow_analysis.now_utc(),
+                "run": (
+                    {"status": "failed", "error_classification": failure_type}
+                    if failure_type in {"executor_error", "input_limit"} or not completed_run
+                    else {
+                        "status": run.status,
+                        "error_classification": getattr(run, "error_classification", ""),
+                        "attempt_count": getattr(run, "attempt_count", 0),
+                        "elapsed_seconds": getattr(run, "elapsed_seconds", 0),
+                        "output": run.output,
+                    }
+                ),
+            }
         )
         if progress_callback is not None:
             progress_callback(
@@ -2851,20 +3118,28 @@ async def _execute_streaming_chunk_work_async(
                     "task_id": task.task_id,
                     "chunk_id": str(dict(work["manifest"])["chunk_id"]),
                     "attempt": attempt,
-                    "status": "retrying" if retryable else "failed",
-                    "failure_type": (
-                        "input_limit"
-                        if final_error.startswith(
-                            "Agent prompt exceeds maximum input tokens"
-                        )
-                        else failure_type
-                    ),
+                    "status": "retrying" if retryable or repair_next else "failed",
+                    "failure_type": failure_type,
                     "error": final_error[:MAX_FAILED_CHUNK_ERROR_CHARS],
                     "diagnostics": initial_diagnostics or final_diagnostics,
                     "response_sha256": response_sha256,
                     "error_class": error_class,
                 }
             )
+        correction_defects.extend(final_diagnostics)
+        if repair_next:
+            findings_before = max(
+                chunk_repair.finding_count(str(item["run"].get("output") or ""))
+                for item in review_history
+            )
+            repair_attempt = attempt + 1
+            task = replace(
+                base_task,
+                prompt=str(repair_prompt),
+                output_name=base_task.output_name + ".repair",
+                metadata={**base_task.metadata, "attempt": attempt + 1, "repair": True},
+            )
+            continue
         if not retryable:
             break
         task = replace(
@@ -2872,17 +3147,41 @@ async def _execute_streaming_chunk_work_async(
             prompt=collection_analysis_runtime.render_retry_prompt(
                 base_task.prompt,
                 error=final_error,
-                diagnostics=final_diagnostics,
+                diagnostics=correction_defects,
             ),
             output_name=base_task.output_name + f".retry-{attempt + 1}",
             metadata={**base_task.metadata, "attempt": attempt + 1},
         )
+    manifest = dict(work["manifest"])
+    repair = (
+        chunk_repair.summary(
+            repair_reply,
+            outcome="unrepairable" if repair_reply is not None and repair_reply.unrepairable else "failed",
+            attempt=attempt, findings_before=findings_before,
+        )
+        if repair_attempt
+        else chunk_repair.summary(
+            None, outcome="skipped", attempt=attempt, findings_before=0, reason=skipped_repair,
+        )
+        if skipped_repair
+        else None
+    )
+    record = _streaming_review_record(base_task, chunk, manifest, review_history, attempt, repair)
     outcome = {
         "status": "failed",
-        "chunk_id": str(dict(work["manifest"])["chunk_id"]),
+        "chunk_id": str(manifest["chunk_id"]),
         "attempts": attempt,
         "error": final_error[:MAX_FAILED_CHUNK_ERROR_CHARS],
         "attempt_failures": attempt_failures,
+        "review": recovery.task_diagnostics(record),
+        "evidence": prompt_debug.capture_failed_chunk(
+            key=str(manifest["chunk_id"]),
+            prompts=attempt_prompts,
+            record=record,
+            source_ids=sorted(
+                {str(row.get("_SourceId") or "") for row in source_rows.values()} - {""}
+            ),
+        ),
     }
     release_ephemeral_payload()
     return outcome
@@ -2924,6 +3223,9 @@ async def execute_streaming_chunks_async(
         active_runner: Any = runner
         if shared_execute is not None:
             class SharedRunner:
+                # Read by the repair prompt's input check.
+                limits = runtime_limits
+
                 async def run(self, task: AgentRequest, **kwargs: Any) -> Any:
                     value = shared_execute(
                         task,
@@ -3230,7 +3532,6 @@ async def _synthesize_transient_results(
     question: str,
     spec: ResolvedAgentExecution,
     limits: Mapping[str, Any],
-    encoding_name: str,
     workdir: Path,
     runtime_dir: Path,
     task_mode: str = "targeted_hunt",
@@ -3377,26 +3678,52 @@ def _estimated_detectraptor_chunks(
     )
 
 
-def _detectraptor_transport_diagnostic(
-    exc: Exception,
+def _append_bounded(record: dict[str, Any], key: str, item: Any, limit: int) -> None:
+    record[key] = [*list(record.get(key) or []), item][-limit:]
+
+
+def _record_detectraptor_attempt(
+    record: dict[str, Any],
     *,
     stage: str,
     attempt: int,
-    elapsed_seconds: float = 0.0,
-    rows_received: int = 0,
-    retry_delay_seconds: float | None = None,
-) -> dict[str, Any]:
+    started: float,
+    rows_received: int,
+    exc: Exception | None = None,
+) -> None:
+    """Append a bounded query diagnostic; a failure also enters transport_errors."""
+    elapsed = time.monotonic() - started
+    if exc is None:
+        _append_bounded(
+            record,
+            "query_diagnostics",
+            {
+                "stage": stage,
+                "attempt": attempt,
+                "status": "succeeded",
+                "elapsed_seconds": round(elapsed, 4),
+                "rows_received": rows_received,
+            },
+            MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS,
+        )
+        return
     diagnostic = {
         "stage": stage,
         "attempt": int(attempt),
         "status": flow_analysis_runtime.grpc_status_name(exc) or "UNKNOWN",
         "error_class": type(exc).__name__,
-        "elapsed_seconds": round(max(0.0, float(elapsed_seconds)), 4),
+        "elapsed_seconds": round(max(0.0, float(elapsed)), 4),
         "rows_received": max(0, int(rows_received)),
     }
-    if retry_delay_seconds is not None:
-        diagnostic["retry_delay_seconds"] = float(retry_delay_seconds)
-    return diagnostic
+    retry_delay = flow_analysis_runtime.detectraptor_retry_delay(attempt)
+    if retry_delay is not None:
+        diagnostic["retry_delay_seconds"] = float(retry_delay)
+    _append_bounded(
+        record, "transport_errors", diagnostic, MAX_DETECTRAPTOR_TRANSPORT_ERRORS
+    )
+    _append_bounded(
+        record, "query_diagnostics", dict(diagnostic), MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS
+    )
 
 
 async def _detectraptor_transport_retry_wait(
@@ -3416,6 +3743,65 @@ async def _detectraptor_transport_retry_wait(
             flow_analysis_runtime.reconnect_query_client(api)
     await asyncio.sleep(delay)
     return delay
+
+
+async def _retry_detectraptor_read_query(
+    stage: str,
+    query: Callable[[], Any],
+    *,
+    api: Any,
+    recovery_record: dict[str, Any],
+    persist_record: Callable[[str], None],
+    reconnect_lock: asyncio.Lock | None,
+    success_rows: Callable[[Any], int],
+    fallback: Callable[[Exception], Any] | None = None,
+) -> Any:
+    """Run one replay-safe DetectRaptor read query with bounded transport retries.
+
+    Every attempt and failure is checkpointed in the recovery record. A
+    non-retryable error returns ``fallback(exc)`` without a transport diagnostic
+    when a fallback is given; otherwise it is recorded and re-raised.
+    """
+    for attempt in range(1, flow_analysis_runtime.DETECTRAPTOR_TRANSPORT_ATTEMPTS + 1):
+        recovery_record["attempt"] = attempt
+        persist_record(stage)
+        attempt_started = time.monotonic()
+        try:
+            result = await asyncio.to_thread(query)
+            _record_detectraptor_attempt(
+                recovery_record,
+                stage=stage,
+                attempt=attempt,
+                started=attempt_started,
+                rows_received=success_rows(result),
+            )
+            return result
+        except Exception as exc:
+            retryable = flow_analysis_runtime.is_retryable_read_only_transport_error(
+                exc, rows_received=0
+            )
+            if not retryable and fallback is not None:
+                return fallback(exc)
+            _record_detectraptor_attempt(
+                recovery_record,
+                stage=stage,
+                attempt=attempt,
+                started=attempt_started,
+                rows_received=0,
+                exc=exc,
+            )
+            persist_record(stage)
+            if (
+                not retryable
+                or attempt >= flow_analysis_runtime.DETECTRAPTOR_TRANSPORT_ATTEMPTS
+            ):
+                raise
+            await _detectraptor_transport_retry_wait(
+                api,
+                attempt=attempt,
+                reconnect_lock=reconnect_lock,
+            )
+    raise RuntimeError("DetectRaptor transport retry loop is exhausted.")
 
 
 def _detectraptor_context_source(
@@ -3519,81 +3905,35 @@ async def _analyze_detectraptor_partition(
                 query_sha256=str(census_values.get("query_sha256") or ""),
             )
         else:
-            for attempt in range(
-                1, flow_analysis_runtime.DETECTRAPTOR_TRANSPORT_ATTEMPTS + 1
-            ):
-                recovery_record["attempt"] = attempt
-                persist_record("census")
-                attempt_started = time.monotonic()
-                try:
-                    census = await asyncio.to_thread(
-                        flow_analysis_runtime.query_detectraptor_evtx_stack_census,
-                        api,
-                        hunt_id=hunt_id,
-                        partition=partition,
-                        time_predicate=time_predicate,
-                        time_environment=time_environment,
-                        detection_regex=detection_regex,
-                        query_timeout_seconds=query_timeout_seconds,
-                    )
-                    recovery_record["query_diagnostics"] = [
-                        *list(recovery_record.get("query_diagnostics") or []),
-                        {
-                            "stage": "census",
-                            "attempt": attempt,
-                            "status": "succeeded",
-                            "elapsed_seconds": round(
-                                time.monotonic() - attempt_started, 4
-                            ),
-                            "rows_received": 1,
-                        },
-                    ][-MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS:]
-                    break
-                except Exception as exc:
-                    retryable = flow_analysis_runtime.is_retryable_read_only_transport_error(
-                        exc, rows_received=0
-                    )
-                    if retryable:
-                        retry_delay = flow_analysis_runtime.detectraptor_retry_delay(
-                            attempt
-                        )
-                        recovery_record["transport_errors"] = [
-                            *list(recovery_record.get("transport_errors") or []),
-                            _detectraptor_transport_diagnostic(
-                                exc,
-                                stage="census",
-                                attempt=attempt,
-                                elapsed_seconds=time.monotonic() - attempt_started,
-                                rows_received=0,
-                                retry_delay_seconds=retry_delay,
-                            ),
-                        ][-MAX_DETECTRAPTOR_TRANSPORT_ERRORS:]
-                        recovery_record["query_diagnostics"] = [
-                            *list(recovery_record.get("query_diagnostics") or []),
-                            dict(recovery_record["transport_errors"][-1]),
-                        ][-MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS:]
-                        persist_record("census")
-                        if (
-                            attempt
-                            < flow_analysis_runtime.DETECTRAPTOR_TRANSPORT_ATTEMPTS
-                        ):
-                            await _detectraptor_transport_retry_wait(
-                                api,
-                                attempt=attempt,
-                                reconnect_lock=reconnect_lock,
-                            )
-                            continue
-                        raise
-                    stack_record.update(
-                        {
-                            "mode": "direct_fallback",
-                            "fallback_reason": (
-                                "census_failed_" + type(exc).__name__.casefold()
-                            ),
-                        }
-                    )
-                    census = None
-                    break
+
+            def census_fallback(exc: Exception) -> None:
+                stack_record.update(
+                    {
+                        "mode": "direct_fallback",
+                        "fallback_reason": (
+                            "census_failed_" + type(exc).__name__.casefold()
+                        ),
+                    }
+                )
+
+            census = await _retry_detectraptor_read_query(
+                "census",
+                lambda: flow_analysis_runtime.query_detectraptor_evtx_stack_census(
+                    api,
+                    hunt_id=hunt_id,
+                    partition=partition,
+                    time_predicate=time_predicate,
+                    time_environment=time_environment,
+                    detection_regex=detection_regex,
+                    query_timeout_seconds=query_timeout_seconds,
+                ),
+                api=api,
+                recovery_record=recovery_record,
+                persist_record=persist_record,
+                reconnect_lock=reconnect_lock,
+                success_rows=lambda _census: 1,
+                fallback=census_fallback,
+            )
         if census is not None:
             use_stack = (
                 census.reduced_row_count
@@ -3806,9 +4146,7 @@ async def _analyze_detectraptor_partition(
                 if str(outcome.get("status") or "") != "accepted" or not isinstance(
                     outcome.get("result"), Mapping
                 ):
-                    raise RuntimeError(
-                        "DetectRaptor detection chunk analysis was not accepted."
-                    )
+                    raise DetectRaptorChunkError(outcomes, attempt_manifests)
                 attempt_results.append(dict(outcome["result"]))
         except Exception as exc:
             retryable = flow_analysis_runtime.is_retryable_read_only_transport_error(
@@ -3816,22 +4154,14 @@ async def _analyze_detectraptor_partition(
             )
             if not retryable:
                 raise
-            retry_delay = flow_analysis_runtime.detectraptor_retry_delay(attempt)
-            recovery_record["transport_errors"] = [
-                *list(recovery_record.get("transport_errors") or []),
-                _detectraptor_transport_diagnostic(
-                    exc,
-                    stage="initial_analysis",
-                    attempt=attempt,
-                    elapsed_seconds=time.monotonic() - attempt_started,
-                    rows_received=attempt_rows,
-                    retry_delay_seconds=retry_delay,
-                ),
-            ][-MAX_DETECTRAPTOR_TRANSPORT_ERRORS:]
-            recovery_record["query_diagnostics"] = [
-                *list(recovery_record.get("query_diagnostics") or []),
-                dict(recovery_record["transport_errors"][-1]),
-            ][-MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS:]
+            _record_detectraptor_attempt(
+                recovery_record,
+                stage="initial_analysis",
+                attempt=attempt,
+                started=attempt_started,
+                rows_received=attempt_rows,
+                exc=exc,
+            )
             persist_record("initial_analysis")
             if attempt >= flow_analysis_runtime.DETECTRAPTOR_TRANSPORT_ATTEMPTS:
                 raise
@@ -3847,16 +4177,13 @@ async def _analyze_detectraptor_partition(
         partition_stats = attempt_stats
         acquired_model_rows = attempt_rows
         final_pool_status = attempt_pool_status
-        recovery_record["query_diagnostics"] = [
-            *list(recovery_record.get("query_diagnostics") or []),
-            {
-                "stage": "initial_analysis",
-                "attempt": attempt,
-                "status": "succeeded",
-                "elapsed_seconds": round(time.monotonic() - attempt_started, 4),
-                "rows_received": attempt_rows,
-            },
-        ][-MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS:]
+        _record_detectraptor_attempt(
+            recovery_record,
+            stage="initial_analysis",
+            attempt=attempt,
+            started=attempt_started,
+            rows_received=attempt_rows,
+        )
         break
     else:  # pragma: no branch - bounded loop either succeeds or raises
         if not reuse_initial:
@@ -3884,7 +4211,6 @@ async def _analyze_detectraptor_partition(
                 question=question,
                 spec=spec,
                 limits=limits,
-                encoding_name=encoding_name,
                 workdir=workdir,
                 runtime_dir=workdir / ".api-runtime",
                 shared_execute=shared_execute,
@@ -3959,7 +4285,7 @@ async def _analyze_detectraptor_partition(
     context_row_count = 0
     context_started = time.monotonic()
     if exact_stack:
-        for finding in initial_synthesis.get("findings") or []:
+        for finding in rank_findings(initial_synthesis.get("findings") or []):
             if not isinstance(finding, Mapping):
                 continue
             for evidence in finding.get("evidence") or []:
@@ -3976,6 +4302,7 @@ async def _analyze_detectraptor_partition(
                     {
                         "summary": str(finding.get("summary") or ""),
                         "confidence": str(finding.get("confidence") or ""),
+                        **priority_metadata(finding),
                         "count": max(1, int(fields.get("OccurrenceCount") or 1)),
                         "first_seen": fields.get("FirstSeen"),
                         "last_seen": fields.get("LastSeen"),
@@ -3993,77 +4320,26 @@ async def _analyze_detectraptor_partition(
         persist_record("context_hydration")
         context_by_ref: dict[str, list[dict[str, Any]]] = {}
         if selected_payloads:
-            for attempt in range(
-                1, flow_analysis_runtime.DETECTRAPTOR_TRANSPORT_ATTEMPTS + 1
-            ):
-                recovery_record["attempt"] = attempt
-                persist_record("context_hydration")
-                attempt_started = time.monotonic()
-                try:
-                    context_by_ref, context_query_hashes = (
-                        await asyncio.to_thread(
-                            flow_analysis_runtime.query_detectraptor_evtx_stack_context,
-                            api,
-                            hunt_id=hunt_id,
-                            partition=partition,
-                            evidence_by_group=selected_payloads,
-                            time_predicate=time_predicate,
-                            time_environment=time_environment,
-                            detection_regex=detection_regex,
-                            query_timeout_seconds=query_timeout_seconds,
-                        )
-                    )
-                    recovery_record["query_diagnostics"] = [
-                        *list(recovery_record.get("query_diagnostics") or []),
-                        {
-                            "stage": "context_hydration",
-                            "attempt": attempt,
-                            "status": "succeeded",
-                            "elapsed_seconds": round(
-                                time.monotonic() - attempt_started, 4
-                            ),
-                            "rows_received": sum(
-                                len(rows) for rows in context_by_ref.values()
-                            ),
-                        },
-                    ][-MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS:]
-                    break
-                except Exception as exc:
-                    retryable = (
-                        flow_analysis_runtime.is_retryable_read_only_transport_error(
-                            exc, rows_received=0
-                        )
-                    )
-                    retry_delay = flow_analysis_runtime.detectraptor_retry_delay(
-                        attempt
-                    )
-                    recovery_record["transport_errors"] = [
-                        *list(recovery_record.get("transport_errors") or []),
-                        _detectraptor_transport_diagnostic(
-                            exc,
-                            stage="context_hydration",
-                            attempt=attempt,
-                            elapsed_seconds=time.monotonic() - attempt_started,
-                            rows_received=0,
-                            retry_delay_seconds=retry_delay,
-                        ),
-                    ][-MAX_DETECTRAPTOR_TRANSPORT_ERRORS:]
-                    recovery_record["query_diagnostics"] = [
-                        *list(recovery_record.get("query_diagnostics") or []),
-                        dict(recovery_record["transport_errors"][-1]),
-                    ][-MAX_DETECTRAPTOR_QUERY_DIAGNOSTICS:]
-                    persist_record("context_hydration")
-                    if (
-                        not retryable
-                        or attempt
-                        >= flow_analysis_runtime.DETECTRAPTOR_TRANSPORT_ATTEMPTS
-                    ):
-                        raise
-                    await _detectraptor_transport_retry_wait(
-                        api,
-                        attempt=attempt,
-                        reconnect_lock=reconnect_lock,
-                    )
+            context_by_ref, context_query_hashes = await _retry_detectraptor_read_query(
+                "context_hydration",
+                lambda: flow_analysis_runtime.query_detectraptor_evtx_stack_context(
+                    api,
+                    hunt_id=hunt_id,
+                    partition=partition,
+                    evidence_by_group=selected_payloads,
+                    time_predicate=time_predicate,
+                    time_environment=time_environment,
+                    detection_regex=detection_regex,
+                    query_timeout_seconds=query_timeout_seconds,
+                ),
+                api=api,
+                recovery_record=recovery_record,
+                persist_record=persist_record,
+                reconnect_lock=reconnect_lock,
+                success_rows=lambda result: sum(
+                    len(rows) for rows in result[0].values()
+                ),
+            )
         recovery_record["query_hashes"]["context_hydration"] = context_query_hashes
 
         partition_source = flow_analysis_runtime.detectraptor_evtx_partition_source(
@@ -4125,6 +4401,7 @@ async def _analyze_detectraptor_partition(
                     "detection": partition.detection or "",
                     "source_ref": ref,
                     "confidence": metadata["confidence"],
+                    **priority_metadata(metadata),
                     "summary": metadata["summary"],
                     "payload_field": metadata["payload_field"],
                     "payload_sha256": hashlib.sha256(
@@ -5019,6 +5296,7 @@ async def _analyze_hunt_flows_locked(
                     "artifact": str(manifest.get("artifact") or "unknown"),
                     "row_count": int(manifest.get("row_count") or 0),
                     "input_tokens": int(manifest.get("input_tokens") or 0),
+                    **_manifest_references(manifest),
                     **compact,
                 }
                 if debug_validation:
@@ -5037,14 +5315,7 @@ async def _analyze_hunt_flows_locked(
                             "status": "running",
                         }
                     )
-            ordered_failures = sorted(
-                active_attempt_failures.values(),
-                key=lambda item: (
-                    int(item["ordinal"]),
-                    str(item["chunk_id"]),
-                    int(item["attempt"]),
-                ),
-            )
+            ordered_failures = list(active_attempt_failures.values())
             persist_progress(
                 phase="chunk_analysis",
                 force=task_status in {"repaired", "retrying", "failed"},
@@ -5059,9 +5330,7 @@ async def _analyze_hunt_flows_locked(
                     0,
                     len(ordered_failures) - MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN,
                 ),
-                chunk_attempt_failures=ordered_failures[
-                    :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
-                ],
+                chunk_attempt_failures=_cap_attempt_failures(ordered_failures),
                 **(
                     {
                         "validation_debug": copy.deepcopy(
@@ -5242,7 +5511,6 @@ async def _analyze_hunt_flows_locked(
             f"- Question: {question}",
             f"- Status: `{run_status}`",
             "- Report mode: progressive atomic checkpoint",
-            "- Velociraptor source of truth: yes",
             "",
             "## DetectRaptor progress",
             "",
@@ -5586,7 +5854,56 @@ async def _analyze_hunt_flows_locked(
             peak_active_partition_count
         )
         if failures:
-            failed_partition, failure = failures[0]
+            # Chunks of every partition reviewed in this run; completed partitions
+            # are reused without their outcomes on the next run.
+            reviewed_partitions = [
+                (value.outcomes, value.manifests)
+                if isinstance(value, DetectRaptorChunkError)
+                else (value["outcomes"], value["manifests"])
+                for value in pending_values
+                if isinstance(value, DetectRaptorChunkError)
+                or not isinstance(value, BaseException)
+            ]
+            partition_outcomes = [item for outcomes, _ in reviewed_partitions for item in outcomes]
+            failed_partition_chunks = {
+                str(item.get("chunk_id") or ""): item
+                for item in partition_outcomes
+                if str(item.get("status") or "") != "accepted"
+            }
+            repaired_partition_chunks = sorted(
+                str(item.get("chunk_id") or "")
+                for item in partition_outcomes
+                if str(item.get("status") or "") == "accepted" and item.get("repair")
+            )
+            chunk_failures = [item for item in failures if isinstance(item[1], DetectRaptorChunkError)]
+            other_failures = [item for item in failures if not isinstance(item[1], DetectRaptorChunkError)]
+            # Failed chunk IDs are recorded against the partition that holds them.
+            failed_partition, failure = (
+                chunk_failures[0] if failed_partition_chunks and chunk_failures else failures[0]
+            )
+            failed_chunks_path = analysis_root / FAILED_CHUNKS_FILENAME
+            if (
+                failed_partition_chunks
+                or repaired_partition_chunks
+                or failed_chunks_path.is_file()
+            ):
+                _record_hunt_failed_chunks(
+                    failed_chunks_path, hunt_id=hunt_id, org_id=org_id,
+                    failed=failed_partition_chunks, outcomes=partition_outcomes,
+                    manifests={
+                        key: value
+                        for _, manifests in reviewed_partitions
+                        for key, value in manifests.items()
+                    },
+                    budget={
+                        "validation_correction_attempts": analysis_configuration.validation_correction_attempts,
+                        "provider_max_retries": spec.max_retries,
+                    },
+                    rerun=(
+                        "Rerun the same hunt analysis command; it reviews failed "
+                        "DetectRaptor partitions again and reuses completed ones."
+                    ),
+                )
             completed_at = flow_analysis.now_utc()
             active = status_state.setdefault("active_analysis", {})
             active.update(
@@ -5631,11 +5948,50 @@ async def _analyze_hunt_flows_locked(
                             recovery_by_id[failed_partition.partition_id].get("attempt")
                             or 0
                         ),
+                        **(
+                            {
+                                "failed_partition_ids": [
+                                    partition.partition_id for partition, _ in failures
+                                ],
+                            }
+                            if len(failures) > 1
+                            else {}
+                        ),
+                        **(
+                            {
+                                "failed_chunks_file": str(failed_chunks_path),
+                                "repaired_chunk_ids": repaired_partition_chunks[
+                                    :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
+                                ],
+                            }
+                            if repaired_partition_chunks
+                            else {}
+                        ),
+                        **(
+                            {
+                                "failed_chunks_file": str(failed_chunks_path),
+                                "failed_chunk_ids": sorted(failed_partition_chunks)[
+                                    :MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN
+                                ],
+                            }
+                            if failed_partition_chunks
+                            else {}
+                        ),
                     },
                 ]
             )
             write_state(state_path, status_state)
             persist_detectraptor_outputs(run_status="failed")
+            if failed_partition_chunks:
+                error = _failed_closed_error(failed_chunks_path, failed_partition_chunks)
+                if other_failures:
+                    # Keep another partition's own failure visible beside the chunk failure.
+                    other_partition, other = other_failures[0]
+                    error = RuntimeError(
+                        f"{error} DetectRaptor partition {other_partition.detection} also "
+                        f"failed: {str(other)[:MAX_FAILED_CHUNK_ERROR_CHARS]}"
+                    )
+                raise error from failure
             raise failure
 
         evtx_interesting_context.sort(
@@ -6074,8 +6430,31 @@ async def _analyze_hunt_flows_locked(
         target_execution=str(target_execution_coverage or "unknown"),
         source_hunt_state=str(hunt_state or "unknown"),
     )
+    failed_chunks_path = analysis_root / FAILED_CHUNKS_FILENAME
+    chunk_manifests = {**evtx_partition_manifests, **emitted_chunks}
+    repaired_outcomes = {
+        str(outcome.get("chunk_id") or ""): outcome
+        for outcome in [*evtx_partition_outcomes, *chunk_outcomes]
+        if str(outcome.get("status") or "") == "accepted" and outcome.get("repair")
+    }
+    if failed_chunk_count or repaired_outcomes or failed_chunks_path.is_file():
+        # Accepted EVTX partition chunks resolve entries a failed partition left.
+        _record_hunt_failed_chunks(
+            failed_chunks_path, hunt_id=hunt_id, org_id=org_id,
+            failed=failed_outcomes, outcomes=[*evtx_partition_outcomes, *chunk_outcomes],
+            manifests=chunk_manifests,
+            budget={
+                "validation_correction_attempts": analysis_configuration.validation_correction_attempts,
+                "provider_max_retries": spec.max_retries,
+            },
+        )
+    if repaired_outcomes:
+        run_record["failed_chunks_file"] = str(failed_chunks_path)
+        run_record["repaired_chunk_ids"] = sorted(repaired_outcomes)[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN]
     if failed_chunk_count:
         run_record["status"] = "failed"
+        run_record["failed_chunks_file"] = str(failed_chunks_path)
+        run_record["failed_chunk_ids"] = sorted(failed_outcomes)[:MAX_FAILED_CHUNK_ATTEMPTS_PER_RUN]
         completed_at = flow_analysis.now_utc()
         persist_progress(
             phase="failed",
@@ -6105,10 +6484,7 @@ async def _analyze_hunt_flows_locked(
             [*list(failure_state.get("runs") or []), run_record]
         )
         write_state(state_path, failure_state)
-        raise RuntimeError(
-            f"Hunt analysis failed closed: {failed_chunk_count} chunk(s) were not accepted. "
-            "No synthesis checkpoint or update cursor was advanced."
-        )
+        raise _failed_closed_error(failed_chunks_path, failed_outcomes)
 
     persist_progress(
         phase="cumulative_synthesis",
@@ -6133,7 +6509,6 @@ async def _analyze_hunt_flows_locked(
             question=question,
             spec=spec,
             limits=limits,
-            encoding_name=encoding,
             workdir=analysis_root,
             runtime_dir=analysis_root / ".api-runtime",
             task_mode=task_mode,
@@ -6224,6 +6599,20 @@ async def _analyze_hunt_flows_locked(
     full_result = copy.deepcopy(dict(synthesis["host_result"]))
     if synthesis_mode == "none":
         full_result = copy.deepcopy(accepted_candidates)
+    if repaired_outcomes:
+        # Synthesis does not carry input limitations; the repair labels are added here.
+        full_result["limitations"] = list(dict.fromkeys([
+            *list(full_result.get("limitations") or []),
+            *(
+                _repaired_chunk_line(
+                    str(dict(chunk_manifests.get(chunk_id) or {}).get("artifact") or ""),
+                    {**dict(chunk_manifests.get(chunk_id) or {}), "chunk_id": chunk_id},
+                    outcome.get("repair"),
+                )
+                for chunk_id, outcome in sorted(repaired_outcomes.items())
+            ),
+        ]))
+        full_result.setdefault("coverage", {})["repaired_chunks"] = len(repaired_outcomes)
     result = _compact_synthesis_result(full_result)
     if synthesis_mode == "full":
         result["findings"] = analysis_summary.consolidate_exact_findings(
@@ -6712,8 +7101,6 @@ def render_hunt_report(
         f"- Review scope: `{state.get('review_scope', REVIEW_SCOPE_MANAGED_COLLECTION)}`",
         f"- Analysis method: `{state.get('analysis_method', 'full')}`",
         f"- Updated: `{state.get('updated_at', '')}`",
-        "- Velociraptor source of truth: yes",
-        "- Bulk raw result export: no",
         *(
             [
                 f"- Analysis status: `{active_analysis.get('status')}`",
@@ -7070,18 +7457,7 @@ def _chat_summary_with_detectraptor_stack(
     except ValueError:
         insertion = min(len(lines), 1)
     rendered = "\n".join([*lines[:insertion], *section, *lines[insertion:]]).rstrip() + "\n"
-    if len(rendered) <= analysis_summary.MAX_CHAT_SUMMARY_CHARS:
-        return rendered
-    suffix = (
-        "\n\nChat summary reached its 32,000-character guard; consult the "
-        "linked analysis report for remaining detail.\n"
-    )
-    return (
-        rendered[: analysis_summary.MAX_CHAT_SUMMARY_CHARS - len(suffix)]
-        .rsplit("\n", 1)[0]
-        .rstrip()
-        + suffix
-    )
+    return analysis_summary.bound_chat_markdown(rendered)
 
 
 def render_specialized_hunt_section(
@@ -7160,7 +7536,7 @@ def render_specialized_hunt_section(
             "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
         ]
     )
-    for artifact, item in artifacts[:MAX_SPECIALIZED_ARTIFACTS]:
+    for artifact, item in artifacts[:current_policy().artifact_sections]:
         workflow = dict(item.get("autoruns_residual_workflow") or {})
         golden = dict(item.get("autoruns_golden") or {})
         stack = dict(workflow.get("stack") or {})
@@ -7182,9 +7558,9 @@ def render_specialized_hunt_section(
         )
     if not artifacts:
         lines.append("| None | - | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |")
-    if len(artifacts) > MAX_SPECIALIZED_ARTIFACTS:
+    if len(artifacts) > current_policy().artifact_sections:
         lines.append(
-            f"\n{len(artifacts) - MAX_SPECIALIZED_ARTIFACTS} additional artifact(s) "
+            f"\n{len(artifacts) - current_policy().artifact_sections} additional artifact(s) "
             "remain in specialized state."
         )
 
@@ -7196,7 +7572,7 @@ def render_specialized_hunt_section(
     ]
     if golden_reductions:
         lines.extend(["", "### Autoruns GoldenDB reduction", ""])
-        for artifact, golden in golden_reductions[:MAX_SPECIALIZED_ARTIFACTS]:
+        for artifact, golden in golden_reductions[:current_policy().artifact_sections]:
             lines.append(
                 f"- `{_compact_specialized_text(artifact)}`: "
                 f"{int(golden.get('source_rows') or 0)} source; "
@@ -7225,7 +7601,7 @@ def render_specialized_hunt_section(
     ]
     if workflow_details or generic_stack_details:
         lines.extend(["", "### Streaming review", ""])
-        for label, workflow in workflow_details[:MAX_SPECIALIZED_ARTIFACTS]:
+        for label, workflow in workflow_details[:current_policy().artifact_sections]:
             stack = dict(workflow.get("stack") or {})
             classification = dict(workflow.get("classification") or {})
             context = dict(workflow.get("suspicious_context") or {})
@@ -7264,7 +7640,7 @@ def render_specialized_hunt_section(
                     f"SHA-256 `{_compact_specialized_text(potential.get('sha256'))}`"
                 )
         for artifact, stack_review in generic_stack_details[
-            :MAX_SPECIALIZED_ARTIFACTS
+            :current_policy().artifact_sections
         ]:
             lines.extend(
                 [
@@ -7294,24 +7670,9 @@ def render_specialized_hunt_section(
             ):
                 generic_leads.append((artifact, dict(pending)))
     if generic_leads:
-        severity_order = {
-            "critical": 0,
-            "high": 1,
-            "medium": 2,
-            "low": 3,
-            "info": 4,
-        }
         generic_leads.sort(
             key=lambda pair: (
-                severity_order.get(
-                    str(
-                        dict(pair[1].get("streaming_ai_review") or {}).get(
-                            "severity"
-                        )
-                        or ""
-                    ).casefold(),
-                    5,
-                ),
+                priority_key(dict(pair[1].get("streaming_ai_review") or {})),
                 int(pair[1].get("scope_row_count") or 0),
             )
         )
@@ -7321,7 +7682,7 @@ def render_specialized_hunt_section(
             "and original source rows. Findings remain provisional pending "
             "operator disposition."
         )
-        for artifact, pending in generic_leads[:MAX_SPECIALIZED_FINDINGS]:
+        for artifact, pending in generic_leads[:current_policy().detailed_findings]:
             ai_review = dict(pending.get("streaming_ai_review") or {})
             impact = dict(pending.get("impact") or {})
             review_match = dict(pending.get("review_match") or {})
@@ -7339,7 +7700,7 @@ def render_specialized_hunt_section(
             )
             lines.append(
                 f"- **{_compact_specialized_text(artifact)} "
-                f"{_compact_specialized_text(ai_review.get('severity') or 'info').upper()} "
+                f"{display_priority(ai_review)} "
                 f"{_compact_specialized_text(ai_review.get('disposition') or 'notable')}:** "
                 f"{_compact_specialized_text(ai_review.get('summary') or identity or 'Stack group')} — "
                 f"{int(review_match.get('row_count') or pending.get('scope_row_count') or 0)} occurrence(s), "
@@ -7360,12 +7721,17 @@ def render_specialized_hunt_section(
                     "  - Impacted machines: "
                     + ", ".join(
                         _compact_specialized_text(value)
-                        for value in machines[:20]
+                        for value in machines[:current_policy().context_items]
                     )
                 )
-        if len(generic_leads) > MAX_SPECIALIZED_FINDINGS:
+        if len(generic_leads) > current_policy().detailed_findings:
+            for artifact, pending in generic_leads[current_policy().detailed_findings:]:
+                review = dict(pending.get("streaming_ai_review") or {})
+                lines.append("- Indexed [" + display_priority(review) + "]: "
+                             + _compact_specialized_text(artifact) + " — "
+                             + _compact_specialized_text(review.get("summary") or "Stack group"))
             lines.append(
-                f"- {len(generic_leads) - MAX_SPECIALIZED_FINDINGS} additional "
+                f"- {len(generic_leads) - current_policy().detailed_findings} additional "
                 "follow-up finding(s) remain in specialized state."
             )
 
@@ -7377,7 +7743,7 @@ def render_specialized_hunt_section(
     ]
     if reductions:
         lines.extend(["", "### Data reduction", ""])
-        for artifact, reduction in reductions[:MAX_SPECIALIZED_FINDINGS]:
+        for artifact, reduction in reductions[:current_policy().detailed_findings]:
             lines.append(
                 f"- `{_compact_specialized_text(artifact)}` "
                 f"{_compact_specialized_text(reduction.get('classification') or 'reduction')}: "
@@ -7393,7 +7759,7 @@ def render_specialized_hunt_section(
     ]
     if case_filters:
         lines.extend(["", "### Filter decisions", ""])
-        for item in case_filters[:MAX_SPECIALIZED_FINDINGS]:
+        for item in case_filters[:current_policy().detailed_findings]:
             lines.append(
                 f"- `{_compact_specialized_text(item.get('status') or 'unknown')}` "
                 f"{_compact_specialized_text(item.get('reason') or 'No reason recorded.')} "
@@ -7411,6 +7777,26 @@ def render_specialized_hunt_section(
         if isinstance(item, Mapping)
     ]
     lines.extend(["", "### Specialized findings", ""])
+    # Older cached semantic groups may predate explicit report priority. Resolve
+    # from their stable source IDs without changing or rerunning accepted work.
+    input_by_id = {item["source_id"]: item for item in _specialized_finding_inputs(findings)}
+    enriched_groups = []
+    for item in consolidated_findings:
+        mapped = [input_by_id[source_id] for source_id in item.get("source_ids") or [] if source_id in input_by_id]
+        if not mapped or item.get("report_priority") or item.get("severity"):
+            mapped.append(item)
+        enriched_groups.append({**item, **priority_metadata(min(mapped, key=priority_key))})
+    consolidated_findings = enriched_groups
+    if consolidated_findings:
+        covered_ids = {str(value) for item in consolidated_findings for value in item.get("source_ids") or []}
+        # The semantic input cap must not become a report omission cap. Keep
+        # uncovered exact groups visible without another model invocation.
+        consolidated_findings.extend({
+            "summary": item["summary"], "artifacts": [item["artifact"]],
+            "source_ids": [source_id], "record_count": item["count"],
+            "review_ids": item["review_ids"], **priority_metadata(item),
+            "not_semantically_consolidated": True,
+        } for source_id, item in input_by_id.items() if source_id not in covered_ids)
     if consolidated_findings:
         manager = dict(finding_summary.get("manager") or {})
         lines.append(
@@ -7427,7 +7813,7 @@ def render_specialized_hunt_section(
                 f"cache hit `{bool(manager.get('cache_hit'))}`; "
                 f"fallback `{_compact_specialized_text(manager.get('fallback_reason') or 'none')}`."
             )
-        for finding in consolidated_findings[:MAX_SPECIALIZED_FINDINGS]:
+        for finding in rank_findings(consolidated_findings)[:current_policy().detailed_findings]:
             summary = _compact_specialized_text(
                 finding.get("summary") or "Finding recorded"
             )
@@ -7437,26 +7823,32 @@ def render_specialized_hunt_section(
             )
             count = int(finding.get("record_count") or 0)
             repeated = f" ({count} records)" if count > 1 else ""
-            lines.append(f"- **{artifact_names}:** {summary}{repeated}")
-        if len(consolidated_findings) > MAX_SPECIALIZED_FINDINGS:
+            lines.append(f"- [{display_priority(finding)}] **{artifact_names}:** {summary}{repeated}")
+        if len(consolidated_findings) > current_policy().detailed_findings:
+            lines.extend("- Indexed [" + display_priority(item) + "]: "
+                         + _compact_specialized_text(item.get("summary") or item.get("id"))
+                         for item in rank_findings(consolidated_findings)[current_policy().detailed_findings:])
             lines.append(
-                f"- {len(consolidated_findings) - MAX_SPECIALIZED_FINDINGS} "
+                f"- {len(consolidated_findings) - current_policy().detailed_findings} "
                 "additional consolidated finding group(s) remain in specialized state."
             )
         for limitation in finding_summary.get("limitations") or []:
             lines.append(f"- Limitation: {_compact_specialized_text(limitation)}")
     elif findings:
-        for finding in findings[:MAX_SPECIALIZED_FINDINGS]:
+        for finding in rank_findings(findings)[:current_policy().detailed_findings]:
             summary = _compact_specialized_text(
                 finding.get("summary") or finding.get("title") or "Finding recorded"
             )
             artifact = _compact_specialized_text(
                 finding.get("artifact") or "unknown"
             )
-            lines.append(f"- **{artifact}:** {summary}")
-        if len(findings) > MAX_SPECIALIZED_FINDINGS:
+            lines.append(f"- [{display_priority(finding)}] **{artifact}:** {summary}")
+        if len(findings) > current_policy().detailed_findings:
+            lines.extend("- Indexed [" + display_priority(item) + "]: "
+                         + _compact_specialized_text(item.get("summary") or item.get("id"))
+                         for item in rank_findings(findings)[current_policy().detailed_findings:])
             lines.append(
-                f"- {len(findings) - MAX_SPECIALIZED_FINDINGS} additional finding(s) "
+                f"- {len(findings) - current_policy().detailed_findings} additional finding(s) "
                 "remain in specialized state."
             )
     else:
@@ -7503,7 +7895,7 @@ def render_specialized_hunt_section(
     if autoruns_contexts:
         lines.extend(["", "### Representative specialized context", ""])
         for artifact, context, examples in autoruns_contexts[
-            :MAX_SPECIALIZED_ARTIFACTS
+            :current_policy().artifact_sections
         ]:
             lines.extend(
                 [
@@ -7517,14 +7909,14 @@ def render_specialized_hunt_section(
                             or context.get("identity_count")
                             or len(examples)
                         ),
-                        max_groups=MAX_SPECIALIZED_EXAMPLES,
+                        max_groups=current_policy().examples_per_finding,
                         max_endpoints_per_group=10,
                     ),
                 ]
             )
-        if len(autoruns_contexts) > MAX_SPECIALIZED_ARTIFACTS:
+        if len(autoruns_contexts) > current_policy().artifact_sections:
             lines.append(
-                f"- {len(autoruns_contexts) - MAX_SPECIALIZED_ARTIFACTS} "
+                f"- {len(autoruns_contexts) - current_policy().artifact_sections} "
                 "additional Autoruns workflow context set(s) remain in "
                 "specialized state."
             )
@@ -7582,8 +7974,6 @@ def render_canonical_hunt_report(
                     f"- Question: {question}",
                     f"- Task mode: `{specialized.get('task_mode', 'targeted_hunt')}`",
                     f"- Response depth: `{specialized.get('response_depth', 'standard')}`",
-                    "- Velociraptor source of truth: yes",
-                    "- Bulk raw result export: no",
                     "",
                     "## Hunt synthesis",
                     "",
@@ -7615,7 +8005,7 @@ def _write_canonical_hunt_report(
     specialized_state: Mapping[str, Any] | None = None,
 ) -> Path:
     report_path = hunt_root / REPORT_FILENAME
-    atomic_io.write_text_atomic(
+    publish_report(
         report_path,
         render_canonical_hunt_report(
             hunt_root=hunt_root,

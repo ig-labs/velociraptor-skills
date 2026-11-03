@@ -70,28 +70,6 @@ ARTIFACT_LIST_KEYS = {
 }
 
 
-def _reject_unknown_keys(
-    value: dict[str, Any],
-    allowed: set[str],
-    label: str,
-) -> None:
-    unknown = sorted(set(value) - allowed)
-    if unknown:
-        raise RuntimeError(f"{label} contains unsupported keys: {', '.join(unknown)}")
-
-
-def _string_list(value: Any, label: str) -> list[str]:
-    if value is None:
-        return []
-    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
-        raise RuntimeError(f"{label} must be a list of strings.")
-    return artifact_profiles.unique_ordered(value)
-
-
-def artifact_base_name(value: str) -> str:
-    return str(value).split("[", 1)[0].strip()
-
-
 def validate_artifact_binding(
     scenario_id: str,
     value: Any,
@@ -102,7 +80,7 @@ def validate_artifact_binding(
     if not isinstance(value, dict):
         raise RuntimeError(f"{label} must be an object.")
     binding = deepcopy(value)
-    _reject_unknown_keys(binding, ARTIFACT_BINDING_KEYS, label)
+    artifact_profiles.reject_unknown_keys(binding, ARTIFACT_BINDING_KEYS, label)
 
     artifact = str(binding.get("artifact") or "").strip()
     if not artifact:
@@ -123,7 +101,7 @@ def validate_artifact_binding(
     binding["role"] = role
 
     for key in ARTIFACT_LIST_KEYS:
-        binding[key] = _string_list(binding.get(key), f"{label}.{key}")
+        binding[key] = artifact_profiles.require_string_list(binding.get(key), f"{label}.{key}")
 
     overlap = sorted(
         set(binding["required_fields"]) & set(binding["optional_fields"])
@@ -164,7 +142,7 @@ def validate_scenario(
     if not isinstance(value, dict):
         raise RuntimeError(f"Scenario {scenario_id!r} in {source} must be an object.")
     scenario = deepcopy(value)
-    _reject_unknown_keys(scenario, SCENARIO_KEYS, f"Scenario {scenario_id!r}")
+    artifact_profiles.reject_unknown_keys(scenario, SCENARIO_KEYS, f"Scenario {scenario_id!r}")
 
     for key in ("title", "objective", "selection_guidance"):
         if key in scenario and not isinstance(scenario[key], str):
@@ -180,7 +158,7 @@ def validate_scenario(
 
     for key in SCENARIO_LIST_KEYS:
         if key in scenario or apply_defaults:
-            scenario[key] = _string_list(
+            scenario[key] = artifact_profiles.require_string_list(
                 scenario.get(key),
                 f"Scenario {scenario_id!r}.{key}",
             )
@@ -203,7 +181,7 @@ def validate_scenario(
             validate_artifact_binding(scenario_id, item, index=index)
             for index, item in enumerate(artifacts)
         ]
-        names = [artifact_base_name(item["artifact"]) for item in normalized_artifacts]
+        names = [artifact_profiles.artifact_base_name(item["artifact"]) for item in normalized_artifacts]
         duplicates = sorted({name for name in names if names.count(name) > 1})
         if duplicates:
             raise RuntimeError(
@@ -322,13 +300,13 @@ def scenarios_for_artifact(
     artifact_name: str,
     scenarios: dict[str, dict[str, Any]],
 ) -> list[tuple[str, dict[str, Any]]]:
-    requested = artifact_base_name(artifact_name)
+    requested = artifact_profiles.artifact_base_name(artifact_name)
     output: list[tuple[str, dict[str, Any]]] = []
     for scenario_id, scenario in scenarios.items():
         if scenario.get("enabled", True) is False:
             continue
         if any(
-            artifact_base_name(binding.get("artifact", "")) == requested
+            artifact_profiles.artifact_base_name(binding.get("artifact", "")) == requested
             for binding in scenario.get("artifacts", [])
         ):
             output.append((scenario_id, public_scenario(scenario)))

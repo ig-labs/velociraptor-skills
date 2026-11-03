@@ -6,6 +6,7 @@ import asyncio
 import json
 import os
 import re
+import shlex
 from itertools import chain
 from pathlib import Path
 
@@ -39,7 +40,7 @@ def configuration_checks() -> dict:
         # Resolver/parser exceptions can contain literal configuration values.
         analyst = {
             "status": "needs_configuration", "error_type": type(exc).__name__,
-            "issues": ["Could not resolve analyst configuration; run dfir ai doctor for details."],
+            "issues": ["Could not resolve analyst configuration; run vraptor ai doctor for details."],
             "authentication": "not_checked", "inference": "not_tested",
         }
         status = 1
@@ -47,7 +48,7 @@ def configuration_checks() -> dict:
     return {
         "status": "needs_attention" if needs_attention else "ready",
         "mode": "offline", "dotenv": dotenv, "analyst_agent": analyst,
-        "next_step": "Review dfir ai doctor; use dfir ai setup to configure the analyst." if needs_attention else "",
+        "next_step": "Review vraptor ai doctor; use vraptor ai setup to configure the analyst." if needs_attention else "",
     }
 
 
@@ -76,8 +77,8 @@ def initialize(investigation_id: str, case_root: Path, investigation_dir: str | 
         content = (
             template.read_text(encoding="utf-8")
             .replace("{{investigation_id}}", identity)
-            .replace("{{investigation_id_arg}}", repr(identity))
-            .replace("{{case_root_arg}}", repr(str(directory.parent)))
+            .replace("{{investigation_id_arg}}", shlex.quote(identity))
+            .replace("{{case_root_arg}}", shlex.quote(str(directory.parent)))
         )
         try:
             with guidance.open("x", encoding="utf-8") as output:
@@ -131,11 +132,11 @@ def main(argv=None, *, configuration_error=None):
         checks["status"] = "needs_attention"
         checks["settings"] = {
             "status": "needs_configuration", "error_type": configuration_error,
-            "issues": ["Could not load operational settings; run dfir setup show to diagnose configuration."],
+            "issues": ["Could not load operational settings; run vraptor setup show to diagnose configuration."],
         }
         checks["analyst_agent"]["issues"].append(
             "Operational settings were unavailable; selected analyst credential sources could not be verified."
         )
-        checks["next_step"] = "Repair operational settings with dfir setup show, then rerun setup init."
+        checks["next_step"] = "Repair operational settings with vraptor setup show, then rerun setup init."
     print(json.dumps(result, indent=2))
     return 0

@@ -19,9 +19,9 @@ Single-host DetectRaptor collection analysis belongs to
    total/average/max evidence characters, estimated tokens/chunks, and rows
    beyond the routine preview. Small
    detections use direct review. Large detections run an exhaustive exact-payload
-   census. Stream every exact group only when the census removes at least 100
-   model rows and 5 percent; otherwise fall back to direct review. Do not sample,
-   generate filters, or exclude evidence.
+   census. Stream every exact group rare-first only when the census removes at
+   least 100 model rows and 5 percent; otherwise fall back to direct review. Do
+   not sample, generate filters, or exclude evidence.
    Do not select generic `--analysis-mode stack` for DetectRaptor hunt artifacts.
    An optional parameterized `--detection-regex` narrows the same automatic
    planner. The deprecated `detectraptor-stack` value is only a stream alias.
@@ -64,7 +64,11 @@ Single-host DetectRaptor collection analysis belongs to
   group, represented-row, and review accounting.
 - Batch-query original timestamp and machine context only for `_SourceRef`
   values returned in findings. Attach those rows to the accepted finding; do
-  not run another semantic AI pass or rescan unselected payloads.
+  not run a preview pass, another semantic AI pass, or a rescan of unselected
+  payloads.
+- Direct EVTX review transports full PowerShell Evidence. Exact-stack review
+  requeries selected groups; use extraction only when that follow-up is
+  insufficient.
 - EVTX detection-partition analysis is full-run only; reject `--update` rather
   than mixing incremental flow batches with detection partition identities.
 - Execute each EVTX detection in an isolated scheduler/result namespace. On a
@@ -129,9 +133,9 @@ Return:
 
 Grouped runs write `analysis/detectraptor-interesting-context.json` for
 timestamped events associated with reportable source references. Clean groups
-produce no model record. The model may sparsely return high-confidence reusable
-benign candidates with `global` or `site` scope; Python writes the complete exact
-payload as the final CSV field in
+produce no model record. The model may return sparse `UPLIFT` records only for
+high-confidence reusable benign candidates with `global` or `site` scope; Python
+writes the complete exact payload as the final CSV field in
 `analysis/detectraptor_whitelist_candidates.csv`. This is a simple review input
 for a later uplift workflow, not a full audit trail. No generated ignore regex
 is created and DetectRaptor is never mutated or promoted.
@@ -159,8 +163,10 @@ representative events with timestamp, endpoint, user, channel/event ID, and
 source reference. The Markdown never embeds the full payload or every event;
 the interesting-context ledger remains the complete hydrated result. Direct
 partition findings remain visible in progressive failed-run reports even when
-they did not require exact-payload hydration. A cumulative-synthesis exception
-must publish the report and both DetectRaptor ledgers with terminal `failed`
+they did not require exact-payload hydration. A partition chunk that fails
+every attempt is recorded value-free in `hunt-failed-chunks.json`, and the
+error names the file and chunk IDs. A cumulative-synthesis exception must
+publish the report and both DetectRaptor ledgers with terminal `failed`
 status while retaining the prior canonical checkpoint and resumable completed
 partitions.
 

@@ -126,6 +126,7 @@ def test_cli_show_migrates_default_analyst_path_without_overwrite(tmp_path, coll
         "HOME": str(tmp_path),
         "AI_SKILLS_REPO_ROOT": str(tmp_path),
         "PATH": os.defpath,
+        "PYTHONPATH": str(Path(sources.__file__).resolve().parents[2]),
     }
     result = subprocess.run(
         [
@@ -146,8 +147,8 @@ def test_cli_show_migrates_default_analyst_path_without_overwrite(tmp_path, coll
     shown = json.loads(result.stdout)
     assert shown["analyst_agent"]["config_file"] == str(target)
     assert shown["analyst_agent"]["exists"]
-    assert shown["values"]["api_user"] == "vraptor"
-    assert shown["sources"]["api_user"] == "default"
+    assert "api_user" not in shown["values"]
+    assert "api_user" not in shown["sources"]
     if collision:
         assert target.read_bytes() == b"existing"
         assert legacy.exists()

@@ -7,9 +7,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
+import vraptor
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-MODULE_ROOT = REPO_ROOT / "src/vraptor"
+
+MODULE_ROOT = Path(vraptor.__file__).parent
 
 
 def load_module(filename):

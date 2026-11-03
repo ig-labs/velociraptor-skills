@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import fnmatch
 import hashlib
 import json
 import os
@@ -19,20 +20,33 @@ from pathlib import Path, PurePosixPath
 from typing import Iterable
 
 from public_audit import append_audit, finding_metadata
+from sync_policy import (
+    SCHEMA_VERSION, Held, Mapping, PolicyError, load_deny_patterns, load_held, load_manifest,
+    load_state, pair_key, validate_relative_path,
+)
 
 
-SCHEMA_VERSION = 1
+# ai_skills keeps the runtime under packages/vraptor; this repository is flat.
+# Comparisons and imports read ai_skills text through these rewrites.
+LAYOUT_REWRITES = (
+    (b"packages/vraptor/src/vraptor", b"src/vraptor"),
+    (b"packages/vraptor/tests/core", b"tests/core"),
+    (b"packages.vraptor.tests.core", b"tests.core"),
+    (b"packages/vraptor/docs/", b"docs/"),
+)
+# The import contract documents the mapping itself, so it keeps both layouts.
+LAYOUT_EXEMPT = {"packages/vraptor/docs/contracts/public-import.md"}
+PACKAGE_DOCS = "packages/vraptor/docs/"
+# Package docs link to the root docs folder and other repository-root targets
+# from four levels down in ai_skills and two levels down here.
+PACKAGE_DOCS_ROOT_LINKS = ((b"../../../../docs/", b"../"), (b"../../../../", b"../../"))
+PUBLIC_LAYOUT_TEXT = re.compile(rb"src/vraptor|tests/core|tests\.core|docs/(?:reference|contracts)/")
+# Any public package-doc link that leaves the docs folder depends on the layout.
+PUBLIC_DOCS_ROOT_LINK = re.compile(rb"\.\./(?!reference/|contracts/)")
 
 
 class SyncError(RuntimeError):
     pass
-
-
-@dataclass(frozen=True)
-class Mapping:
-    ai_path: str
-    public_path: str
-    kind: str
 
 
 @dataclass(frozen=True)
@@ -60,6 +74,7 @@ class Action:
     source: FileValue | None
     target: FileValue | None
     base: str | None
+    upstream: str | None = None
 
 
 def run_git(
@@ -78,61 +93,6 @@ def run_git(
     if text:
         return proc.stdout.decode("utf-8", "strict")
     return proc.stdout
-
-
-def validate_relative_path(raw: str, label: str) -> str:
-    if not isinstance(raw, str) or not raw:
-        raise SyncError(f"invalid {label} path")
-    path = PurePosixPath(raw)
-    if path.is_absolute() or not path.parts or ".." in path.parts or path.as_posix() != raw:
-        raise SyncError(f"invalid {label} path: {raw!r}")
-    return path.as_posix()
-
-
-def load_manifest(path: Path) -> list[Mapping]:
-    mappings: list[Mapping] = []
-    seen_ai: set[str] = set()
-    seen_public: set[str] = set()
-    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        fields = raw.split("\t")
-        if len(fields) != 3:
-            raise SyncError(f"{path}:{line_number}: expected three tab-separated fields")
-        ai_path = validate_relative_path(fields[0].strip(), "ai_skills")
-        public_path = validate_relative_path(fields[1].strip(), "public")
-        kind = fields[2].strip()
-        if kind not in {"file", "tree"}:
-            raise SyncError(f"{path}:{line_number}: kind must be file or tree")
-        if ai_path in seen_ai or public_path in seen_public:
-            raise SyncError(f"{path}:{line_number}: duplicate manifest path")
-        for previous in mappings:
-            for current, prior in ((ai_path, previous.ai_path), (public_path, previous.public_path)):
-                if current.startswith(prior + "/") or prior.startswith(current + "/"):
-                    raise SyncError(f"{path}:{line_number}: overlapping manifest paths")
-        seen_ai.add(ai_path)
-        seen_public.add(public_path)
-        mappings.append(Mapping(ai_path, public_path, kind))
-    if not mappings:
-        raise SyncError(f"manifest has no mappings: {path}")
-    return mappings
-
-
-def load_deny_patterns(path: Path) -> list[tuple[str, re.Pattern[str]]]:
-    patterns: list[tuple[str, re.Pattern[str]]] = []
-    for line_number, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        fields = raw.split("\t", 1)
-        if len(fields) != 2:
-            raise SyncError(f"{path}:{line_number}: expected label and regex")
-        try:
-            patterns.append((fields[0], re.compile(fields[1], re.IGNORECASE)))
-        except re.error as exc:
-            raise SyncError(f"{path}:{line_number}: invalid regex: {exc}") from exc
-    return patterns
 
 
 def ensure_repo(path: Path) -> Path:
@@ -252,46 +212,35 @@ def file_mode(path: Path) -> str:
     return "100755" if executable else "100644"
 
 
+def excluded(mapping: Mapping, suffix: str) -> bool:
+    return any(fnmatch.fnmatchcase(suffix, glob) for glob in mapping.exclude)
+
+
 def check_source_clean(repo: Path, mappings: Iterable[Mapping], direction: str) -> None:
-    paths = [m.ai_path if direction == "from-ai" else m.public_path for m in mappings]
+    roots = [(m.ai_path if direction == "from-ai" else m.public_path, m) for m in mappings]
     output = str(
         run_git(
             repo,
-            ["status", "--porcelain", "--untracked-files=all", "--", *paths],
+            ["status", "--porcelain", "--untracked-files=all", "--", *(root for root, _ in roots)],
             text=True,
         )
     )
-    if output.strip():
-        names = [line[3:] for line in output.splitlines()[:10]]
-        suffix = "" if len(output.splitlines()) <= 10 else " ..."
+    dirty = []
+    for line in output.splitlines():
+        path = line[3:]
+        if line.strip() and not any(
+            m.kind == "tree" and path.startswith(root + "/") and excluded(m, path[len(root) + 1:])
+            for root, m in roots
+        ):
+            dirty.append(path)
+    if dirty:
+        names = dirty[:10]
+        suffix = "" if len(dirty) <= 10 else " ..."
         raise SyncError(
             "managed source paths are dirty; commit them or use --working-tree: "
             + ", ".join(names)
             + suffix
         )
-
-
-def load_state(path: Path) -> dict:
-    if not path.exists():
-        return {"schema_version": SCHEMA_VERSION, "files": {}}
-    state = json.loads(path.read_text(encoding="utf-8"))
-    if (not isinstance(state, dict) or state.get("schema_version") != SCHEMA_VERSION
-            or not isinstance(state.get("files"), dict)):
-        raise SyncError(f"unsupported or malformed sync state: {path}")
-    for key, record in state["files"].items():
-        if not isinstance(record, dict):
-            raise SyncError(f"malformed sync state record: {path}")
-        ai_path = validate_relative_path(record.get("ai_path"), "sync state ai_skills")
-        public_path = validate_relative_path(record.get("public_path"), "sync state public")
-        fingerprint = record.get("fingerprint")
-        if (key != pair_key(ai_path, public_path) or not isinstance(fingerprint, str)
-                or not re.fullmatch(r"sha256:[0-9a-f]{64};mode:100(?:644|755)", fingerprint)):
-            raise SyncError(f"malformed sync state key or fingerprint: {path}")
-    return state
-
-
-def pair_key(ai_path: str, public_path: str) -> str:
-    return f"{ai_path} => {public_path}"
 
 
 def suffix_for(path: str, base: str, kind: str) -> str:
@@ -334,6 +283,8 @@ def build_pairs(
                 raise SyncError(f"state path mapping mismatch: {ai_path} and {public_path}")
             suffixes.add(ai_suffix)
         for suffix in suffixes:
+            if excluded(mapping, suffix):
+                continue
             ai_path = join_mapping(mapping.ai_path, suffix)
             public_path = join_mapping(mapping.public_path, suffix)
             pair = Pair(pair_key(ai_path, public_path), ai_path, public_path)
@@ -341,6 +292,41 @@ def build_pairs(
                 raise SyncError(f"overlapping manifest entries manage the same file: {pair.key}")
             pairs[pair.key] = (pair, ai_files.get(ai_path), public_files.get(public_path))
     return [pairs[key] for key in sorted(pairs)]
+
+
+def public_setup_content(path: str, data: bytes) -> bytes:
+    """Remove marked local routing only from the shared setup skill."""
+    if path != "skills/velociraptor-engagement-setup/SKILL.md":
+        return data
+    marker = b"<!-- private-setup-routing -->"
+    lines = data.splitlines(keepends=True)
+    for line in lines:
+        if marker in line and not line.rstrip().endswith(marker):
+            raise ValueError("Malformed private setup routing line")
+    return b"".join(line for line in lines if marker not in line)
+
+
+def public_layout_content(ai_path: str, data: bytes) -> bytes:
+    """Rewrite ai_skills package paths in text to this repository's layout."""
+    if b"\0" in data or ai_path in LAYOUT_EXEMPT:
+        return data
+    for old, new in LAYOUT_REWRITES:
+        data = data.replace(old, new)
+    if ai_path.startswith(PACKAGE_DOCS):
+        for old, new in PACKAGE_DOCS_ROOT_LINKS:
+            data = data.replace(old, new)
+    return data
+
+
+def ai_import_content(ai_path: str, value: FileValue) -> FileValue:
+    """Refuse to copy layout-dependent text into ai_skills without review."""
+    data = value.data
+    if b"\0" not in data and ai_path not in LAYOUT_EXEMPT and (
+        PUBLIC_LAYOUT_TEXT.search(data)
+        or (ai_path.startswith(PACKAGE_DOCS) and PUBLIC_DOCS_ROOT_LINK.search(data))
+    ):
+        raise SyncError(f"layout-dependent paths need a manual port to ai_skills: {ai_path}")
+    return value
 
 
 def read_optional(reader: Reader, path: str, mode: str | None) -> FileValue | None:
@@ -355,12 +341,22 @@ def plan_actions(
     public_reader: Reader,
     state: dict,
     direction: str,
+    held: dict[str, Held] | None = None,
 ) -> list[Action]:
+    held = held or {}
     ai_reader.prepare([(pair.ai_path, mode) for pair, mode, _ in pairs if mode is not None])
     public_reader.prepare([(pair.public_path, mode) for pair, _, mode in pairs if mode is not None])
     actions: list[Action] = []
     for pair, ai_mode, public_mode in pairs:
         ai_value = read_optional(ai_reader, pair.ai_path, ai_mode)
+        upstream_fp = None
+        if ai_value is not None:
+            data = ai_value.data
+            exported = public_setup_content(pair.ai_path, data)
+            upstream_fp = FileValue(public_layout_content(pair.ai_path, exported), ai_value.mode).fingerprint
+            if direction == "from-ai":
+                data = exported
+            ai_value = FileValue(public_layout_content(pair.ai_path, data), ai_value.mode)
         public_value = read_optional(public_reader, pair.public_path, public_mode)
         source = ai_value if direction == "from-ai" else public_value
         target = public_value if direction == "from-ai" else ai_value
@@ -392,7 +388,11 @@ def plan_actions(
                 status = "converged"
             else:
                 status = "conflict"
-        actions.append(Action(status, pair, source, target, base))
+        # A held file keeps its reviewed adaptation: report it, never write it.
+        # An upstream change since the recorded review needs a manual port first.
+        if pair.public_path in held and status not in {"unchanged", "converged"}:
+            status = "held" if upstream_fp == held[pair.public_path].reviewed else "held-changed"
+        actions.append(Action(status, pair, source, target, base, upstream_fp))
     return actions
 
 
@@ -438,6 +438,8 @@ def accept_resolutions(actions: list[Action], paths: list[str], direction: str) 
         path = action.pair.public_path if direction == "from-ai" else action.pair.ai_path
         if path in requested:
             requested.remove(path)
+            if action.status in {"held", "held-changed"}:
+                raise SyncError(f"held files are ported by hand and never resolved: {path}")
             if action.status != "conflict" or action.source is None or action.target is None:
                 raise SyncError(f"--accept-resolved requires a two-file conflict: {path}")
             if re.search(rb"(?m)^(?:<<<<<<< |=======\r?$|>>>>>>> )", action.target.data):
@@ -497,7 +499,10 @@ def render_report(actions: list[Action], direction: str) -> None:
     visible = [action for action in actions if action.status != "unchanged"]
     for action in visible:
         path = action.pair.public_path if direction == "from-ai" else action.pair.ai_path
-        print(f"{action.status:15} {path}")
+        if action.status == "held-changed":
+            print(f"{action.status:15} {path} (upstream {action.upstream})")
+        else:
+            print(f"{action.status:15} {path}")
     counts: dict[str, int] = {}
     for action in actions:
         counts[action.status] = counts.get(action.status, 0) + 1
@@ -598,8 +603,10 @@ def main(argv: list[str] | None = None) -> int:
 
     manifest_path = public_repo / "config" / "sync-manifest.tsv"
     deny_path = public_repo / "config" / "public-deny-patterns.tsv"
+    held_path = public_repo / "config" / "sync-held.tsv"
     state_path = public_repo / ".sync-state.json"
     mappings = load_manifest(manifest_path)
+    held = load_held(held_path)
     state = load_state(state_path)
 
     if args.working_tree:
@@ -618,7 +625,10 @@ def main(argv: list[str] | None = None) -> int:
         ai_reader, public_reader = target_reader, source_reader
 
     pairs = build_pairs(mappings, ai_reader, public_reader, state)
-    actions = plan_actions(pairs, ai_reader, public_reader, state, args.direction)
+    unknown_held = sorted(set(held) - {pair.public_path for pair, _, _ in pairs})
+    if unknown_held:
+        raise SyncError("held paths are not managed files: " + ", ".join(unknown_held))
+    actions = plan_actions(pairs, ai_reader, public_reader, state, args.direction, held)
     actions = accept_resolutions(actions, args.accept_resolved, args.direction)
     render_report(actions, args.direction)
     if args.diff:
@@ -640,6 +650,7 @@ def main(argv: list[str] | None = None) -> int:
         "mappings": [(mapping.ai_path, mapping.public_path, mapping.kind) for mapping in mappings],
         "deny_patterns": [(label, pattern.pattern, pattern.flags) for label, pattern in patterns],
         "state": state,
+        "held": sorted((path, value.reviewed, value.reason) for path, value in held.items()),
         "accept_resolved": sorted(set(args.accept_resolved)),
         "allow_delete": args.allow_delete,
         "allow_policy_findings": args.allow_policy_findings,
@@ -659,11 +670,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.require_plan_hash is not None and args.require_plan_hash.lower() != plan_hash:
         raise SyncError("reviewed plan has changed; run --check and review again before applying")
 
-    changed = [action for action in actions if action.status not in {"unchanged", "converged"}]
+    changed = [action for action in actions if action.status not in {"unchanged", "converged", "held"}]
     if not args.apply:
         return 1 if changed or findings else 0
     if conflicts:
         raise SyncError("refusing to apply: resolve files changed differently on both sides")
+    held_changed = [action.pair.public_path for action in actions if action.status == "held-changed"]
+    if held_changed:
+        raise SyncError(
+            "refusing to apply: upstream changed held files since review; port them by hand and "
+            "update their reviewed fingerprint in config/sync-held.tsv: " + ", ".join(held_changed)
+        )
     if reverse_pending and not args.allow_reverse_pending:
         raise SyncError(
             "refusing to apply: synchronize destination-only changes in the reverse "
@@ -675,20 +692,28 @@ def main(argv: list[str] | None = None) -> int:
         raise SyncError("refusing to apply content that matches public deny patterns")
 
     # Preflight every destination before the first write, including resolved files.
+    writes: dict[str, FileValue] = {}
     for action in actions:
         destination = target_path(action.pair, args.direction, ai_repo, public_repo)
         if destination.is_symlink() or any(parent.is_symlink() for parent in destination.parents):
             raise SyncError(f"symlink is not permitted in destination path: {destination}")
         current = FileValue(destination.read_bytes(), file_mode(destination)) if destination.is_file() else None
+        if current is not None and args.direction == "to-ai":
+            current = FileValue(public_layout_content(action.pair.ai_path, current.data), current.mode)
         if current != action.target or (destination.exists() and not destination.is_file()):
             raise SyncError(f"destination changed during planning: {destination}")
+        if action.status in {"add", "update"}:
+            if action.source is None:
+                raise SyncError(f"internal error: missing source for {action.pair.key}")
+            writes[action.pair.key] = (
+                ai_import_content(action.pair.ai_path, action.source)
+                if args.direction == "to-ai" else action.source
+            )
 
     for action in actions:
         destination = target_path(action.pair, args.direction, ai_repo, public_repo)
         if action.status in {"add", "update"}:
-            if action.source is None:
-                raise SyncError(f"internal error: missing source for {action.pair.key}")
-            write_file(destination, action.source)
+            write_file(destination, writes[action.pair.key])
         elif action.status == "delete":
             if destination.exists() or destination.is_symlink():
                 if destination.is_dir():
@@ -699,12 +724,15 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Applied synchronization and updated {state_path.relative_to(public_repo)}")
     if reverse_pending:
         print(f"Left destination-only files untouched: {len(reverse_pending)}")
+    held_actions = [action for action in actions if action.status == "held"]
+    if held_actions:
+        print(f"Left held files untouched: {len(held_actions)}")
     return 0
 
 
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, ValueError, json.JSONDecodeError, SyncError) as exc:
+    except (OSError, ValueError, json.JSONDecodeError, PolicyError, SyncError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         raise SystemExit(2)

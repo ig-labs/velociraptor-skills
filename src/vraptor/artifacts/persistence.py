@@ -65,6 +65,7 @@ AGENT_EVENT_METADATA_FIELDS = {
     "retry_after_seconds",
     "retryable",
     "total_tokens",
+    "usage_status",
 }
 
 
@@ -362,6 +363,15 @@ def _finding_ids_for_path(path: Path, metadata: dict[str, str]) -> list[str]:
     return []
 
 
+def _compact_markdown_limit(policy: dict) -> int:
+    from vraptor.analyze.reporting import active_policy
+
+    active = active_policy()
+    return active.compact_markdown_bytes if active is not None else int(
+        policy.get("compact_markdown_max_bytes") or DEFAULT_COMPACT_MARKDOWN_MAX_BYTES
+    )
+
+
 def _markdown_content_profile(
     path: Path,
     *,
@@ -614,10 +624,7 @@ def classify_analysis_file(
                     _markdown_content_profile(
                         path,
                         finding_ids=finding_ids,
-                        max_compact_bytes=int(
-                            policy.get("compact_markdown_max_bytes")
-                            or DEFAULT_COMPACT_MARKDOWN_MAX_BYTES
-                        ),
+                        max_compact_bytes=_compact_markdown_limit(policy),
                     )
                     if path.suffix.casefold() == ".md"
                     else "exact_structured_context"
@@ -634,10 +641,7 @@ def classify_analysis_file(
             _markdown_content_profile(
                 path,
                 finding_ids=finding_ids,
-                max_compact_bytes=int(
-                    policy.get("compact_markdown_max_bytes")
-                    or DEFAULT_COMPACT_MARKDOWN_MAX_BYTES
-                ),
+                max_compact_bytes=_compact_markdown_limit(policy),
             )
             if path.suffix.casefold() == ".md"
             else _json_content_profile(path)

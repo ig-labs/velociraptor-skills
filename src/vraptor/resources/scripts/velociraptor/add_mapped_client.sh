@@ -24,7 +24,7 @@ HEALTH_FAILURE_THRESHOLD="${VELO_MAPPED_CLIENT_FAILURE_THRESHOLD:-3}"
 MAX_RESTARTS="${VELO_MAPPED_CLIENT_MAX_RESTARTS:-5}"
 RESTART_WINDOW_SECONDS="${VELO_MAPPED_CLIENT_RESTART_WINDOW_SECONDS:-600}"
 SUPERVISOR_MODE="${VELO_MAPPED_CLIENT_WATCHDOG_MODE:-nohup}"
-VELOCIRAPTOR_API_USER="${VELO_REMOTE_API_USER:-${VELO_LOCAL_API_USER:-codex}}"
+VELOCIRAPTOR_API_USER="${VELO_REMOTE_API_USER:-${VELO_LOCAL_API_USER:-vraptor}}"
 
 EVIDENCE_PATH=""
 EVIDENCE_TYPE="auto"
@@ -61,7 +61,7 @@ write_env_line() {
 usage() {
     printf '%s\n' \
         "Usage:" \
-        " ./dfir mapped add-remote [OPTIONS] <evidence-path>" \
+        " ./vraptor mapped add-remote [OPTIONS] <evidence-path>" \
         "" \
         "Options:" \
         " -n <name>  Override the mapped client hostname shown in Velociraptor" \
@@ -76,8 +76,8 @@ usage() {
         " -h         Show this help message" \
         "" \
         "Examples:" \
-        " ./dfir mapped add-remote --api-client api.yaml --client-config client.yaml /cases/disk.E01" \
-        " ./dfir mapped add-remote --api-client api.yaml --client-config client.yaml -n dead-disk-lab01 /mnt/windows" \
+        " ./vraptor mapped add-remote --api-client api.yaml --client-config client.yaml /cases/disk.E01" \
+        " ./vraptor mapped add-remote --api-client api.yaml --client-config client.yaml -n dead-disk-lab01 /mnt/windows" \
         ""
     exit 0
 }

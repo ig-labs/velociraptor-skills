@@ -318,6 +318,15 @@ class EngagementStateTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "certificate status is expired"):
                 self.live_state(api)
 
+    def test_yaml_identity_cannot_disguise_a_different_certificate_principal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            api = self.write_api(Path(directory))
+            config = yaml.safe_load(api.read_text())
+            config["name"] = "different-user"
+            api.write_text(yaml.safe_dump(config))
+            with self.assertRaisesRegex(RuntimeError, "certificate identity differ"):
+                readiness.validate_api_client_security(api)
+
     def test_certificate_inside_rotation_window_is_marked_expiring(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

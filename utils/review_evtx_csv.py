@@ -9,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 
 DEFAULT_CONTEXT_CHARS = 180
@@ -127,20 +127,6 @@ def snippet_for_match(text: str, start: int, end: int, context_chars: int) -> st
     if suffix_end < len(text):
         snippet += "..."
     return collapse_text(snippet)
-
-
-def iter_csv_rows(path: Path) -> Iterator[tuple[int, dict[str, str]]]:
-    try:
-        with path.open("r", encoding="utf-8", newline="") as handle:
-            reader = csv.DictReader(handle)
-            if not reader.fieldnames:
-                raise RuntimeError(f"CSV file {path} has no header row.")
-            for row_number, row in enumerate(reader, start=2):
-                yield row_number, {str(key): str(value or "") for key, value in row.items() if key is not None}
-    except csv.Error as exc:
-        raise RuntimeError(f"CSV file {path} could not be parsed safely: {exc}") from exc
-    except OSError as exc:
-        raise RuntimeError(f"CSV file {path} could not be read: {exc}") from exc
 
 
 def output_row(

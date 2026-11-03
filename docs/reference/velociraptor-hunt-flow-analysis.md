@@ -80,7 +80,7 @@ analysis/run directory so accepted partition recovery is not silently lost.
 3. Run a full analysis to establish or replace the local checkpoint:
 
    ```bash
-   ./dfir hunt analyze \
+   ./vraptor hunt analyze \
      --id IR1234 \
      --hunt-id H.1234
    ```
@@ -89,15 +89,16 @@ analysis/run directory so accepted partition recovery is not silently lost.
    incremental update:
 
    ```bash
-   ./dfir hunt analyze \
+   ./vraptor hunt analyze \
      --id IR1234 \
      --hunt-id H.1234 \
      --update
    ```
 
 5. Treat `analysis-hunt.md` as generated analysis memory and Velociraptor as the
-   source of truth. Use `snapshot`, `export-results`, or `download-results` only
-   when durable evidence extraction is explicitly required.
+   source of truth. Use `hunt snapshot`, `hunt native export-results`, or
+   `hunt native download-results` only when durable evidence extraction is
+   explicitly required.
 
 A full run is the normal path. It gives a fresh analysis of the current hunt
 result set with query count based primarily on selected artifacts, not host
@@ -162,7 +163,9 @@ Every completed or provisional command response also includes a non-empty
 bounded Markdown `chat_summary`. Normal streaming derives it from the compact
 Python-owned synthesis result. Specialized Autoruns and generic-stack paths use
 their bounded workflow summaries, and grouped hunt responses combine per-hunt
-summaries under the same 32,000-character guard. Callers must surface this value
+summaries under the shared reporting policy's chat guard (32,000 characters by
+default). Priority selection and overflow follow the
+[reporting policy](reporting-policy.md). Callers must surface this value
 to the operator. Default stdout is bounded text and interactive or
 operator-initiated runs must retain it. Use `--format json` only when an explicit
 downstream integration will parse the unchanged structured response.
@@ -407,8 +410,9 @@ Prompts, source rows, model output, raw provider payloads, raw stderr, event log
 and runtime files remain transient by default. The separate explicit
 `--debug-chunk-prompts [N]` option retains standard chunk prompts, their returned
 AI responses/correction retries and a provenance manifest outside the analysis
-tree; see [prompt exports](chunk-prompt-debug.md).
-It does not change the contents of this value-free validation manifest.
+tree; see [prompt exports](chunk-prompt-debug.md). `--keep-failed-chunk-evidence`
+retains the same material only for chunks that fail every attempt.
+Neither option changes the contents of this value-free validation manifest.
 `last_validation_debug` in the compact state
 identifies the debug run, path, final status, timestamp, and file hash. A later
 non-debug run does not rewrite the last explicit debug manifest and marks its
@@ -481,7 +485,17 @@ provides a suitable stable event identity.
 The workflow is failure-closed:
 
 - any rejected or failed transient analyst chunk prevents publication;
+- a chunk whose last correction still fails validation gets one AI repair call
+  in the same run; an accepted repair is published with an `accepted after AI
+  repair` limitation, recorded and resolved in `hunt-failed-chunks.json`, and
+  listed in the run record's `repaired_chunk_ids`
+  ([repair contract](analysis-recovery.md#repair-a-chunk-after-its-correction-attempts));
 - failed chunk evidence and model output are not written to state;
+- each chunk that fails every attempt is recorded value-free in
+  `hunt-failed-chunks.json` (chunk ID, artifact, row and reference range, input
+  hash, attempts, defect codes); the error and run record name the file and chunk
+  IDs, and a later accepted run marks entries `resolved`
+  ([review contract](analysis-recovery.md#review-chunks-that-fail-every-attempt));
 - a hard cumulative synthesis failure prevents publication;
 - the previous successful checkpoint and update cursor remain unchanged;
 - a subsequent full run rebuilds from `hunt_results()`; and

@@ -1,6 +1,6 @@
 # Windows Artifact Analysis
 
-Source PDF: `IR-Guidebook-Final.pdf`
+Source PDF: `IR-Guidebook-Final.pdf` (not included in every checkout)
 
 Purpose: preserve the investigation nuance from the Microsoft Incident
 Response artifact guide in a repo-native format that future agents can read
@@ -27,8 +27,8 @@ How to use this note in this repo:
 - Treat the sections below as interpretation guardrails, not collection logic.
 - When multiple artifacts disagree, favor the artifact with the strongest
   semantics for the exact question being answered.
-- Keep the caveats in the investigation wiki and Spreadsheet of Doom whenever
-  an artifact is central to a finding.
+- Record these caveats in the finding's limitations and in the caller-owned
+  `assessment-host.md` whenever an artifact is central to a finding.
 
 ## Core Principle
 

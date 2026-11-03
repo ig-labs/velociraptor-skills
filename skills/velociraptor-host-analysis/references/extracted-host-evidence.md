@@ -6,7 +6,7 @@ host-analysis workflow.
 Resume host analysis through the exact saved request:
 
 ```bash
-dfir collect analyze \
+vraptor collect analyze \
   --id IR1234 \
   --client-id C.1234abcd \
   --request-id REQUEST_ID \

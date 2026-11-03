@@ -11,7 +11,7 @@ from vraptor.agent.profiles import PROFILE_NAMES
 from vraptor.agent.profiles import RESPONSE_DEPTH_NAMES
 from vraptor.agent.profiles import load_agent_profile_config
 from vraptor.agent.profiles import normalize_profile_name
-from vraptor.agent.profiles import normalize_response_depth as normalize_agent_response_depth
+from vraptor.agent.profiles import normalize_response_depth
 from vraptor.collect.catalog import IR_COLLECTION_BUNDLES
 from vraptor.collect.catalog import IR_COLLECTION_GROUPS
 from vraptor.collect.catalog import SUPPORTED_COLLECTION_TYPES
@@ -40,20 +40,12 @@ TASK_MODES = frozenset(PROFILE_NAMES)
 RESPONSE_DEPTHS = frozenset(RESPONSE_DEPTH_NAMES)
 
 
-def normalize_task_mode(value: str | None) -> str:
-    return normalize_profile_name(value)
-
-
-def normalize_response_depth(value: str | None) -> str:
-    return normalize_agent_response_depth(value)
-
-
 def response_depth_policy(
     response_depth: str | None,
     *,
     task_mode: str | None = None,
 ) -> dict[str, str]:
-    mode = normalize_task_mode(task_mode)
+    mode = normalize_profile_name(task_mode)
     if mode and mode not in TASK_MODES:
         raise ValueError(
             f"Unknown task mode {task_mode!r}; expected incident-response, targeted-hunt, "
@@ -84,7 +76,7 @@ def question_relevance_policy(
 ) -> dict[str, str]:
     """Return deterministic inclusion rules for the exact investigation question."""
     normalized = " ".join(str(question).casefold().split())
-    mode = normalize_task_mode(task_mode)
+    mode = normalize_profile_name(task_mode)
     if mode and mode not in TASK_MODES:
         raise ValueError(
             f"Unknown task mode {task_mode!r}; expected incident-response, targeted-hunt, "

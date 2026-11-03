@@ -9,8 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from vraptor.common import labels as common_labels
 from vraptor.common.cli_arguments import non_negative_int
 from vraptor.common.cli_arguments import positive_int
+from vraptor.common.clock import parse_utc
 from vraptor.paths import resolve_velociraptor_api_client_path
 from vraptor.api import VeloApiClient
 from vraptor.api import resolve_org_id
@@ -103,41 +105,7 @@ def build_client_vql(
 
 
 def parse_label_values(raw_value: Any) -> list[str]:
-    if raw_value is None:
-        return []
-    if isinstance(raw_value, list):
-        return sorted(
-            {str(item).strip() for item in raw_value if str(item).strip()}
-        )
-    if isinstance(raw_value, str):
-        stripped = raw_value.strip()
-        if not stripped:
-            return []
-        try:
-            parsed = json.loads(stripped)
-        except json.JSONDecodeError:
-            parsed = None
-        if isinstance(parsed, list):
-            return sorted(
-                {str(item).strip() for item in parsed if str(item).strip()}
-            )
-        return sorted(
-            {token.strip() for token in stripped.split(",") if token.strip()}
-        )
-    return [str(raw_value).strip()] if str(raw_value).strip() else []
-
-
-def parse_timestamp(value: Any) -> datetime | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+    return sorted(value for value in common_labels.parse_label_values(raw_value) if value)
 
 
 def comparable_values(values: Iterable[str], *, ignore_case: bool) -> set[str]:
@@ -171,7 +139,7 @@ def filter_client_rows(
         if excluded and excluded.intersection(comparable_labels):
             continue
 
-        last_seen = parse_timestamp(raw_row.get("LastSeen"))
+        last_seen = parse_utc(raw_row.get("LastSeen"))
         age_seconds: float | None = None
         if last_seen is not None:
             age_seconds = max(0.0, (now - last_seen).total_seconds())

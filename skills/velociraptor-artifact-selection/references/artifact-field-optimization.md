@@ -17,6 +17,7 @@ runtime configuration.
 ## Contents
 
 - [Field-handling contract](#field-handling-contract)
+- [Profile schema rules](#profile-schema-rules)
 - [Registry Hunter narrowing](#registry-hunter-narrowing)
 - [DetectRaptor review](#detectraptor-review)
 - [Execution](#execution)
@@ -68,6 +69,59 @@ Large values such as `Message`, `EventData`, `UserData`, `Details`,
 `FailureActions`, certificate objects, and nested hash objects should remain in
 raw evidence. Put bounded snippets or selected nested members in the slim
 review file.
+
+## Profile Schema Rules
+
+Apply these rules when editing the canonical `preferred-artifacts.json` or a
+site overlay. Store preferred sample fields, stack dimensions, aliases,
+normalizers, filters, and analysis routes in the canonical profile so hunting
+and host analysis resolve the same policy.
+
+Store accepted snapshot extraction expressions in `review.vql_select` and
+bounded in-memory expressions in `review.live_vql_select` in the same canonical
+profile. The workflow owns `FROM`, `WHERE`, grouping, ordering, and limits;
+profiles supply only trusted `SELECT` expressions. Live hunts retain `Fqdn`;
+exact-client host analysis removes simple `Fqdn` and `Hostname` expressions at
+execution time, as the [field-handling contract](#field-handling-contract)
+describes.
+
+Saved-hunt review CSV/JSONL projection reuses `review.sample_fields`,
+`review.timestamp_fields`, and `review.host_fields`. Add
+`review.saved_hunt_projection` only when an artifact needs materially different
+`summary_fields` or a non-default `max_source_fields` value. Generated review
+fields and the generic fallback are deterministic code policy, not catalog data.
+
+The exact optional object is:
+
+```json
+"saved_hunt_projection": {
+  "summary_fields": ["Name", "Path"],
+  "max_source_fields": 8
+}
+```
+
+Either key may be omitted, but the object must contain at least one key;
+`summary_fields` is an ordered unique string list and `max_source_fields` is an
+integer from 1 through 12. Site overlays using standalone fields such as
+`field_candidates`, `always_include`, or `artifact_patterns` are rejected.
+
+Store universal analysis-time policy in `review.time_filter`. Each logical role
+has a stable lowercase ID, an analyst-facing `semantics` description, and one or
+more trusted dotted field expressions. `default_roles` defines artifact-local OR
+semantics when the operator omits `--time-field`. Bounds are always strict open
+`(after,before)`. Do not infer a time field from arbitrary row keys: a bounded
+multi-artifact request filters artifacts with a known requested/default role and
+uses the normal unfiltered workflow for other artifacts. Changing this contract
+changes analysis identity and requires rebuilding incompatible local checkpoints
+from authoritative evidence.
+As a built-in deterministic fallback, an artifact name containing the literal
+`EventLogs` resolves to `event=EventTime` when its profile omits `time_filter`.
+An explicit mapping overrides the fallback; an explicit empty `time_filter`
+disables it. `Windows.Detection.PublicIP` is explicitly mapped to `EventTime`.
+
+The built-in reference and all site overlays must use schema 4. Older schemas,
+`model_routes`, and singular `model_route` fields are rejected; there are no
+compatibility aliases. Use `analysis_routes` and singular `analysis_route`.
 
 ## Registry Hunter Narrowing
 

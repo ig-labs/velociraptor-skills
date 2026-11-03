@@ -36,25 +36,3 @@ def hunt_source(hunt_id: str, artifact: str) -> ReviewSource:
             "ArtifactName": artifact,
         },
     )
-
-
-def flow_source(
-    *,
-    client_id: str,
-    flow_id: str,
-    artifact: str,
-) -> ReviewSource:
-    return ReviewSource(
-        source_type="flow",
-        source_id=f"{client_id}:{flow_id}:{artifact}",
-        artifact=artifact,
-        vql=(
-            "source(client_id=ClientId, flow_id=FlowId, "
-            "artifact=ArtifactName)"
-        ),
-        environment={
-            "ClientId": client_id,
-            "FlowId": flow_id,
-            "ArtifactName": artifact,
-        },
-    )

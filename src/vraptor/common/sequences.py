@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Iterable
 
-def unique_ordered(values: list[str]) -> list[str]:
+
+def unique_ordered(values: Iterable[str]) -> list[str]:
     """Keep the first occurrence of each value without normalizing it."""
     seen: set[str] = set()
     ordered: list[str] = []

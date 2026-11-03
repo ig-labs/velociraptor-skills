@@ -12,7 +12,7 @@ usage() {
         "   [max-restarts] [restart-window-seconds] [evidence-path] [foreground|nohup] [velociraptor-bin]" \
         "" \
         "Internal supervisor used by add_mapped_client.sh. Most operators should use:" \
-        " ./dfir mapped add-remote [OPTIONS] <evidence-path>"
+        " ./vraptor mapped add-remote [OPTIONS] <evidence-path>"
     exit 0
 }
 
@@ -34,7 +34,7 @@ RESTART_WINDOW_SECONDS="${11:-600}"
 EVIDENCE_PATH="${12:-}"
 SUPERVISOR_MODE="${13:-foreground}"
 VELOCIRAPTOR_BIN="${14:-${VELO_BIN:-${HOME}/velociraptor/velociraptor}}"
-VELOCIRAPTOR_API_USER="${VELO_REMOTE_API_USER:-${VELO_LOCAL_API_USER:-codex}}"
+VELOCIRAPTOR_API_USER="${VELO_REMOTE_API_USER:-${VELO_LOCAL_API_USER:-vraptor}}"
 
 CLIENT_PID_FILE="${CLIENT_DIR}/client.pid"
 SUPERVISOR_PID_FILE="${CLIENT_DIR}/supervisor.pid"

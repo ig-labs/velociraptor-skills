@@ -123,7 +123,7 @@ class CollectionAnalysisTest(unittest.TestCase):
         )
 
     def test_preferred_fields_and_direct_analysis_plan(self):
-        plan = collection_analysis.build_analysis_plan(
+        plan, _chunks = collection_analysis.build_analysis_workload(
             object(),
             finished_payload(),
             limits=replace(TEST_LIMITS, maximum_evidence_tokens_per_item=9_900),
@@ -404,7 +404,7 @@ class CollectionAnalysisTest(unittest.TestCase):
         )
         query = mock.Mock(side_effect=self.rows)
 
-        plan = collection_analysis.build_analysis_plan(
+        plan, _chunks = collection_analysis.build_analysis_workload(
             object(),
             payload,
             limits=replace(TEST_LIMITS, maximum_evidence_tokens_per_item=9_900),
@@ -430,7 +430,7 @@ class CollectionAnalysisTest(unittest.TestCase):
             {"When": f"2026-08-08T{i:02d}:00:00Z", "Command": "x " * 60}
             for i in range(8)
         ]
-        plan = collection_analysis.build_analysis_plan(
+        plan, _chunks = collection_analysis.build_analysis_workload(
             object(),
             finished_payload(rows=len(rows)),
             limits=replace(TEST_LIMITS, maximum_evidence_tokens_per_item=110),
@@ -501,7 +501,7 @@ class CollectionAnalysisTest(unittest.TestCase):
         autoruns_payload["artifact_flows"][0]["artifact"] = "Windows.Sysinternals.Autoruns"
         autoruns_payload["artifact_flows"][0]["artifact_name"] = "Windows.Sysinternals.Autoruns"
 
-        plan = collection_analysis.build_analysis_plan(
+        plan, _chunks = collection_analysis.build_analysis_workload(
             object(),
             autoruns_payload,
             limits=TEST_LIMITS,
@@ -720,10 +720,10 @@ class CollectionAnalysisTest(unittest.TestCase):
         failed = finished_payload(rows=0, state="ERROR")
         query = unittest.mock.Mock(side_effect=AssertionError("must not query"))
 
-        empty_plan = collection_analysis.build_analysis_plan(
+        empty_plan, _chunks = collection_analysis.build_analysis_workload(
             object(), empty, limits=TEST_LIMITS, collection_type="triage", profiles=self.profiles(), query_rows=query
         )
-        failed_plan = collection_analysis.build_analysis_plan(
+        failed_plan, _chunks = collection_analysis.build_analysis_workload(
             object(), failed, limits=TEST_LIMITS, collection_type="triage", profiles=self.profiles(), query_rows=query
         )
 
@@ -1080,34 +1080,6 @@ class CollectionAnalysisTest(unittest.TestCase):
         ):
             self.validate_worker("")
 
-    def test_chunk_results_merge_without_evidence_catalogue(self):
-        first = self.validate_worker(
-            self.worker_result(row_count=1, chunk_count=2),
-            row_count=1,
-            chunk_count=2,
-        )
-        second = self.validate_worker(
-            self.worker_result(
-                row_start=1,
-                row_count=1,
-                chunk_index=1,
-                chunk_count=2,
-                finding=False,
-            ),
-            row_start=1,
-            row_count=1,
-            chunk_index=1,
-            chunk_count=2,
-        )
-
-        merged = collection_analysis.merge_context_worker_results([second, first])
-
-        self.assertEqual(merged["reviewed_rows"], 2)
-        self.assertEqual(len(merged["findings"]), 1)
-        self.assertNotIn("evidence", merged)
-        self.assertNotIn("review_accounting", merged)
-        self.assertEqual(merged["chunk_count"], 2)
-
     def test_synthesis_story_preserves_accepted_worker_evidence_components(self):
         worker = self.validate_worker(self.worker_result())
         expected = [
@@ -1208,7 +1180,7 @@ class CollectionAnalysisTest(unittest.TestCase):
             captured.exception.diagnostics,
             [
                 {
-                    "allowed": ["FINDING", "EVIDENCE"],
+                    "allowed": ["FINDING", "EVIDENCE", "PRIORITY"],
                     "code": "unsupported_record",
                     "line": 1,
                     "record": "FINDINGS",

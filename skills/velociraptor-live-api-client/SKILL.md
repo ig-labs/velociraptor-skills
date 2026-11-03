@@ -1,21 +1,19 @@
 ---
 name: velociraptor-live-api-client
-description: Connect with existing Velociraptor API credentials, explicitly fetch remote API or endpoint configurations over SSH, execute bounded operator-provided VQL, and find or list clients. Use for generic live-server access, direct queries, client inventory, and remote offline-evidence setup.
+description: Connect with existing Velociraptor API credentials, explicitly fetch remote API or endpoint configurations over SSH, run bounded operator-provided VQL, and find or list clients. Use for generic live-server access, direct queries, and client inventory; for setup and mapping, use velociraptor-engagement-setup.
 ---
 
 # Velociraptor API access
 
-**Required server prerequisite:** follow the shared
-[DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md)
-for every new local server and connected live/remote server. If the live catalog
-contains no `DetectRaptor.` artifacts, run `Server.Import.Extras` with the
-DetectRaptor CSV row and verify installation before proceeding. Reuse a successful
-session check; a failed import blocks the workflow. Explicit read-only/no-import
-instructions and offline-only work retain their scope.
+**Server prerequisite:** complete the [DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md) for each new local or connected live/remote server before server work; a failed import blocks the workflow.
 
-Use the shared `vraptor` CLI (`dfir` is equivalent). Apply the shared
+Use the shared `vraptor` CLI. Investigation setup, resume and offline-evidence
+mapping belong to `velociraptor-engagement-setup`. Read the shared
 [operation authorization policy](../../docs/reference/velociraptor-operation-authorization.md)
-and [investigation context](../../docs/reference/velociraptor-engagement-context.md).
+before server-mutating VQL or any `--provision-api`, `--provision-client` or
+`--regenerate-remote-api` use, and the
+[investigation context](../../docs/reference/velociraptor-engagement-context.md)
+when choosing `--server-profile`, case paths or readiness.
 
 For an existing deployment, provide the API-client YAML to shared setup:
 
@@ -67,7 +65,10 @@ cached local file is reused before SSH checks unless `--force` is supplied.
 Operational settings provide SSH user/key and remote paths; the legacy
 `VELO_REMOTE_*` variables remain compatibility inputs. API acquisition also
 uses the shared API identity (`CLI > environment/dotenv > named connection >
-connection_defaults > vraptor`). Shared SSH user/key, server and endpoint config
+connection_defaults`; no built-in remote username). Configure `api_user` or pass
+`--api-user` through shared setup before fetching or provisioning API credentials.
+Existing API YAML can supply its own identity when no username is selected;
+explicit saved identities are preserved. Shared SSH user/key, server and endpoint config
 paths, remote binary and service account can also live in `[connection_defaults]`.
 Named connections override these defaults. Default destinations are
 `<config_root>/<server-profile>_api_client.yaml` and
@@ -85,10 +86,24 @@ Successful setup prints `To configure AI, run: vraptor ai setup`; `agent`
 remains an alias for `ai`. This is a next-step note, not an automatic provider
 configuration or connectivity test. Follow the printed settings-file selector.
 
-Generation is explicit:
+For a setup request with an explicitly configured API user (CLI,
+environment/dotenv or saved settings), pass `--provision-api` to shared `setup start` without a separate
+approval prompt, even with cached YAML. Cached YAML or an application fallback
+alone does not count; honor no-provision, read-only and fetch-only requests; local
+dead-disk setup never provisions. Full rule:
+[API-user provisioning](../../docs/reference/velociraptor-operation-authorization.md#api-user-provisioning).
+See the [shared account procedure](references/service-account-config.md).
 
-- `fetch-api --provision-api` may generate the selected API identity only after
-  confirming the remote file is absent.
+Generation uses these explicit CLI flags:
+
+- Shared `setup start --provision-api` first establishes the selected account:
+  generic installs prompt for manual administrator setup (skipped when the kept
+  cached YAML already passes the selected user's role checks; `--api-account-setup` runs
+  it on request); explicitly configured remote bootstrap credentials are
+  restricted to account provisioning. See the
+  [shared account procedure](references/service-account-config.md).
+- `fetch-api --provision-api` only signs missing operational YAML, without
+  `--role`, after confirming remote file absence. It does not create a live account.
 - `fetch-client --provision-client` may generate endpoint configuration only after
   confirming the remote file is absent.
 - `fetch-api --regenerate-remote-api` replaces the selected remote API YAML and
@@ -146,26 +161,19 @@ Use bounded read-only VQL unless a server mutation is explicitly authorized.
 
 ## Direct VQL
 
-Use the engagement-specific cached API client by id:
+Use the engagement-specific cached API client by id, read a longer query from a
+file, or pass VQL environment values without interpolating them into shell text:
 
 ```bash
-dfir query \
+vraptor query \
   --server-profile lab \
   --vql "SELECT client_id, os_info.hostname AS Hostname FROM clients() LIMIT 10"
-```
 
-Read a longer query from a file:
-
-```bash
-dfir query \
+vraptor query \
   --server-profile lab \
   --vql-file /path/to/query.vql
-```
 
-Pass VQL environment values without interpolating them into shell text:
-
-```bash
-dfir query \
+vraptor query \
   --server-profile lab \
   --env HostRegex='^server-' \
   --vql "SELECT * FROM clients() WHERE os_info.hostname =~ HostRegex"
@@ -189,35 +197,24 @@ query.
 
 ## Client Discovery
 
-Find exact client details and labels by hostname or FQDN:
+Find exact client details and labels by hostname or FQDN, or by exact client
+id; list all clients carrying an exact label; or combine inventory filters:
 
 ```bash
-dfir clients find \
+vraptor clients find \
   --server-profile lab \
   --name major
-```
 
-Find by exact client id:
-
-```bash
-dfir clients find \
+vraptor clients find \
   --server-profile lab \
   --client-id C.eeca51bbad4f01eb
-```
 
-List all clients carrying an exact label:
-
-```bash
-dfir clients list \
+vraptor clients list \
   --server-profile lab \
   --label investigation-scope \
   --limit 0
-```
 
-Combine inventory filters:
-
-```bash
-dfir clients list \
+vraptor clients list \
   --server-profile lab \
   --search 'srv|dc' \
   --os windows \

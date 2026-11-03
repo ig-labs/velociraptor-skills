@@ -96,6 +96,7 @@ class CollectionAnalysisForwardTest(unittest.TestCase):
             question="What is relevant?",
         )
 
+        self.assertEqual(command[1], "collect")
         self.assertIn("--request-id", command)
         self.assertNotIn("--host", command)
         self.assertNotIn("--collection-type", command)

@@ -351,14 +351,39 @@ def test_failed_hunt_partial_candidates_do_not_replace_published_checkpoint(tmp_
 
 
 @pytest.mark.parametrize("selected", [None, "none", "full"])
-def test_host_and_hunt_cli_default_to_preliminary(selected):
-    from vraptor.analyze.command import build_parser
+def test_host_and_hunt_cli_default_to_full(selected):
+    from vraptor.analyze.command import build_parser, resume_analysis_command
     from vraptor.hunt.command import parse_args
 
     option = [] if selected is None else ["--synthesis", selected]
     host = build_parser().parse_args(["--client-id", "C.test", *option])
     hunt = parse_args(["analyze", "--id", "test", "--hunt-id", "H.test", *option])
-    assert host.synthesis == hunt.synthesis == (selected or "none")
+    assert host.synthesis == hunt.synthesis == (selected or "full")
+    resume = resume_analysis_command(host, {"client_id": "C.test", "request_id": "r1"})
+    assert f"--synthesis {selected or 'full'}" in resume
+
+    # Exercise the parsed host default through final review, not just argparse.
+    calls = []
+    run = run_review([autoruns()], review_output(),
+                     plan={"synthesis_mode": host.synthesis}, calls=calls)
+    if selected == "none":
+        assert not calls
+        assert run["host_result"]["review_status"] == "not_requested"
+    else:
+        assert len(calls) == 1
+        assert run["host_result"]["final_review"]["status"] == "complete"
+
+
+@pytest.mark.parametrize("selected", [None, "none", "full"])
+def test_skip_ai_is_preserved_with_default_and_explicit_synthesis(selected):
+    from vraptor.analyze.command import build_parser
+    from vraptor.hunt.command import parse_args
+
+    option = [] if selected is None else ["--synthesis", selected]
+    host = build_parser().parse_args(["--client-id", "C.test", "--skip-ai", *option])
+    hunt = parse_args(["analyze", "--id", "test", "--hunt-id", "H.test", "--skip-ai", *option])
+    assert host.skip_ai and hunt.skip_ai
+    assert host.synthesis == hunt.synthesis == (selected or "full")
 
 
 def test_correction_retry_retains_defects_from_earlier_attempts():

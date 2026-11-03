@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import copy
+import inspect
 import json
 import re
 import time
@@ -16,11 +17,13 @@ from vraptor.analyze import (
     checkpoints,
     cli_output,
     model_options,
+    recovery,
     runtime,
     summary,
     synthesis,
 )
 from vraptor.common import atomic_io
+from vraptor.common.clock import now_utc
 from vraptor.common.hashing import sha256_file
 from vraptor.logging import operations
 from vraptor.paths import add_case_root_arg, resolve_case_root
@@ -64,14 +67,7 @@ def resolve_checkpoint(args) -> Path:
 def load_accepted(path: Path) -> tuple[dict, list[dict], dict]:
     saved = json.loads(path.read_text())
     if "artifact_summaries" in saved:
-        expected = checkpoints.canonical_hash(
-            {
-                k: v
-                for k, v in saved.items()
-                if k not in {"checkpoint_fingerprint", "completed_at"}
-            }
-        )
-        if expected != saved.get("checkpoint_fingerprint"):
+        if not checkpoints.request_checkpoint_valid(saved):
             raise ValueError("Saved request checkpoint failed integrity validation")
         artifacts, plans = [], []
         for item in saved["artifact_summaries"]:
@@ -135,6 +131,7 @@ async def summarize(
     path: Path, *, execution, limits, execute=None, force=False, progress=None
 ) -> dict:
     started = time.monotonic()
+    started_at = now_utc()
     original = path.read_bytes()
     saved, artifacts, plan = load_accepted(path)
     question = str(saved.get("question") or artifacts[0].get("question") or "").strip()
@@ -152,8 +149,59 @@ async def summarize(
         if force
         else synthesis.cached_result(saved.get("synthesis_cache") or {}, key)
     )
+    diagnostics_path = path.parent / "synthesis-diagnostics.json"
+    diagnostics = {
+        "schema_version": 1,
+        "scope": "saved_synthesis",
+        "operation_id": operations.current_operation_id(),
+        "started_at": started_at,
+        "completed_at": None,
+        "status": "running",
+        "reused": cached is not None,
+        "provider": execution.route.provider,
+        "model": execution.route.model,
+        "correction_settings": {
+            "synthesis_correction_attempts": limits.synthesis_correction_attempts,
+        },
+        "retention": "latest_synthesis_without_source_values_or_model_output",
+        "provider_calls": [],
+        "model_calls": 0,
+        "tasks": [],
+        "omitted_task_count": 0,
+    }
+
+    def persist_diagnostics(status, *, completed=False):
+        diagnostics["status"] = status
+        diagnostics["updated_at"] = now_utc()
+        if completed:
+            diagnostics["completed_at"] = now_utc()
+            diagnostics["elapsed_seconds"] = round(time.monotonic() - started, 3)
+        atomic_io.write_json_atomic(diagnostics_path, diagnostics, sort_keys=True)
+
+    def publish_summary(result, *, model_calls=0):
+        from vraptor.analyze.report_command import render_saved_report
+        from vraptor.analyze.report_publication import publish_report
+
+        report = path.parent / "synthesis-summary.md"
+        publish_report(report, render_saved_report(
+            result, checkpoint=path, checkpoint_hash=sha256_file(path), scope=plan["scope_type"],
+            model_calls=model_calls,
+        ))
+        return str(report)
+
+    persist_diagnostics("running")
     if cached is not None:
         operations.emit("synthesis_cache_hit", stage="synthesis", status="complete")
+        try:
+            if path.read_bytes() != original:
+                diagnostics["error_category"] = "checkpoint_changed"
+                raise RuntimeError("Checkpoint changed during synthesis; accepted analysis was left untouched")
+            report = publish_summary(cached)
+        except Exception:
+            diagnostics.setdefault("error_category", "report_publication_failed")
+            persist_diagnostics("failed", completed=True)
+            raise
+        persist_diagnostics(cached["status"], completed=True)
         return {
             "status": cached["status"],
             "reused": True,
@@ -161,14 +209,24 @@ async def summarize(
             "elapsed_seconds": round(time.monotonic() - started, 3),
             "analysis_result": cached,
             "checkpoint": str(path),
+            "report": report,
+            "diagnostics_file": str(diagnostics_path),
+            **operations.correlation_metadata(),
         }
     runner = None
+    attempt_results = {}
+    attempt_records = {}
     if execute is None:
-        runner = create_agent_runner(
-            execution,
-            limits=runtime.limits_from_plan(plan),
-            persist_runtime_files=False,
-        )
+        try:
+            runner = create_agent_runner(
+                execution,
+                limits=runtime.limits_from_plan(plan),
+                persist_runtime_files=False,
+            )
+        except Exception:
+            diagnostics["error_category"] = "runner_initialization_failed"
+            persist_diagnostics("failed", completed=True)
+            raise
 
         async def execute(task):
             return await runner.run(
@@ -182,44 +240,114 @@ async def summarize(
                 else None,
             )
 
+    def record_progress(event):
+        task_id, attempt = event.get("task_id"), event.get("attempt")
+        if task_id and attempt and event.get("status") in {"accepted", "retrying", "failed"}:
+            key = (task_id, attempt)
+            if key in attempt_records or len(attempt_records) < 200:
+                attempt_records[key] = {
+                    "attempt": attempt,
+                    "status": event["status"],
+                    "diagnostics": event.get("diagnostics") or [],
+                    "run": attempt_results.get(key, {}),
+                }
+                diagnostic = recovery.task_diagnostics({
+                    "task_id": task_id, "stage": event.get("phase"),
+                    "status": "accepted" if event["status"] == "accepted" else "failed",
+                    "attempts": attempt,
+                    "attempt_history": [value for (identifier, _), value in attempt_records.items()
+                                        if identifier == task_id],
+                })
+                diagnostics["tasks"] = [t for t in diagnostics["tasks"] if t["task_id"] != task_id]
+                diagnostics["tasks"].append(diagnostic)
+                persist_diagnostics("running")
+        if progress is not None:
+            progress(event)
+
+    async def recording_execute(task):
+        call = {
+            "task_id": task.task_id,
+            "attempt": task.metadata.get("attempt", 1),
+            "stage": task.metadata.get("stage", "synthesis"),
+            "started_at": now_utc(),
+            "completed_at": None,
+            "status": "running",
+        }
+        if len(diagnostics["provider_calls"]) < 200:
+            diagnostics["provider_calls"].append(call)
+        else:
+            diagnostics["omitted_provider_call_count"] = diagnostics.get("omitted_provider_call_count", 0) + 1
+        diagnostics["model_calls"] += 1
+        persist_diagnostics("running")
+        try:
+            value = execute(task)
+            result = await value if inspect.isawaitable(value) else value
+            call["status"] = result.status
+            call["provider"] = result.provider or execution.route.provider
+            call["model"] = result.model or execution.route.model
+            if len(attempt_results) < 200:
+                attempt_results[(task.task_id, call["attempt"])] = {
+                    "status": result.status, "output": result.output,
+                    "elapsed_seconds": result.elapsed_seconds,
+                    "attempt_count": result.attempt_count,
+                    "error_classification": result.error_classification,
+                }
+            return result
+        except BaseException as exc:
+            call["status"] = "interrupted" if isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt)) else "failed"
+            raise
+        finally:
+            call["completed_at"] = now_utc()
+            persist_diagnostics("running")
+
     try:
         run = await runtime.execute_host_synthesis_from_artifact_results_async(
             plan=plan,
             artifact_results=artifacts,
             question=question,
-            execute=execute,
-            progress_callback=progress,
+            execute=recording_execute,
+            progress_callback=record_progress,
         )
+        tasks = list(run.get("tasks") or [])
+        selected = sorted(tasks, key=lambda task: task.get("status") != "failed")
+        diagnostics["tasks"] = [recovery.task_diagnostics(task) for task in selected[:200]]
+        diagnostics["omitted_task_count"] = max(0, len(tasks) - 200)
+        diagnostics["model_calls"] = sum(int(t.get("attempts", 0)) for t in tasks)
+        result = summary.discard_full_rows(run["host_result"])
+        # Never overwrite analysis that changed while a model was running.
+        if path.read_bytes() != original:
+            diagnostics["error_category"] = "checkpoint_changed"
+            raise RuntimeError(
+                "Checkpoint changed during synthesis; accepted analysis was left untouched"
+            )
+        saved["synthesis_cache"] = synthesis.cache_record(result, key, source_identity=synthesis.source_fingerprint(
+            artifacts, question=question, scope=plan["scope_type"], plan=plan
+        ))
+        if "checkpoint_fingerprint" in saved:
+            saved["checkpoint_fingerprint"] = checkpoints.request_checkpoint_fingerprint(saved)
+        atomic_io.write_json_atomic(path, saved, sort_keys=True)
+        report = publish_summary(result, model_calls=diagnostics["model_calls"])
+        persist_diagnostics(result["status"], completed=True)
+        return {
+            "status": result["status"],
+            "reused": False,
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "model_calls": diagnostics["model_calls"],
+            "analysis_result": result,
+            "checkpoint": str(path),
+            "report": str(report),
+            "diagnostics_file": str(diagnostics_path),
+            **operations.correlation_metadata(),
+        }
+    except BaseException as exc:
+        diagnostics["error_category"] = diagnostics.get("error_category", "synthesis_execution_failed")
+        status = "interrupted" if isinstance(exc, (asyncio.CancelledError, KeyboardInterrupt)) else "failed"
+        persist_diagnostics(status, completed=True)
+        raise
     finally:
         if runner is not None:
             await runner.close()
-    result = summary.discard_full_rows(run["host_result"])
-    # Never overwrite analysis that changed while a model was running.
-    if path.read_bytes() != original:
-        raise RuntimeError(
-            "Checkpoint changed during synthesis; accepted analysis was left untouched"
-        )
-    saved["synthesis_cache"] = synthesis.cache_record(result, key)
-    if "checkpoint_fingerprint" in saved:
-        saved["checkpoint_fingerprint"] = checkpoints.canonical_hash(
-            {
-                k: v
-                for k, v in saved.items()
-                if k not in {"checkpoint_fingerprint", "completed_at"}
-            }
-        )
-    atomic_io.write_json_atomic(path, saved, sort_keys=True)
-    report = path.parent / "synthesis-summary.md"
-    atomic_io.write_text_atomic(report, summary.render_chat_summary(result))
-    return {
-        "status": result["status"],
-        "reused": False,
-        "elapsed_seconds": round(time.monotonic() - started, 3),
-        "model_calls": sum(int(t.get("attempts", 0)) for t in run.get("tasks", [])),
-        "analysis_result": result,
-        "checkpoint": str(path),
-        "report": str(report),
-    }
+
 
 
 def main(argv=None, *, results_only=False) -> int:
@@ -330,4 +458,5 @@ def main(argv=None, *, results_only=False) -> int:
     else:
         print(summary.render_chat_summary(payload["analysis_result"]))
         print(f"Model calls: {payload['model_calls']}; reused: {payload['reused']}")
+        print(f"Diagnostics: {payload['diagnostics_file']}")
     return 0 if payload.get("status") == "complete" else 2

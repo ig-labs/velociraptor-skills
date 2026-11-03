@@ -16,6 +16,14 @@ from typing import Any, Mapping
 
 from vraptor.paths import RepositoryEnvironment
 from vraptor.paths import repository_environment
+from vraptor.agent.model_budgets import (
+    CLAUDE_CODE_DISABLE_1M,
+    MIN_INPUT_TOKENS,
+    claude_code_1m_disabled,
+    claude_code_window,
+    effort_label,
+    effort_levels,
+)
 from vraptor.agent.registry import PROVIDERS, validate_endpoint
 from vraptor.agent import sources as config_sources
 
@@ -89,6 +97,8 @@ class UnresolvedAgentConfig:
     selection: Mapping[str, str] = field(default_factory=_empty_mapping)
     analysis_defaults: Mapping[str, Any] = field(default_factory=_empty_mapping)
     analysis_profile: Mapping[str, Any] = field(default_factory=_empty_mapping)
+    reporting_defaults: Mapping[str, Any] = field(default_factory=_empty_mapping)
+    reporting_profile: Mapping[str, Any] = field(default_factory=_empty_mapping)
 
 
 @dataclass(frozen=True)
@@ -133,10 +143,14 @@ class ResolvedAgentRoute:
     config_file: str = ""
     analysis_defaults: Mapping[str, Any] = field(default_factory=_empty_mapping)
     analysis_profile: Mapping[str, Any] = field(default_factory=_empty_mapping)
+    reporting_defaults: Mapping[str, Any] = field(default_factory=_empty_mapping)
+    reporting_profile: Mapping[str, Any] = field(default_factory=_empty_mapping)
     detected_harness: str = ""
     model_context_tokens: int = 0
     model_max_output_tokens: int = 0
     read_timeout_seconds: int = 120
+    # False when CLAUDE_CODE_DISABLE_1M_CONTEXT holds the Claude Code route to 200K.
+    claude_code_1m_context: bool = True
     credential_variable: str = ""
     harness_credential_variable: str = ""
     field_sources: Mapping[str, SourceProvenance] = field(
@@ -206,6 +220,7 @@ class ResolvedAgentRoute:
             },
             "config_source_mode": self.config_source_mode,
             "codex_status": self.codex_status,
+            "claude_code_1m_context": self.claude_code_1m_context,
             "credential_binding": (
                 self.credential_binding.public_dict()
                 if self.credential_binding is not None
@@ -528,13 +543,8 @@ _FIELD_ENVIRONMENTS: Mapping[str, str] = MappingProxyType(
         "model_context_tokens": "AI_SKILLS_ANALYST_AGENT_MODEL_CONTEXT_TOKENS",
         "model_max_output_tokens": "AI_SKILLS_ANALYST_AGENT_MODEL_MAX_OUTPUT_TOKENS",
         "read_timeout_seconds": "AI_SKILLS_ANALYST_AGENT_READ_TIMEOUT_SECONDS",
+        "claude_code_disable_1m_context": CLAUDE_CODE_DISABLE_1M,
     }
-)
-AGENT_CONFIGURATION_ENVIRONMENT_VARIABLES = tuple(
-    sorted(
-        set(_FIELD_ENVIRONMENTS.values())
-        | {"AI_SKILLS_ANALYST_AGENT_HARNESS", "AI_SKILLS_ANALYST_AGENT_CLAUDE_CONFIG"}
-    )
 )
 
 _APPLICATION_DEFAULTS: Mapping[str, Any] = MappingProxyType(
@@ -562,6 +572,7 @@ _APPLICATION_DEFAULTS: Mapping[str, Any] = MappingProxyType(
         "model_context_tokens": 0,
         "model_max_output_tokens": 0,
         "read_timeout_seconds": 120,
+        "claude_code_disable_1m_context": "",
     }
 )
 
@@ -765,6 +776,8 @@ def collect_unresolved_agent_config(
         selection=selection,
         analysis_defaults=MappingProxyType(selected.analysis_defaults),
         analysis_profile=MappingProxyType(selected.analysis_profile),
+        reporting_defaults=MappingProxyType(selected.reporting_defaults),
+        reporting_profile=MappingProxyType(selected.reporting_profile),
     )
     source_mode, _source = _selected_text(provisional, "config_source_mode")
     source_mode = source_mode.lower()
@@ -1312,14 +1325,41 @@ def resolve_unresolved_agent_route(
             raise RuntimeError(
                 "Anthropic reasoning_effort must be low, medium, high, xhigh or max"
             )
-        if provider == "anthropic" and (
-            model in {"haiku", "claude-haiku-4-5", "claude-haiku-4-5-20251001"}
-        ):
-            # Haiku 4.5 has no effort parameter. In particular, a model switch
-            # must not carry a saved/native Sonnet effort into SDK/API requests.
+        if provider == "anthropic" and effort_levels(provider, model) == ():
+            # Models without an effort parameter (Haiku 4.5). In particular, a
+            # model switch must not carry a saved/native Sonnet effort into
+            # SDK/API requests.
             values["reasoning_effort"] = ""
             provenance["reasoning_effort"] = SourceProvenance(
-                kind="model_capability", name="Haiku 4.5 does not support effort"
+                kind="model_capability",
+                name=f"{effort_label(provider, model)} does not support effort",
+            )
+        levels = (
+            effort_levels(provider, model)
+            if provider == "anthropic" and transport != "claude_agent_sdk"
+            else None
+        )
+        effort = values["reasoning_effort"]
+        if levels and effort and effort not in levels:
+            # The Messages API rejects an unsupported level; Claude Code lowers
+            # it. Reject a run override; lower an inherited setting the same way.
+            if provenance["reasoning_effort"].kind == "cli":
+                raise RuntimeError(
+                    f"{effort_label(provider, model)} supports reasoning effort "
+                    + ", ".join(levels)
+                )
+            order = ("low", "medium", "high", "xhigh", "max")
+            values["reasoning_effort"] = next(
+                (
+                    level
+                    for level in reversed(order[: order.index(effort) + 1])
+                    if level in levels
+                ),
+                levels[0],
+            )
+            provenance["reasoning_effort"] = SourceProvenance(
+                kind="model_capability",
+                name=f"{effort_label(provider, model)} highest effort up to {effort}",
             )
         key = (
             str(key_candidate.value)
@@ -1361,6 +1401,26 @@ def resolve_unresolved_agent_route(
         extras[name], source_values[name] = _selected_int(
             unresolved, name, minimum=1 if name == "read_timeout_seconds" else 0
         )
+    if route.protocol == "claude_agent_sdk":
+        extras["claude_code_1m_context"], source_values["claude_code_1m_context"] = (
+            _claude_code_1m_context(unresolved)
+        )
+    if not extras.get("claude_code_1m_context", True):
+        # Claude Code then runs every model at 200K, including [1m] variants;
+        # saved 1M limits must not reach the bounded analysis envelope.
+        disabled_by = source_values["claude_code_1m_context"]
+        context = claude_code_window()["context_tokens"]
+        output = context - MIN_INPUT_TOKENS
+        windowed = not 0 < extras["model_context_tokens"] <= context
+        if windowed:
+            extras["model_context_tokens"] = context
+            source_values["model_context_tokens"] = disabled_by
+        # An explicit smaller context keeps its own (possibly unset) output cap.
+        if extras["model_max_output_tokens"] > output or (
+            windowed and not extras["model_max_output_tokens"]
+        ):
+            extras["model_max_output_tokens"] = output
+            source_values["model_max_output_tokens"] = disabled_by
     if (
         extras["model_context_tokens"]
         and extras["model_max_output_tokens"] >= extras["model_context_tokens"]
@@ -1386,9 +1446,28 @@ def resolve_unresolved_agent_route(
         config_file=unresolved.selection.get("config_file", ""),
         analysis_defaults=unresolved.analysis_defaults,
         analysis_profile=unresolved.analysis_profile,
+        reporting_defaults=unresolved.reporting_defaults,
+        reporting_profile=unresolved.reporting_profile,
         detected_harness=unresolved.selection.get("detected_harness", ""),
         **extras,
     )
+
+
+def _claude_code_1m_context(
+    unresolved: UnresolvedAgentConfig,
+) -> tuple[bool, SourceProvenance]:
+    """Whether Claude Code keeps 1M context, as its subprocess will see it."""
+    value, source = _selected_text(unresolved, "claude_code_disable_1m_context")
+    if managed := config_sources.claude_managed_env(CLAUDE_CODE_DISABLE_1M):
+        # Managed settings override the inherited environment.
+        value, location = managed
+        source = SourceProvenance(
+            kind="claude_managed_settings",
+            name=CLAUDE_CODE_DISABLE_1M,
+            location=location,
+            explicit=True,
+        )
+    return not claude_code_1m_disabled(value), source
 
 
 def _merged_environment(

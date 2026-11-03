@@ -12,8 +12,7 @@ def repository_root() -> Path:
     if explicit:
         return Path(explicit).expanduser().resolve()
     for parent in Path(__file__).resolve().parents:
-        if (parent / "src/vraptor/resources").resolve() == resource_root():
-            return parent
-        if (parent / "packages/vraptor/src/vraptor").is_dir():
+        # Probe a file only a checkout has, not any folder named vraptor.
+        if (parent / "src/vraptor/resources/__init__.py").is_file():
             return parent
     return Path.cwd().resolve()

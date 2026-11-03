@@ -7,7 +7,7 @@ profiles; fail closed rather than guessing artifact names or parameters.
 ## Artifact discovery
 
 ```bash
-dfir artifacts inventory \
+vraptor artifacts inventory \
   --api-client /path/to/api_client.yaml \
   --output-dir <case_root>/IR1234/.cache/velociraptor/artifacts \
   --name-regex '^(MacOS\.|OSX\.|Darwin\.|Generic\.Client\.Info)'

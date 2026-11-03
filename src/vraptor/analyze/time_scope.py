@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -103,10 +101,6 @@ class TimeScope:
             "before": self.before,
             "requested_roles": list(self.requested_roles),
         }
-
-    def sha256(self) -> str:
-        payload = json.dumps(self.canonical(), sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
     def environment(self) -> dict[str, str]:
         env: dict[str, str] = {}

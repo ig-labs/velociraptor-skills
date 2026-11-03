@@ -13,7 +13,6 @@ from vraptor.artifacts import policy as artifact_policy
 from vraptor.autoruns import pipeline as autoruns
 from vraptor.autoruns import golden as autoruns_golden
 from vraptor.collect import requests as collection
-from vraptor.analyze import coordinator as flow_analysis_coordinator
 from vraptor.hunt import live
 
 
@@ -23,58 +22,6 @@ AUTORUNS_ARTIFACT = "IG.Windows.Sysinternals.Autoruns"
 UPSTREAM_AUTORUNS_ARTIFACT = "Windows.Sysinternals.Autoruns"
 
 
-def golden_lookup_configuration(
-    *,
-    tool="Autoruns.GoldenDB",
-    version="20260728",
-    inventory_hash="b" * 64,
-):
-    keys = ["a" * 40]
-    serialized = json.dumps(
-        keys,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    configuration = live.configured_autoruns_golden(
-        tool=tool,
-        version=version,
-    )
-    configuration.update(
-        {
-            "database": "/tmp/golden.sqlite",
-            "database_sha256": inventory_hash,
-            "identity_count": 1,
-            "record_count": 1,
-            "lookup_key_count": 1,
-            "lookup_payload_sha256": "c" * 64,
-            "lookup_gzip_base64": base64.b64encode(
-                gzip.compress(serialized, mtime=0)
-            ).decode("ascii"),
-            "lookup_transport": "gzip-base64-json",
-        }
-    )
-    return configuration
-
-
-def create_golden_database(path):
-    result = autoruns_golden.promote_records(
-        path,
-        [
-            {
-                "EntryLocation": r"hkcu\software\vendor\run",
-                "Entry": "Vendor App",
-                "Category": "Logon",
-                "Signer": "(Verified) Vendor",
-                "ImagePath": r"C:\Program Files\Vendor\App.exe",
-                "LaunchString": (
-                    r'"C:\Program Files\Vendor\App.exe" /quiet'
-                ),
-            }
-        ],
-        modified_time="2026-07-28T07:32:47Z",
-    )
-    return result["validation"]
-
-
 def consume_classification(result):
     """Model stubs must finish the streamed evidence before returning a manifest."""
     def classify(rows, **kwargs):
@@ -82,27 +29,6 @@ def consume_classification(result):
         return copy.deepcopy(result)
 
     return classify
-
-
-def accounted_autoruns_batches(groups, *, source_rows, residual_rows):
-    """Mirror the server protocol across response batch boundaries."""
-    records = []
-    for group in groups:
-        identity = {key: group[key] for key in ("ImagePath", "LaunchString", "Signer")}
-        sort_key = f"{group['Total']:020d}|" + json.dumps(
-            identity, ensure_ascii=False, separators=(",", ":"),
-        )
-        records.append({"_AutorunsStream": "group", **group, "SortKey": sort_key})
-    yield [{
-        "_AutorunsStream": "summary",
-        "SourceRows": source_rows,
-        "MatchedRows": source_rows - residual_rows,
-        "ResidualRows": residual_rows,
-        "PopulatedRows": sum(group["Total"] for group in groups),
-        "GroupCount": len(groups),
-    }]
-    yield sorted(records, key=lambda row: row["SortKey"], reverse=True)
-    yield [{"_AutorunsStream": "complete"}]
 
 
 class FakeDirectApi:
@@ -266,133 +192,28 @@ class FakeAutorunsUseCaseApi:
         yield []
 
 
-class FakeAutorunsGoldenResidualApi:
-    def __init__(self, residual_rows=3, inventory_hash="a" * 64):
+class FakeSafeBootAutorunsApi:
+    def __init__(self):
         self.calls = []
-        self.residual_rows = residual_rows
-        self.inventory_hash = inventory_hash
 
     def query(self, vql, env=None, **kwargs):
-        env = dict(env or {})
-        self.calls.append((vql, env, kwargs))
-        if "AS Inventory" in vql:
-            return [
-                {
-                    "Inventory": {
-                        "Definition": {
-                            "hash": self.inventory_hash,
-                            "filestore_path": "inventory/golden.sqlite",
-                        }
-                    }
-                }
-            ]
-        if "CountSql" in env:
-            return [{"IdentityCount": 100, "RecordCount": 100}]
+        self.calls.append((vql, dict(env or {}), kwargs))
         if "count() AS RowCount" in vql:
-            if any(
-                key.startswith("AutorunsSuspicious")
-                for key in env
-            ):
-                return [{"RowCount": 1}]
-            if "AutorunsGoldenKeys" in vql:
-                return [{"RowCount": self.residual_rows}]
-            return [{"RowCount": 10}]
+            return [{"RowCount": 1}]
         return []
 
-    def residual_groups(self):
-        return [
-            {
-                "ImagePath": rf"c:\users\user\residual-{index}.exe",
-                "LaunchString": f"residual-{index}.exe",
-                "Signer": "",
-                "Total": 1,
-            }
-            for index in range(self.residual_rows)
-        ]
-
     def query_batches(self, vql, env=None, **kwargs):
-        env = dict(env or {})
-        self.calls.append((vql, env, kwargs))
-        if "LET AutorunsCountedGroups" in vql:
-            yield from accounted_autoruns_batches(
-                self.residual_groups(), source_rows=10,
-                residual_rows=self.residual_rows,
-            )
-            return
-        if "LET AutorunsResidualRows" in vql:
-            yield self.residual_groups()
-            return
-        suspicious_image = next(
-            (
-                value
-                for key, value in env.items()
-                if key.startswith("AutorunsSuspicious")
-                and key.endswith("Value1")
-            ),
-            "",
-        )
-        if env.get("AutorunsSelectedHashesGzipBase64"):
-            suspicious_image = r"c:\users\user\residual-0.exe"
-        if suspicious_image:
-            index_match = re.search(r"residual-(\d+)", suspicious_image)
-            index = int(index_match.group(1)) if index_match else 0
-            image_path = rf"c:\users\user\residual-{index}.exe"
-            launch_string = f"residual-{index}.exe"
-            yield [
-                {
-                    "EntryLocation": r"hkcu\software\vendor\run",
-                    "Entry": f"residual-{index}",
-                    "Category": "Logon",
-                    "Signer": "",
-                    "ImagePath": image_path,
-                    "LaunchString": launch_string,
-                    "Profile": "",
-                    "Description": "Residual test item",
-                    "Version": "",
-                    "SHA256": f"{index:064x}",
-                    "Fqdn": f"host-{index}.example.test",
-                    "ClientId": f"C.{index}",
-                    "_AutorunsIdentity": autoruns.trusted_key_payload(
-                        signer="", image_path=image_path, launch_string=launch_string),
-                    "HashKey": autoruns.trusted_key(
-                        signer="",
-                        image_path=image_path,
-                        launch_string=launch_string,
-                    ),
-                }
-            ]
-            return
-        yield [
-            {
-                "EntryLocation": r"hkcu\software\vendor\run",
-                "Entry": f"residual-{index}",
-                "Category": "Logon",
-                "Signer": "",
-                "ImagePath": rf"c:\users\user\residual-{index}.exe",
-                "LaunchString": rf"residual-{index}.exe",
-                "Fqdn": f"host-{index}.example.test",
-                "ClientId": f"C.{index}",
-            }
-            for index in range(self.residual_rows)
-        ]
-
-
-class FakeSafeBootAutorunsApi(FakeAutorunsGoldenResidualApi):
-    def residual_groups(self):
-        return [{
-            "ImagePath": r"c:\windows\system32\cmd.exe",
-            "LaunchString": "cmd.exe",
-            "Signer": "(verified) microsoft windows",
-            "ExampleCategory": "Logon",
-            "Total": 1,
-        }]
-
-    def query_batches(self, vql, env=None, **kwargs):
-        if "LET AutorunsCountedGroups" in vql or "LET AutorunsResidualRows" in vql:
-            yield from super().query_batches(vql, env, **kwargs)
-            return
         resolved_env = dict(env or {})
         self.calls.append((vql, resolved_env, kwargs))
+        if "FROM AutorunsResidualRows" in vql:
+            yield [{
+                "ImagePath": r"c:\windows\system32\cmd.exe",
+                "LaunchString": "cmd.exe",
+                "Signer": "(verified) microsoft windows",
+                "ExampleCategory": "Logon",
+                "Total": 1,
+            }]
+            return
         image_path = r"c:\windows\system32\cmd.exe"
         launch_string = "cmd.exe"
         if resolved_env.get("AutorunsSelectedHashesGzipBase64"):
@@ -458,7 +279,7 @@ def request(artifact=ARTIFACT):
 
 
 class LiveHuntAnalysisTest(unittest.TestCase):
-    def test_reviewed_autoruns_stack_can_promote_to_local_golden_db(self):
+    def test_live_review_rejects_golden_promotion(self):
         profiles = artifact_policy.load_artifact_policy().profiles
         state = live.initial_state(
             investigation_id="IR1",
@@ -506,8 +327,11 @@ class LiveHuntAnalysisTest(unittest.TestCase):
             "row_accounting": [],
         }
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "golden.sqlite"
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "not supported in live hunt analysis; use vraptor autoruns "
+            "regex-build and regex-import",
+        ):
             live.apply_decisions(
                 state,
                 [
@@ -518,33 +342,11 @@ class LiveHuntAnalysisTest(unittest.TestCase):
                         "reason": "Reviewed vendor persistence.",
                         "hijack_risk_reviewed": True,
                         "promote_to_golden": True,
-                        "golden_context": {
-                            "Description": "Vendor application",
-                            "Company": "Vendor",
-                        },
                     }
                 ],
                 profiles=profiles,
                 source="test",
-                golden_db_path=database,
             )
-            promoted_hash = state["golden_promotions"][0]["hash_key"]
-            lookup = autoruns_golden.lookup_hashes(
-                database,
-                [promoted_hash],
-            )
-
-        self.assertTrue(lookup[0]["known_good"])
-        self.assertNotIn("categories", lookup[0])
-        self.assertEqual(
-            lookup[0]["context"],
-            {
-                "example_entry_location": "",
-                "example_entry": "",
-                "example_description": "Vendor application",
-                "example_company": "",
-            },
-        )
 
     def test_default_safeboot_alternate_shell_is_contextually_excluded(self):
         row = {
@@ -584,12 +386,7 @@ class LiveHuntAnalysisTest(unittest.TestCase):
 
     def test_safeboot_context_exclusion_survives_analysis_resume(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "autoruns-golden.sqlite"
-            validation = create_golden_database(database)
-            api = FakeSafeBootAutorunsApi(
-                residual_rows=1,
-                inventory_hash=validation["sha256"],
-            )
+            api = FakeSafeBootAutorunsApi()
             hunt_root = Path(temp_dir) / "H.safeboot"
             classification = {
                 "suspicious_rows": [
@@ -627,9 +424,7 @@ class LiveHuntAnalysisTest(unittest.TestCase):
                     },
                     request=request(AUTORUNS_ARTIFACT),
                     hunt_root=hunt_root,
-                    autoruns_golden_tool="Autoruns.GoldenDB",
-                    autoruns_golden_version="20260728",
-                    autoruns_golden_db=database,
+                    use_case="autoruns-lolbin",
                     autoruns_ai_review_enabled=True,
                 )
                 second = live.analyze_live_hunt(
@@ -641,17 +436,15 @@ class LiveHuntAnalysisTest(unittest.TestCase):
                     },
                     request=request(AUTORUNS_ARTIFACT),
                     hunt_root=hunt_root,
-                    autoruns_golden_tool="Autoruns.GoldenDB",
-                    autoruns_golden_version="20260728",
-                    autoruns_golden_db=database,
+                    use_case="autoruns-lolbin",
                     autoruns_ai_review_enabled=True,
                 )
 
         self.assertEqual(classify.call_count, 2)
         for result in (first, second):
-            workflow = result["autoruns_residual_workflow"][
+            workflow = result["autoruns_focused_workflows"][
                 AUTORUNS_ARTIFACT
-            ]
+            ]["autoruns-lolbin"]
             self.assertEqual(
                 workflow["classification"]["suspicious_count"],
                 0,
@@ -1029,417 +822,6 @@ class LiveHuntAnalysisTest(unittest.TestCase):
             ],
         )
 
-    def test_autoruns_golden_lookup_can_preserve_priority_use_cases(self):
-        configuration = golden_lookup_configuration()
-        env = live.query_env("H.golden", AUTORUNS_ARTIFACT)
-
-        where = live.autoruns_golden_where(
-            AUTORUNS_ARTIFACT,
-            configuration=configuration,
-            env=env,
-            preserve_priority=True,
-        )
-
-        self.assertNotIn("inventory_get", where)
-        self.assertIn("AutorunsGoldenKeys", where)
-        count_query = live.count_vql(where)
-        self.assertIn("memoize", count_query)
-        self.assertIn("parse_json_array", count_query)
-        self.assertIn("gunzip", count_query)
-        self.assertIn("base64decode", count_query)
-        self.assertNotIn("Category", where)
-        self.assertIn("`Image Path`", where)
-        self.assertIn("`Launch String`", where)
-        self.assertIn("Signer", where)
-        self.assertTrue(env["AutorunsGoldenLookupGzipBase64"])
-
-    def test_autoruns_golden_lookup_is_strict_by_default(self):
-        configuration = golden_lookup_configuration()
-        env = live.query_env("H.golden", AUTORUNS_ARTIFACT)
-
-        where = live.autoruns_golden_where(
-            AUTORUNS_ARTIFACT,
-            configuration=configuration,
-            env=env,
-        )
-
-        self.assertNotIn("inventory_get", where)
-        self.assertNotIn("memoize(", where)
-        self.assertTrue(where.startswith("(NOT (get("))
-        self.assertNotIn(" OR ", where)
-        self.assertEqual(live.count_vql(where).count("memoize("), 1)
-        self.assertFalse(
-            any(key.startswith("AutorunsGoldenLolbinRegex") for key in env)
-        )
-        self.assertFalse(
-            any(key.startswith("AutorunsGoldenRmmRegex") for key in env)
-        )
-
-    def test_autoruns_golden_disable_ignores_environment_defaults(self):
-        configuration = live.configured_autoruns_golden(
-            disabled=True,
-            environ={
-                "VELO_AUTORUNS_GOLDEN_TOOL": "Autoruns.GoldenDB",
-                "VELO_AUTORUNS_GOLDEN_VERSION": "20260728-deadbeef",
-            },
-        )
-
-        self.assertFalse(configuration["enabled"])
-        self.assertEqual(configuration["tool"], "")
-        self.assertEqual(configuration["version"], "")
-
-    def test_autoruns_golden_candidate_build_uses_strict_server_diff(self):
-        configuration = golden_lookup_configuration()
-        env = live.query_env("H.golden", AUTORUNS_ARTIFACT)
-
-        where = live.autoruns_golden_where(
-            AUTORUNS_ARTIFACT,
-            configuration=configuration,
-            env=env,
-            preserve_priority=False,
-        )
-
-        self.assertNotIn("inventory_get", where)
-        self.assertTrue(where.startswith("(NOT (get("))
-        self.assertNotIn(" OR ", where)
-
-    def test_autoruns_golden_inventory_is_pinned_by_server_hash(self):
-        class FakeInventoryApi:
-            def __init__(self):
-                self.calls = []
-
-            def query(self, vql, env=None, **kwargs):
-                self.calls.append((vql, dict(env or {}), kwargs))
-                return [
-                    {
-                        "Inventory": {
-                            "Definition": {
-                                "hash": "b" * 64,
-                                "filestore_path": "inventory/golden.sqlite",
-                            }
-                        }
-                    }
-                ]
-
-        resolved = live.resolve_autoruns_golden_inventory(
-            api := FakeInventoryApi(),
-            golden_lookup_configuration(),
-        )
-
-        self.assertEqual(resolved["inventory_hash"], "b" * 64)
-        self.assertNotIn("filestore_path", resolved)
-        self.assertEqual(resolved["identity_count"], 1)
-        self.assertEqual(resolved["record_count"], 1)
-        self.assertEqual(len(api.calls), 1)
-        self.assertNotIn("sqlite(", api.calls[0][0])
-
-    def test_autoruns_golden_inventory_must_match_shared_database(self):
-        class FakeInventoryApi:
-            def query(self, vql, env=None, **kwargs):
-                return [
-                    {
-                        "Inventory": {
-                            "Definition": {
-                                "hash": "d" * 64,
-                            }
-                        }
-                    }
-                ]
-
-        with self.assertRaisesRegex(
-            RuntimeError,
-            "does not match the shared local SQLite database",
-        ):
-            live.resolve_autoruns_golden_inventory(
-                FakeInventoryApi(),
-                golden_lookup_configuration(
-                    inventory_hash="b" * 64,
-                ),
-            )
-
-    def test_autoruns_golden_inventory_syncs_missing_server_tool(self):
-        class FakeInventoryApi:
-            def query(self, vql, env=None, **kwargs):
-                return [{"Inventory": None}]
-
-        configuration = golden_lookup_configuration()
-        configuration["database"] = "/tmp/golden.sqlite"
-        with mock.patch.object(
-            live.autoruns_golden,
-            "publish_database",
-            return_value={"database_sha256": "b" * 64},
-        ) as publish:
-            resolved = live.resolve_autoruns_golden_inventory(
-                FakeInventoryApi(),
-                configuration,
-                sync_missing_or_stale=True,
-            )
-
-        publish.assert_called_once()
-        self.assertEqual(resolved["inventory_hash"], "b" * 64)
-        self.assertEqual(
-            resolved["inventory_sync"]["status"],
-            "updated",
-        )
-        self.assertEqual(
-            resolved["inventory_sync"]["reason"],
-            "missing",
-        )
-
-    def test_autoruns_golden_inventory_recovers_exact_missing_error(self):
-        api = mock.Mock()
-        api.query.side_effect = live.InventoryNotFoundError("missing inventory")
-        with mock.patch.object(
-            live.autoruns_golden, "publish_database",
-            return_value={"database_sha256": "b" * 64},
-        ) as publish:
-            resolved = live.resolve_autoruns_golden_inventory(
-                api, golden_lookup_configuration(), sync_missing_or_stale=True,
-            )
-        publish.assert_called_once()
-        self.assertEqual(resolved["inventory_sync"]["reason"], "missing")
-        self.assertEqual(resolved["inventory_hash"], "b" * 64)
-
-    def test_autoruns_golden_inventory_missing_error_respects_disabled_sync(self):
-        api = mock.Mock()
-        api.query.side_effect = live.InventoryNotFoundError("missing inventory")
-        with mock.patch.object(live.autoruns_golden, "publish_database") as publish:
-            with self.assertRaisesRegex(RuntimeError, "Publish the current database"):
-                live.resolve_autoruns_golden_inventory(api, golden_lookup_configuration())
-        publish.assert_not_called()
-
-    def test_autoruns_golden_inventory_other_errors_never_publish(self):
-        api = mock.Mock()
-        error = RuntimeError("permission denied or unrelated not_found")
-        api.query.side_effect = error
-        with mock.patch.object(live.autoruns_golden, "publish_database") as publish:
-            with self.assertRaises(RuntimeError) as raised:
-                live.resolve_autoruns_golden_inventory(
-                    api, golden_lookup_configuration(), sync_missing_or_stale=True,
-                )
-        self.assertIs(raised.exception, error)
-        publish.assert_not_called()
-
-    def test_autoruns_golden_inventory_missing_error_still_verifies_upload(self):
-        api = mock.Mock()
-        api.query.side_effect = live.InventoryNotFoundError("missing inventory")
-        with mock.patch.object(
-            live.autoruns_golden, "publish_database",
-            return_value={"database_sha256": "d" * 64},
-        ):
-            with self.assertRaisesRegex(RuntimeError, "publication verification"):
-                live.resolve_autoruns_golden_inventory(
-                    api, golden_lookup_configuration(), sync_missing_or_stale=True,
-                )
-
-    def test_autoruns_golden_inventory_syncs_stale_server_tool(self):
-        class FakeInventoryApi:
-            def query(self, vql, env=None, **kwargs):
-                return [
-                    {
-                        "Inventory": {
-                            "Definition": {
-                                "hash": "d" * 64,
-                            }
-                        }
-                    }
-                ]
-
-        configuration = golden_lookup_configuration()
-        configuration["database"] = "/tmp/golden.sqlite"
-        with mock.patch.object(
-            live.autoruns_golden,
-            "publish_database",
-            return_value={"database_sha256": "b" * 64},
-        ) as publish:
-            resolved = live.resolve_autoruns_golden_inventory(
-                FakeInventoryApi(),
-                configuration,
-                sync_missing_or_stale=True,
-            )
-
-        publish.assert_called_once()
-        self.assertEqual(resolved["inventory_hash"], "b" * 64)
-        self.assertEqual(
-            resolved["inventory_sync"]["reason"],
-            "stale",
-        )
-
-    def test_autoruns_golden_configuration_changes_analysis_watermark(self):
-        first = live.analysis_input_hash(
-            profile_hash="profile",
-            filters=[],
-            known_bad=[],
-            autoruns_golden_configuration={
-                "enabled": True,
-                "tool": "Autoruns.GoldenDB",
-                "version": "one",
-            },
-        )
-        second = live.analysis_input_hash(
-            profile_hash="profile",
-            filters=[],
-            known_bad=[],
-            autoruns_golden_configuration={
-                "enabled": True,
-                "tool": "Autoruns.GoldenDB",
-                "version": "two",
-            },
-        )
-
-        self.assertNotEqual(first, second)
-
-    def test_autoruns_golden_sync_status_does_not_change_watermark(self):
-        common = {
-            "enabled": True,
-            "tool": "Autoruns.GoldenDB",
-            "version": "20260728-bbbbbbbb",
-            "inventory_hash": "b" * 64,
-            "database_sha256": "b" * 64,
-        }
-        first = live.analysis_input_hash(
-            profile_hash="profile",
-            filters=[],
-            known_bad=[],
-            autoruns_golden_configuration={
-                **common,
-                "inventory_sync": {
-                    "status": "updated",
-                    "reason": "missing",
-                },
-            },
-        )
-        second = live.analysis_input_hash(
-            profile_hash="profile",
-            filters=[],
-            known_bad=[],
-            autoruns_golden_configuration={
-                **common,
-                "inventory_sync": {
-                    "status": "current",
-                    "reason": "",
-                },
-            },
-        )
-
-        self.assertEqual(first, second)
-
-    def test_general_autoruns_analysis_applies_strict_golden_diff_first(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "autoruns-golden.sqlite"
-            validation = create_golden_database(database)
-            api = FakeAutorunsGoldenResidualApi(
-                inventory_hash=validation["sha256"],
-            )
-            result = live.analyze_live_hunt(
-                api,
-                investigation_id="IR1",
-                hunt_row={
-                    "hunt_id": "H.golden-residual",
-                    "state": "FINISHED",
-                },
-                request=request(AUTORUNS_ARTIFACT),
-                hunt_root=Path(temp_dir) / "H.golden-residual",
-                autoruns_golden_tool="Autoruns.GoldenDB",
-                autoruns_golden_version="20260728",
-                autoruns_golden_db=database,
-            )
-            state = json.loads(
-                Path(result["state_file"]).read_text(encoding="utf-8")
-            )["specialized_analysis"]
-            summary = Path(result["analysis_file"]).read_text(
-                encoding="utf-8"
-            )
-            state_size = Path(result["state_file"]).stat().st_size
-
-        artifact_state = state["artifacts"][AUTORUNS_ARTIFACT]
-        golden = artifact_state["autoruns_golden"]
-        self.assertTrue(golden["strict_subtraction"])
-        self.assertEqual(golden["source_rows"], 10)
-        self.assertEqual(golden["matched_rows"], 7)
-        self.assertEqual(golden["residual_rows"], 3)
-        self.assertEqual(golden["identity_count"], 1)
-        self.assertEqual(golden["record_count"], 1)
-        self.assertEqual(golden["warnings"], [])
-        self.assertFalse(
-            any(
-                key.startswith("AutorunsGoldenLolbinRegex")
-                or key.startswith("AutorunsGoldenRmmRegex")
-                or key.startswith("AutorunsGoldenVerifiedRegex")
-                for _, env, _ in api.calls
-                for key in env
-            )
-        )
-        mode = result["autoruns_mode_coverage"][AUTORUNS_ARTIFACT]
-        self.assertEqual(mode["mode"], "general-golden-residual")
-        self.assertEqual(mode["source_rows"], 10)
-        self.assertEqual(mode["scope_rows"], 3)
-        self.assertEqual(mode["golden_db"]["matched_rows"], 7)
-        self.assertIn("### Autoruns GoldenDB reduction", summary)
-        self.assertIn("### Streaming review", summary)
-        self.assertIn("general-golden-residual", summary)
-        self.assertEqual(result["status"], "awaiting_ai_classification")
-        self.assertEqual(result["review_item_count"], 0)
-        self.assertEqual(
-            artifact_state["pending_reviews"],
-            [],
-        )
-        self.assertFalse(
-            (Path(result["state_file"]).parent / "autoruns_residual_stack.csv").exists()
-        )
-        self.assertEqual(Path(result["state_file"]).name, "hunt-analysis-state.json")
-        self.assertLess(
-            state_size,
-            50_000,
-        )
-
-    def test_combined_autoruns_stack_requires_exact_review_accounting(self):
-        for represented in (3, 4, 2):
-            with self.subTest(represented=represented), tempfile.TemporaryDirectory() as temp_dir:
-                database = Path(temp_dir) / "golden.sqlite"
-                validation = create_golden_database(database)
-                api = FakeAutorunsGoldenResidualApi(inventory_hash=validation["sha256"])
-                classification = {
-                    "suspicious_rows": [], "potential_golden_rows": [],
-                    "manifest": {
-                        "source_stack_sha256": "a" * 64,
-                        "model": "test-model", "reviewed_group_count": 3,
-                        "represented_row_count": represented,
-                        "model_reviewed_group_count": 3,
-                        "script_excluded_group_count": 0, "part_count": 1,
-                        "runtime_files_persisted": False,
-                    },
-                }
-                with (
-                    mock.patch.object(live.autoruns_ai_review, "classify_streaming_rows",
-                                      side_effect=consume_classification(classification)),
-                    mock.patch.object(live.operation_log, "emit") as emit,
-                ):
-                    kwargs = dict(
-                        investigation_id="IR1",
-                        hunt_row={"hunt_id": "H.growth", "state": "FINISHED",
-                                  "review_scope": "ad_hoc_review"},
-                        request=request(AUTORUNS_ARTIFACT),
-                        hunt_root=Path(temp_dir) / "H.growth",
-                        autoruns_golden_tool="Autoruns.GoldenDB",
-                        autoruns_golden_version="20260728",
-                        autoruns_golden_db=database, autoruns_ai_review_enabled=True,
-                    )
-                    if represented != 3:
-                        with self.assertRaisesRegex(RuntimeError, "accounting mismatch"):
-                            live.analyze_live_hunt(api, **kwargs)
-                        continue
-                    result = live.analyze_live_hunt(api, **kwargs)
-                self.assertEqual(result["status"], "complete")
-                state = json.loads(Path(result["state_file"]).read_text())["specialized_analysis"]
-                stack = state["artifacts"][AUTORUNS_ARTIFACT]["autoruns_residual_workflow"]["stack"]
-                self.assertEqual(stack["represented_rows"], represented)
-                self.assertEqual(stack["expected_rows"], 3)
-                self.assertEqual(stack["additional_rows"], 0)
-                warnings = [call for call in emit.call_args_list
-                            if call.args == ("autoruns_accounting_growth",)]
-                self.assertEqual(warnings, [])
-
     def test_focused_autoruns_stack_growth_continues_but_shortfall_fails(self):
         for represented in (3, 4, 2):
             with self.subTest(represented=represented), tempfile.TemporaryDirectory() as temp_dir:
@@ -1489,415 +871,6 @@ class LiveHuntAnalysisTest(unittest.TestCase):
                 if represented > 3:
                     self.assertEqual(warnings[0].kwargs["level"], "warning")
                     self.assertIn("Continuing with all reviewed rows", stack["warnings"][0])
-
-    def test_autoruns_residual_classification_drills_down_suspicious(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "autoruns-golden.sqlite"
-            validation = create_golden_database(database)
-            api = FakeAutorunsGoldenResidualApi(
-                inventory_hash=validation["sha256"],
-            )
-            hunt_root = Path(temp_dir) / "H.golden-review"
-            classification = {
-                "suspicious_rows": [{
-                    "ImagePath": r"c:\users\user\residual-0.exe",
-                    "LaunchString": "residual-0.exe",
-                    "Signer": "",
-                    "Total": 1,
-                    "Severity": "high",
-                    "Reason": "Unexpected user-path persistence.",
-                }],
-                "potential_golden_rows": [{
-                    "ImagePath": r"c:\users\user\residual-1.exe",
-                    "LaunchString": "residual-1.exe",
-                    "Signer": "",
-                    "Total": 1,
-                    "Reason": "Reviewed test candidate.",
-                }],
-                "manifest": {
-                    "source_stack_sha256": "a" * 64,
-                    "model": "test-model",
-                    "reviewed_group_count": 3,
-                    "represented_row_count": 3,
-                    "model_reviewed_group_count": 2,
-                    "script_excluded_group_count": 1,
-                    "part_count": 1,
-                    "runtime_files_persisted": False,
-                },
-            }
-            with mock.patch.object(
-                live.autoruns_ai_review,
-                "classify_streaming_rows",
-                side_effect=consume_classification(classification),
-            ):
-                result = live.analyze_live_hunt(
-                    api,
-                    investigation_id="IR1",
-                    hunt_row={
-                        "hunt_id": "H.golden-review",
-                        "state": "FINISHED",
-                        "review_scope": "ad_hoc_review",
-                    },
-                    request=request(AUTORUNS_ARTIFACT),
-                    hunt_root=hunt_root,
-                    autoruns_golden_tool="Autoruns.GoldenDB",
-                    autoruns_golden_version="20260728",
-                    autoruns_golden_db=database,
-                    autoruns_ai_review_enabled=True,
-                )
-            state = json.loads(
-                Path(result["state_file"]).read_text(encoding="utf-8")
-            )["specialized_analysis"]
-            generated_files = {
-                path.name
-                for path in (hunt_root / "analysis").iterdir()
-                if path.is_file()
-            }
-            ai_review_directory_exists = (
-                hunt_root / "analysis" / "autoruns_ai_review"
-            ).exists()
-            potential_metadata, potential_rows, _ = live.parse_csv_with_metadata(
-                hunt_root / "analysis" / "autoruns_potential_golden.csv"
-            )
-            analysis_report = Path(result["analysis_file"]).read_text(
-                encoding="utf-8"
-            )
-            canonical_state_size = Path(result["state_file"]).stat().st_size
-            regenerated_report = (
-                flow_analysis_coordinator.render_canonical_hunt_report(
-                    hunt_root=hunt_root,
-                    question="Review persistence",
-                    specialized_state=state,
-                )
-            )
-
-        self.assertEqual(result["status"], "complete")
-        self.assertEqual(result["coverage"], "complete")
-        workflow_state = state["artifacts"][AUTORUNS_ARTIFACT][
-            "autoruns_residual_workflow"
-        ]
-        self.assertEqual(workflow_state["stage"], "complete")
-        self.assertEqual(
-            workflow_state["suspicious_context"]["row_count"],
-            1,
-        )
-        self.assertEqual(
-            workflow_state["suspicious_context"]["host_count"],
-            1,
-        )
-        representative = workflow_state["suspicious_context"][
-            "representative_items"
-        ][0]
-        self.assertEqual(
-            representative["endpoints"],
-            [{
-                "fqdn": "host-0.example.test",
-                "client_id": "C.0",
-                "row_count": 1,
-            }],
-        )
-        self.assertEqual(
-            representative["persistence"],
-            [{
-                "category": "Logon",
-                "entry_location": r"hkcu\software\vendor\run",
-                "entry": "residual-0",
-            }],
-        )
-        self.assertEqual(
-            representative["source"]["hunt_id"],
-            "H.golden-review",
-        )
-        self.assertEqual(
-            len(representative["source"]["query_sha256"]),
-            64,
-        )
-        self.assertEqual(
-            workflow_state["ai_review"]["model_reviewed_group_count"],
-            2,
-        )
-        self.assertIn("autoruns_potential_golden.csv", generated_files)
-        self.assertFalse(ai_review_directory_exists)
-        self.assertEqual(potential_metadata["SchemaVersion"], "2")
-        self.assertEqual(potential_metadata["EngagementId"], "IR1")
-        self.assertEqual(potential_metadata["HuntId"], "H.golden-review")
-        self.assertEqual(potential_metadata["Artifact"], AUTORUNS_ARTIFACT)
-        self.assertEqual(potential_metadata["ReviewComplete"], "true")
-        self.assertEqual(potential_metadata["ReviewedGroupCount"], "3")
-        self.assertEqual(potential_metadata["GoldenDBSHA256"], validation["sha256"])
-        self.assertEqual(len(potential_rows), 1)
-        self.assertEqual(
-            workflow_state["classification"]["potential_golden"]["row_count"],
-            1,
-        )
-        self.assertEqual(
-            workflow_state["classification"]["potential_golden"]["path"],
-            "analysis/autoruns_potential_golden.csv",
-        )
-        self.assertEqual(
-            workflow_state["candidate_output"]["action"],
-            "published",
-        )
-        self.assertTrue(workflow_state["candidate_output"]["current_run"])
-        self.assertIn(
-            "Potential GoldenDB output: status `complete`; action `published`",
-            analysis_report,
-        )
-        self.assertIn("host-0.example.test", analysis_report)
-        self.assertIn("host-0.example.test", regenerated_report)
-        self.assertIn("C.0", analysis_report)
-        self.assertIn(r"hkcu\software\vendor\run", analysis_report)
-        self.assertIn("suspicious Autoruns identity/identities", analysis_report)
-        self.assertNotIn(
-            "No specialized finding summaries have been recorded.",
-            analysis_report,
-        )
-        self.assertLess(canonical_state_size, 64 * 1024)
-
-    def test_failed_autoruns_rerun_preserves_last_verified_candidate_set(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "autoruns-golden.sqlite"
-            validation = create_golden_database(database)
-            api = FakeAutorunsGoldenResidualApi(
-                inventory_hash=validation["sha256"],
-            )
-            hunt_root = Path(temp_dir) / "H.golden-preserve"
-            completed_classification = {
-                "suspicious_rows": [],
-                "potential_golden_rows": [{
-                    "ImagePath": r"c:\users\user\residual-1.exe",
-                    "LaunchString": "residual-1.exe",
-                    "Signer": "",
-                    "Total": 1,
-                    "Reason": "Reviewed test candidate.",
-                }],
-                "manifest": {
-                    "source_stack_sha256": "c" * 64,
-                    "model": "test-model",
-                    "reviewed_group_count": 3,
-                    "represented_row_count": 3,
-                    "model_reviewed_group_count": 3,
-                    "script_excluded_group_count": 0,
-                    "part_count": 1,
-                    "runtime_files_persisted": False,
-                },
-            }
-            common = {
-                "investigation_id": "IR1",
-                "hunt_row": {
-                    "hunt_id": "H.golden-preserve",
-                    "state": "FINISHED",
-                    "review_scope": "ad_hoc_review",
-                },
-                "request": request(AUTORUNS_ARTIFACT),
-                "hunt_root": hunt_root,
-                "autoruns_golden_tool": "Autoruns.GoldenDB",
-                "autoruns_golden_version": "20260728",
-                "autoruns_golden_db": database,
-                "autoruns_ai_review_enabled": True,
-            }
-            with mock.patch.object(
-                live.autoruns_ai_review,
-                "classify_streaming_rows",
-                side_effect=consume_classification(completed_classification),
-            ):
-                first = live.analyze_live_hunt(api, **common)
-            candidate_path = (
-                hunt_root / "analysis" / "autoruns_potential_golden.csv"
-            )
-            original_bytes = candidate_path.read_bytes()
-            original_reference = first["autoruns_residual_workflow"][
-                AUTORUNS_ARTIFACT
-            ]["classification"]["potential_golden"]
-
-            with mock.patch.object(
-                live.autoruns_ai_review,
-                "classify_streaming_rows",
-                side_effect=RuntimeError("provider request failed"),
-            ):
-                result = live.analyze_live_hunt(api, **common)
-            workflow = result["autoruns_residual_workflow"][
-                AUTORUNS_ARTIFACT
-            ]
-            analysis_report = Path(result["analysis_file"]).read_text(
-                encoding="utf-8"
-            )
-            preserved_bytes = candidate_path.read_bytes()
-
-        self.assertEqual(preserved_bytes, original_bytes)
-        self.assertEqual(workflow["stage"], "ai_classification_failed")
-        self.assertEqual(workflow["classification"], {})
-        self.assertEqual(workflow["candidate_output"]["status"], "failed")
-        self.assertEqual(
-            workflow["candidate_output"]["action"],
-            "preserved_stale",
-        )
-        self.assertFalse(workflow["candidate_output"]["current_run"])
-        retained = workflow["candidate_output"]["retained_previous"]
-        self.assertTrue(retained["verified"])
-        self.assertEqual(retained["sha256"], original_reference["sha256"])
-        self.assertIn(
-            "Potential GoldenDB output: status `failed`; action `preserved_stale`",
-            analysis_report,
-        )
-
-    def test_disabled_autoruns_review_preserves_last_verified_candidate_set(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "autoruns-golden.sqlite"
-            validation = create_golden_database(database)
-            api = FakeAutorunsGoldenResidualApi(
-                inventory_hash=validation["sha256"],
-            )
-            hunt_root = Path(temp_dir) / "H.golden-disabled"
-            completed_classification = {
-                "suspicious_rows": [],
-                "potential_golden_rows": [],
-                "manifest": {
-                    "source_stack_sha256": "d" * 64,
-                    "model": "test-model",
-                    "reviewed_group_count": 3,
-                    "represented_row_count": 3,
-                    "model_reviewed_group_count": 3,
-                    "script_excluded_group_count": 0,
-                    "part_count": 1,
-                    "runtime_files_persisted": False,
-                },
-            }
-            common = {
-                "investigation_id": "IR1",
-                "hunt_row": {
-                    "hunt_id": "H.golden-disabled",
-                    "state": "FINISHED",
-                    "review_scope": "ad_hoc_review",
-                },
-                "request": request(AUTORUNS_ARTIFACT),
-                "hunt_root": hunt_root,
-                "autoruns_golden_tool": "Autoruns.GoldenDB",
-                "autoruns_golden_version": "20260728",
-                "autoruns_golden_db": database,
-            }
-            with mock.patch.object(
-                live.autoruns_ai_review,
-                "classify_streaming_rows",
-                side_effect=consume_classification(completed_classification),
-            ):
-                live.analyze_live_hunt(
-                    api,
-                    **common,
-                    autoruns_ai_review_enabled=True,
-                )
-            candidate_path = (
-                hunt_root / "analysis" / "autoruns_potential_golden.csv"
-            )
-            original_bytes = candidate_path.read_bytes()
-
-            result = live.analyze_live_hunt(
-                api,
-                **common,
-                autoruns_ai_review_enabled=False,
-            )
-            preserved_bytes = candidate_path.read_bytes()
-            workflow = result["autoruns_residual_workflow"][
-                AUTORUNS_ARTIFACT
-            ]
-
-        self.assertEqual(preserved_bytes, original_bytes)
-        self.assertEqual(workflow["stage"], "awaiting_ai_classification")
-        self.assertEqual(
-            workflow["candidate_output"]["status"],
-            "not_produced",
-        )
-        self.assertEqual(
-            workflow["candidate_output"]["action"],
-            "preserved_stale",
-        )
-        self.assertFalse(workflow["candidate_output"]["current_run"])
-        self.assertTrue(
-            workflow["candidate_output"]["retained_previous"]["verified"]
-        )
-
-    def test_autoruns_residual_ai_review_runs_and_drills_down_in_one_pass(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "autoruns-golden.sqlite"
-            validation = create_golden_database(database)
-            api = FakeAutorunsGoldenResidualApi(
-                inventory_hash=validation["sha256"],
-            )
-            hunt_root = Path(temp_dir) / "H.golden-ai"
-            with mock.patch.object(
-                live.autoruns_ai_review,
-                "classify_streaming_rows",
-                side_effect=consume_classification({
-                    "suspicious_rows": [
-                        {
-                            "ImagePath": (
-                                r"c:\users\user\residual-0.exe"
-                            ),
-                            "LaunchString": "residual-0.exe",
-                            "Signer": "",
-                            "Total": 1,
-                            "Severity": "high",
-                            "Reason": "Unexpected user-path persistence.",
-                        }
-                    ],
-                    "potential_golden_rows": [],
-                    "manifest": {
-                        "source_stack_sha256": "b" * 64,
-                        "model": "gpt-5.6-luna",
-                        "reviewed_group_count": 3,
-                        "represented_row_count": 3,
-                        "model_reviewed_group_count": 3,
-                        "script_excluded_group_count": 0,
-                        "part_count": 1,
-                        "runtime_files_persisted": False,
-                    },
-                }),
-            ) as classify:
-                result = live.analyze_live_hunt(
-                    api,
-                    investigation_id="IR1",
-                    hunt_row={
-                        "hunt_id": "H.golden-ai",
-                        "state": "FINISHED",
-                        "review_scope": "ad_hoc_review",
-                    },
-                    request=request(AUTORUNS_ARTIFACT),
-                    hunt_root=hunt_root,
-                    autoruns_golden_tool="Autoruns.GoldenDB",
-                    autoruns_golden_version="20260728",
-                    autoruns_golden_db=database,
-                    autoruns_ai_review_enabled=True,
-                )
-            potential_metadata, potential_rows, potential_fields = (
-                live.parse_csv_with_metadata(
-                    hunt_root
-                    / "analysis"
-                    / "autoruns_potential_golden.csv"
-                )
-            )
-
-        classify.assert_called_once()
-        # General GoldenDB accounting and grouping share one source query.
-        self.assertEqual(sum("LET AutorunsCountedGroups" in q for q, _, _ in api.calls), 1)
-        self.assertFalse(any("count() AS RowCount" in q for q, _, _ in api.calls))
-        self.assertEqual(result["status"], "complete")
-        workflow = result["autoruns_residual_workflow"][
-            AUTORUNS_ARTIFACT
-        ]
-        self.assertEqual(workflow["stage"], "complete")
-        self.assertEqual(workflow["ai_review"]["part_count"], 1)
-        self.assertEqual(
-            workflow["suspicious_context"]["host_count"],
-            1,
-        )
-        self.assertEqual(workflow["candidate_output"]["action"], "published_empty")
-        self.assertTrue(workflow["candidate_output"]["current_run"])
-        self.assertEqual(potential_metadata["ReviewComplete"], "true")
-        self.assertEqual(
-            potential_fields,
-            list(live.AUTORUNS_POTENTIAL_GOLDEN_FIELDS),
-        )
-        self.assertEqual(potential_rows, [])
 
     def test_autoruns_chat_summary_uses_bounded_in_memory_context(self):
         state = live.initial_state(
@@ -2017,41 +990,6 @@ class LiveHuntAnalysisTest(unittest.TestCase):
         self.assertEqual(representative["omitted_endpoint_count"], 2)
         self.assertEqual(len(representative["persistence"]), 10)
         self.assertEqual(representative["omitted_persistence_count"], 2)
-
-    def test_non_empty_golden_db_zero_match_is_recorded_as_warning(self):
-        with tempfile.TemporaryDirectory() as temp_dir:
-            database = Path(temp_dir) / "autoruns-golden.sqlite"
-            validation = create_golden_database(database)
-            api = FakeAutorunsGoldenResidualApi(
-                residual_rows=10,
-                inventory_hash=validation["sha256"],
-            )
-            result = live.analyze_live_hunt(
-                api,
-                investigation_id="IR1",
-                hunt_row={
-                    "hunt_id": "H.golden-zero",
-                    "state": "FINISHED",
-                },
-                request=request(AUTORUNS_ARTIFACT),
-                hunt_root=Path(temp_dir) / "H.golden-zero",
-                autoruns_golden_tool="Autoruns.GoldenDB",
-                autoruns_golden_db=database,
-            )
-
-        golden = result["autoruns_mode_coverage"][AUTORUNS_ARTIFACT][
-            "golden_db"
-        ]
-        self.assertIn("## Autoruns hunt summary", result["chat_summary"])
-        self.assertEqual(
-            result["chat_summary"].strip(),
-            result["autoruns_chat_summary"].strip(),
-        )
-        self.assertEqual(golden["matched_rows"], 0)
-        self.assertEqual(
-            golden["warnings"],
-            ["non_empty_golden_db_produced_zero_matches"],
-        )
 
     def test_use_case_is_rejected_for_non_autoruns_artifact(self):
         with self.assertRaisesRegex(RuntimeError, "only supported"):
@@ -2396,7 +1334,7 @@ class LiveHuntAnalysisTest(unittest.TestCase):
         self.assertFalse(result["raw_evidence_persisted"])
         self.assertFalse(result["raw_result_exported"])
 
-    def test_rmm_use_case_bypasses_golden_inventory_and_stacks_candidates(self):
+    def test_rmm_use_case_stacks_candidates(self):
         api = FakeAutorunsUseCaseApi()
         with tempfile.TemporaryDirectory() as temp_dir:
             result = live.analyze_live_hunt(
@@ -2406,8 +1344,6 @@ class LiveHuntAnalysisTest(unittest.TestCase):
                 request=request(AUTORUNS_ARTIFACT),
                 hunt_root=Path(temp_dir) / "H.rmm",
                 use_case="autoruns-rmm",
-                autoruns_golden_tool="Autoruns.GoldenDB",
-                autoruns_golden_version="20260728",
             )
 
         self.assertEqual(result["review_item_count"], 1)
@@ -2420,9 +1356,6 @@ class LiveHuntAnalysisTest(unittest.TestCase):
                 any(key.startswith("UseCaseRmmRegex") for key in env)
                 for _, env, _ in api.calls
             )
-        )
-        self.assertFalse(
-            any("inventory_get(" in vql for vql, _, _ in api.calls)
         )
         self.assertEqual(
             result["autoruns_mode_coverage"][AUTORUNS_ARTIFACT]["mode"],

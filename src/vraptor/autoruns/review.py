@@ -1,8 +1,10 @@
 """Four-field regex review exports and complete-stream accounting."""
 from __future__ import annotations
 
+import base64
 import csv
 from contextlib import closing
+import gzip
 import hashlib
 from importlib import resources
 import json
@@ -11,13 +13,14 @@ from dataclasses import dataclass
 import os
 import shutil
 import sqlite3
-import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Any, Iterator
 
 from vraptor.autoruns import regex as autoruns_regex
 from vraptor.analyze import source as review_source
+from vraptor.logging import operations as operation_log
 
 SCHEMA = "autoruns_four_field_regex_v1"
 FIELDS = ("Category", "ImagePath", "LaunchString", "Signer")
@@ -27,12 +30,8 @@ GOLDEN_FIRST_SOURCE_CONTRACT = "autoruns-golden-first-count-v1"
 COUNT_FIELDS = ("SourceRows", "EligibleRows", "MatchedRows", "ResidualRows", "GroupCount")
 CUTOFF_COUNT_FIELDS = ("EligibleGroups", "HighCountExcludedRows", "HighCountExcludedGroups", "MatchedGroups")
 DEFAULT_MAX_HOSTNAMES = 10
-CACHE_MAX_ENTRIES = 500  # Per category, including the shared overflow LRU.
-SINGLE_LRU_MAX_ENTRIES = 1000
-CACHE_DEDICATED_CATEGORIES = 19
-CACHE_MAX_KEY_BYTES = 4096
-METRIC_MAX_CATEGORIES = 128
-METRIC_MAX_CATEGORY_BYTES = 256
+MAX_REQUEST_BYTES = 1024 * 1024
+TRANSPORT_ROWS = 1000
 
 
 def load_database(path):
@@ -86,39 +85,54 @@ def load_vql_file(path):
             raise RuntimeError(f"Autoruns VQL file must contain {placeholder}.")
     return VQLFile(str(path), text, hashlib.sha256(raw).hexdigest())
 
-def build_query(configuration, *, source, max_hostnames=DEFAULT_MAX_HOSTNAMES, max_total_rows=None,
-                cache_max_entries=None, cache_max_key_bytes=CACHE_MAX_KEY_BYTES,
-                single_lru=False, vql_file=None):
-    from vraptor.autoruns.testing import _encode
+
+def _encode(value: Any) -> str:
+    payload = json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    return base64.b64encode(gzip.compress(payload, mtime=0)).decode("ascii")
+
+
+def _query_environment_sha256(query: str, env: dict[str, str]) -> str:
+    identity = json.dumps({"query": query, "env": env}, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    return hashlib.sha256(identity).hexdigest()
+
+
+def _stream_rows(api: Any, query: str, env: dict[str, str], timeout: int, *,
+                 query_name: str = "autoruns_test.accounted_stack",
+                 purpose: str = "autoruns_test-first-pass") -> Iterator[dict[str, Any]]:
+    batches = iter(api.query_batches(
+        query, env, timeout=timeout, max_wait=30, max_row=TRANSPORT_ROWS,
+        query_name=query_name,
+    ))
+    try:
+        while True:
+            with operation_log.query_context(
+                purpose=purpose, hunt_id=env.get("HuntId"),
+                artifact=env.get("ArtifactName"),
+            ):
+                try:
+                    batch = next(batches)
+                except StopIteration:
+                    return
+            if not isinstance(batch, list):
+                raise RuntimeError("Autoruns query returned a malformed row batch.")
+            for row in batch:
+                if not isinstance(row, dict):
+                    raise RuntimeError("Autoruns query returned a malformed row.")
+                yield row
+    finally:
+        close = getattr(batches, "close", None)
+        if close is not None:
+            close()
+
+
+def build_query(configuration, *, source, vql_file, max_hostnames=DEFAULT_MAX_HOSTNAMES, max_total_rows=None):
     if type(max_hostnames) is not int or not 0 <= max_hostnames <= 1000:
         raise RuntimeError("Example hostname limit must be between 0 and 1000.")
     if max_total_rows is not None and (type(max_total_rows) is not int or max_total_rows <= 0):
         raise ValueError("max_total_rows must be a positive integer or None.")
-    if type(single_lru) is not bool:
-        raise RuntimeError("single_lru must be a boolean.")
-    if vql_file is not None and (single_lru or cache_max_entries is not None):
-        raise RuntimeError("VQL files cannot be combined with built-in cache options.")
-    # Explicit cache options select the retained experimental template.
-    cached_template = single_lru or cache_max_entries is not None
-    entry_limit = SINGLE_LRU_MAX_ENTRIES if single_lru else CACHE_MAX_ENTRIES
-    if cache_max_entries is None:
-        cache_max_entries = entry_limit
-    # Zero entries is an internal benchmark/reference mode, not a second CLI workflow.
-    if type(cache_max_entries) is not int or not 0 <= cache_max_entries <= entry_limit:
-        raise RuntimeError("Invalid review cache entry bound.")
-    if type(cache_max_key_bytes) is not int or not 1 <= cache_max_key_bytes <= CACHE_MAX_KEY_BYTES:
-        raise RuntimeError("Invalid review cache key bound.")
-    cache_name = ('"autoruns-regex-review-single-lru"' if single_lru else
-                  'ReviewCategoryCache(CategoryKey=serialize(item=Category, format="json"))')
     env = source.query_environment()
     env["AutorunsTestReviewGzip"] = _encode(configuration["rules"])
-    template = (vql_file.text if vql_file is not None else
-        resources.files("vraptor").joinpath(
-            "resources", "autoruns",
-            "regex-review-cached.vql" if cached_template else "regex-review.vql").read_text())
-    match = ("ReviewCachedMatch(Key=serialize(item=dict(Category=Category, "
-             "ImagePath=ImagePath, LaunchString=LaunchString, Signer=Signer), format=\"json\"))"
-             if cache_max_entries else "ReviewFullMatch()")
+    template = vql_file.text
     if configuration["metadata"].get("schema_version") in {"9", "10"}:
         pinned = resources.files("vraptor").joinpath(
             "resources", "autoruns", "regex-review-dedup-first.vql").read_text()
@@ -136,74 +150,12 @@ def build_query(configuration, *, source, max_hostnames=DEFAULT_MAX_HOSTNAMES, m
     query = (template.replace("SOURCE_QUERY", source.vql)
              .replace("HOST_LIMIT", str(max_hostnames))
              .replace("TOTAL_ROWS_LIMIT", str(max_total_rows or 0))
-             .replace("RULE_COUNT", str(len(configuration["rules"])))
-             .replace("CACHE_ENTRIES", str(max(1, cache_max_entries)))
-             .replace("CACHE_NAME", cache_name)
-             .replace("CACHE_DEDICATED_CATEGORIES", str(CACHE_DEDICATED_CATEGORIES))
-             .replace("CACHE_KEY_BYTES", str(cache_max_key_bytes))
-             .replace("MATCH_EXPRESSION", match)
-             .replace("METRIC_MAX_CATEGORIES", str(METRIC_MAX_CATEGORIES))
-             .replace("METRIC_MAX_CATEGORY_BYTES", str(METRIC_MAX_CATEGORY_BYTES)))
-    if vql_file is not None:
-        query = "// Autoruns VQL file SHA-256: " + vql_file.sha256 + "\n" + query
+             .replace("RULE_COUNT", str(len(configuration["rules"]))))
+    query = "// Autoruns VQL file SHA-256: " + vql_file.sha256 + "\n" + query
     return query, env, {"Regex": len(configuration["rules"])}
 
 
-def category_cache_statistics(summary, counts, evaluations, bypasses):
-    """Validate bounded outcome metrics against the same-pass source totals."""
-    rows = summary.get("CacheCategoryMetrics")
-    overflow = summary.get("CacheCategoryMetricsOverflow")
-    if not isinstance(rows, list) or len(rows) > METRIC_MAX_CATEGORIES:
-        raise RuntimeError("Invalid regex review category metrics.")
-    raw_fields = tuple(prefix + suffix for prefix in ("Matched", "Residual")
-                       for suffix in ("Rows", "Evaluations", "Bypasses"))
-    totals = dict.fromkeys(raw_fields, 0)
-    categories = set()
-    result = []
-    for index, row in enumerate([*rows, overflow]):
-        if not isinstance(row, dict) or set(row) != {"Category", *raw_fields}:
-            raise RuntimeError("Malformed regex review category metrics.")
-        category = row["Category"]
-        if index == len(rows):
-            if category is not None:
-                raise RuntimeError("Invalid regex review overflow category.")
-        else:
-            if (not isinstance(category, str) or category in categories
-                    or len(category.encode("utf-8")) > METRIC_MAX_CATEGORY_BYTES):
-                raise RuntimeError("Invalid or duplicated regex review metric category.")
-            categories.add(category)
-        if any(type(row[k]) is not int or row[k] < 0 for k in raw_fields):
-            raise RuntimeError("Invalid regex review category counters.")
-        item = {"category": category}
-        for label, prefix in (("matched", "Matched"), ("residual", "Residual")):
-            total, executed, bypassed = (row[prefix + suffix]
-                                        for suffix in ("Rows", "Evaluations", "Bypasses"))
-            if not 0 <= bypassed <= executed <= total:
-                raise RuntimeError("Inconsistent regex review category counters.")
-            item[label] = dict(rows=total, hits=total-executed, misses=executed-bypassed,
-                               bypasses=bypassed, matching_evaluations=executed)
-        for key in totals:
-            totals[key] += row[key]
-        result.append(item)
-    if (totals["MatchedRows"] != counts["MatchedRows"]
-            or totals["ResidualRows"] != counts["ResidualRows"]
-            or totals["MatchedEvaluations"] + totals["ResidualEvaluations"] != evaluations
-            or totals["MatchedBypasses"] + totals["ResidualBypasses"] != bypasses):
-        raise RuntimeError("Regex review category totals do not reconcile.")
-    global_outcomes = {
-        label: {key: sum(item[label][key] for item in result)
-                for key in ("rows", "hits", "misses", "bypasses", "matching_evaluations")}
-        for label in ("matched", "residual")
-    }
-    return {"category_metrics_version": 1,
-            "max_metric_categories": METRIC_MAX_CATEGORIES,
-            "max_metric_category_bytes": METRIC_MAX_CATEGORY_BYTES,
-            "by_category": sorted(result[:-1], key=lambda item: item["category"]),
-            "category_overflow": result[-1], **global_outcomes}
-
-
-def consume(rows, writer, *, rule_count, max_hostnames, cache_stats=None, single_lru=False,
-            expect_cache_metrics=True, pre_golden_cutoff=False, max_total_rows=None):
+def consume(rows, writer, *, rule_count, max_hostnames, pre_golden_cutoff=False, max_total_rows=None):
     header = next(rows, None)
     if header != {"_Review": "ready", "Rules": rule_count, "Ready": True}:
         raise RuntimeError("Regex review rule materialization failed.")
@@ -230,7 +182,7 @@ def consume(rows, writer, *, rule_count, max_hostnames, cache_stats=None, single
                 or any(not isinstance(h, str) or not h for h in hosts)
                 or len(set(hosts)) != len(hosts) or len(hosts) > total):
             raise RuntimeError("Malformed hostname sample.")
-        if (pre_golden_cutoff or expect_cache_metrics is False) and previous is not None and total > previous:
+        if pre_golden_cutoff and previous is not None and total > previous:
             raise RuntimeError("Restored uncached stack order is not descending.")
         previous = total
         writer.writerow({**{f: row[f] for f in FIELDS}, "TotalRows": total,
@@ -247,35 +199,8 @@ def consume(rows, writer, *, rule_count, max_hostnames, cache_stats=None, single
         raise RuntimeError("Regex review accounting mismatch.")
     if pre_golden_cutoff:
         validate_cutoff_counts(counts, max_total_rows)
-        expect_cache_metrics = False
-    if expect_cache_metrics is None:
-        # Complete experimental templates may return either supported summary.
-        # Partial or malformed cache telemetry still fails the cached validator.
-        expect_cache_metrics = bool(set(summary) - {"_Review", *keys})
-    if not expect_cache_metrics:
-        if single_lru or set(summary) != {"_Review", *keys}:
-            raise RuntimeError("Uncached summary does not match its expected schema.")
-        counts["ExcludedRows"] = counts["SourceRows"] - counts["EligibleRows"]
-        return counts
-    evaluations, bypasses = (summary.get(k) for k in ("MatchingEvaluations", "CacheBypasses"))
-    if (type(summary.get("CacheCategories")) is not int
-            or not 0 <= summary["CacheCategories"] <= CACHE_DEDICATED_CATEGORIES
-            or type(summary.get("CacheOverflowUsed")) is not bool
-            or type(summary.get("CacheErrors")) is not int or summary["CacheErrors"] != 0
-            or type(evaluations) is not int or type(bypasses) is not int
-            or not 0 <= bypasses <= evaluations <= counts["EligibleRows"]
-            or (counts["EligibleRows"] and not evaluations)):
-        raise RuntimeError("Invalid regex review cache accounting.")
-    if single_lru and (summary["CacheCategories"] != 0 or summary["CacheOverflowUsed"]):
-        raise RuntimeError("Single-LRU review unexpectedly allocated category caches.")
-    category_stats = category_cache_statistics(summary, counts, evaluations, bypasses)
-    if cache_stats is not None:
-        cache_stats.update(category_stats)
-        cache_stats.update(matching_evaluations=evaluations, bypasses=bypasses,
-                           hits=counts["EligibleRows"] - evaluations,
-                           misses=evaluations - bypasses,
-                           dedicated_categories=summary["CacheCategories"],
-                           overflow_cache_used=summary["CacheOverflowUsed"])
+    if set(summary) != {"_Review", *keys}:
+        raise RuntimeError("Uncached summary does not match its expected schema.")
     counts["ExcludedRows"] = counts["SourceRows"] - counts["EligibleRows"]
     return counts
 
@@ -310,25 +235,23 @@ def validate_cutoff_counts(counts, max_total_rows, *, golden_first=False):
         raise RuntimeError("Residual counts violate the configured cutoff.")
 
 
-def run(api, *, hunt_id, artifact, database, output_dir, max_hostnames=DEFAULT_MAX_HOSTNAMES,
-        query_timeout_seconds=0, show_vql=False, single_lru=False, vql_file=None,
-        workflow="autoruns_test", max_total_rows=None):
-    from vraptor.autoruns import testing as parent
+def run(api, *, hunt_id, artifact, database, output_dir, vql_file, max_hostnames=DEFAULT_MAX_HOSTNAMES,
+        query_timeout_seconds=0, workflow="autoruns", max_total_rows=None):
     from vraptor.api import build_vql_request
     from vraptor.api import org_id_candidates
-    if workflow not in {"autoruns_test", "autoruns"}:
+    if workflow != "autoruns":
         raise RuntimeError("Unknown Autoruns export workflow.")
     started = time.monotonic()
     configuration = load_database(database)
     source = review_source.hunt_source(hunt_id, artifact)
     query, env, expected = build_query(configuration, source=source, max_hostnames=max_hostnames,
-                                       single_lru=single_lru, vql_file=vql_file, max_total_rows=max_total_rows)
-    pre_golden_cutoff = vql_file is not None and "TOTAL_ROWS_LIMIT" in vql_file.text
+                                       vql_file=vql_file, max_total_rows=max_total_rows)
+    pre_golden_cutoff = "TOTAL_ROWS_LIMIT" in vql_file.text
     request_bytes = max(build_vql_request(
         query, env, org_id=org, timeout=query_timeout_seconds, max_wait=30,
-        max_row=parent.TRANSPORT_ROWS).ByteSize()
+        max_row=TRANSPORT_ROWS).ByteSize()
         for org in org_id_candidates(getattr(api, "org_id", "root")))
-    if request_bytes > parent.MAX_REQUEST_BYTES:
+    if request_bytes > MAX_REQUEST_BYTES:
         raise RuntimeError("Regex review request exceeds the 1 MiB limit.")
     if output_dir is None:
         raise RuntimeError("regex-review requires --autoruns-test-output-dir.")
@@ -337,25 +260,17 @@ def run(api, *, hunt_id, artifact, database, output_dir, max_hostnames=DEFAULT_M
         raise RuntimeError(f"Review output directory already exists: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=".autoruns-review-", dir=target.parent))
-    if show_vql:
-        print(parent.render_vql(query, env, mode="regex-review",
-              database_sha256=configuration["database_sha256"]), file=sys.stderr, flush=True)
     prepared = time.monotonic()
     try:
-        cache_stats = {}
-        labels = ({"query_name": "autoruns.accounted_stack",
-                   "purpose": "autoruns-source-export"}
-                  if workflow == "autoruns" else {})
-        rows = parent._stream_rows(api, query, env, query_timeout_seconds, **labels)
+        rows = _stream_rows(api, query, env, query_timeout_seconds,
+                            query_name="autoruns.accounted_stack", purpose="autoruns-source-export")
         try:
             with (staging / "review.csv").open("w", newline="", encoding="utf-8") as f:
                 writer = csv.DictWriter(f, fieldnames=CSV_FIELDS)
                 writer.writeheader()
                 counts = consume(rows, writer, rule_count=expected["Regex"],
-                                 max_hostnames=max_hostnames, cache_stats=cache_stats,
-                                 single_lru=single_lru,
-                                 pre_golden_cutoff=pre_golden_cutoff, max_total_rows=max_total_rows,
-                                 expect_cache_metrics=None if vql_file is not None else single_lru)
+                                 max_hostnames=max_hostnames,
+                                 pre_golden_cutoff=pre_golden_cutoff, max_total_rows=max_total_rows)
         finally:
             rows.close()
         finished = time.monotonic()
@@ -367,20 +282,12 @@ def run(api, *, hunt_id, artifact, database, output_dir, max_hostnames=DEFAULT_M
             "database_sha256": configuration["database_sha256"],
             "database_metadata": configuration["metadata"],
             "counts": counts, "rule_counts": expected, "max_example_hosts": max_hostnames,
-            "decision_cache": ({"mode": "single-lru",
-                               "max_caches": 1 if single_lru else CACHE_DEDICATED_CATEGORIES + 1,
-                               "max_entries_per_cache": SINGLE_LRU_MAX_ENTRIES if single_lru else CACHE_MAX_ENTRIES,
-                               "max_entries_per_category": None if single_lru else CACHE_MAX_ENTRIES,
-                               "max_dedicated_categories": 0 if single_lru else CACHE_DEDICATED_CATEGORIES,
-                               "max_total_entries": SINGLE_LRU_MAX_ENTRIES if single_lru else CACHE_MAX_ENTRIES * (CACHE_DEDICATED_CATEGORIES + 1),
-                               "max_key_bytes": CACHE_MAX_KEY_BYTES, **cache_stats}
-                               if single_lru else {"mode": "uncached-restored",
-                                                   "enabled": False, "metrics_available": False}),
+            "decision_cache": {"mode": "custom-vql", "metrics_available": False},
             "request_bytes": request_bytes, "stream_complete": True,
             "duration_seconds": round(finished-started, 6),
             "preparation_seconds": round(prepared-started, 6),
             "stream_seconds": round(finished-prepared, 6),
-            "query_environment_sha256": parent._query_environment_sha256(query, env),
+            "query_environment_sha256": _query_environment_sha256(query, env),
             "review_csv": str(target / "review.csv"), "stats_json": str(target / "stats.json"),
             "review_csv_sha256": csv_sha256,
             "stack_rows_saved": counts["GroupCount"], "review_status": "not_performed",
@@ -388,18 +295,13 @@ def run(api, *, hunt_id, artifact, database, output_dir, max_hostnames=DEFAULT_M
             "inventory_mutated": False,
             "signature_validation": {"status": "source_signer_values_not_independently_verified"},
         }
-        if vql_file is not None:
-            result["vql_file"] = {"path": vql_file.path, "sha256": vql_file.sha256}
-            result["decision_cache"] = {"mode": "custom-vql", "metrics_available": bool(cache_stats),
-                                        **cache_stats}
+        result["vql_file"] = {"path": vql_file.path, "sha256": vql_file.sha256}
         if pre_golden_cutoff:
             result.update(source_contract=SOURCE_CONTRACT, max_total_rows=max_total_rows)
-        if workflow == "autoruns":
-            result.update(stage="source_export", review_status_scope="source_export_only",
-                review_status_detail="This file records the source export only; AI review status is recorded in canonical hunt state.")
-        label = "autoruns source export" if workflow == "autoruns" else "autoruns_test (regex-review)"
+        result.update(stage="source_export", review_status_scope="source_export_only",
+            review_status_detail="This file records the source export only; AI review status is recorded in canonical hunt state.")
         result["chat_summary"] = (
-            f"{label}: {counts['SourceRows']:,} source rows; "
+            f"autoruns source export: {counts['SourceRows']:,} source rows; "
             f"{counts['EligibleRows']:,} eligible; {counts['MatchedRows']:,} matched; "
             f"{counts['ResidualRows']:,} retained in {counts['GroupCount']:,} stacks.\n"
             f"Up to {max_hostnames} example hosts per stack. CSV: {result['review_csv']}\n"

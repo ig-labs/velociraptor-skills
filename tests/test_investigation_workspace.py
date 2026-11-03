@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from unittest.mock import patch
@@ -60,14 +61,18 @@ def test_init_renders_editable_template(tmp_path, monkeypatch):
         'Custom guidance: {braces}, $HOME, and `code`.\n', encoding='utf-8',
     )
     monkeypatch.setattr(workspace, 'resource_root', lambda: resources)
-    root = tmp_path / "analyst's cases"
+    root = tmp_path / "analyst's $cases"
     result = workspace.initialize('ir1234', root)
     guidance = root / 'ir1234/AGENTS.md'
     assert result['guidance_created']
-    assert guidance.read_text() == (
-        f"# ir1234\n--id 'ir1234' --case-root {str(root)!r}\n"
+    rendered = guidance.read_text()
+    assert rendered == (
+        f"# ir1234\n--id ir1234 --case-root {shlex.quote(str(root))}\n"
         'Custom guidance: {braces}, $HOME, and `code`.\n'
     )
+    # Agents paste these arguments into a shell; they must survive word splitting
+    # and expansion unchanged.
+    assert shlex.split(rendered.splitlines()[1]) == ['--id', 'ir1234', '--case-root', str(root)]
     template.unlink()
     assert not workspace.initialize('ir1234', root)['guidance_created']
 

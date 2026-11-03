@@ -68,6 +68,27 @@ def write_text_atomic(
         handle.write(text)
 
 
+def write_bytes_atomic(destination: Path, content: bytes) -> None:
+    """Write bytes through a private sibling file and atomically replace."""
+    temporary = sibling_work_path(destination)
+    descriptor = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+        0o600,
+    )
+    replaced = False
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(content)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+        replaced = True
+    finally:
+        if not replaced:
+            temporary.unlink(missing_ok=True)
+
+
 def write_json_atomic(
     destination: Path,
     payload: Any,

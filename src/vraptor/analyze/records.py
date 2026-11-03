@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from collections import OrderedDict, defaultdict
 from typing import Any
 
 from vraptor.common import token_budget
+from vraptor.common.hashing import canonical_json
 
 
 EVIDENCE_RECORD_VERSION = 1
@@ -53,16 +53,7 @@ def normalized_values(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def canonical_json_bytes(value: Any) -> bytes:
-    return (
-        json.dumps(
-            value,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=True,
-            default=str,
-        )
-        + "\n"
-    ).encode("utf-8")
+    return (canonical_json(value) + "\n").encode("utf-8")
 
 
 def record_content_hash(artifact: str, partition: str, values: dict[str, Any]) -> str:

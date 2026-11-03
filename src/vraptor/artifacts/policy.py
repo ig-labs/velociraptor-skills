@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import os
 from copy import deepcopy
 from dataclasses import dataclass
@@ -13,6 +11,7 @@ from typing import Any, Iterable, Mapping
 from vraptor.artifacts import profiles as artifact_profiles
 from vraptor.artifacts import scenarios as detection_scenarios
 from vraptor.artifacts import sources as policy_sources
+from vraptor.common.hashing import sha256_json
 
 
 POLICY_SNAPSHOT_SCHEMA_VERSION = 1
@@ -108,13 +107,7 @@ def thaw(value: Any) -> Any:
 
 
 def canonical_sha256(value: Any) -> str:
-    encoded = json.dumps(
-        thaw(value),
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=False,
-    ).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return sha256_json(thaw(value), ensure_ascii=False, default=None)
 
 
 def _require_sha256(value: Any, *, label: str) -> str:

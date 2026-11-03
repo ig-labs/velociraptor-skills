@@ -11,7 +11,6 @@ from vraptor.agent.config import ANALYST_AGENT_PROVIDER_ENV
 from vraptor.agent.config import CONFIG_SOURCE_ENV
 from vraptor.agent.config import CODEX_CONFIG_ENV
 from vraptor.agent.config import DEFAULT_ANALYST_AGENT_MODEL
-from vraptor.agent.config import SourceProvenance
 from vraptor.agent.config import collect_unresolved_agent_config
 from vraptor.agent.config import resolve_agent_execution
 from vraptor.agent.factory import create_agent_runner

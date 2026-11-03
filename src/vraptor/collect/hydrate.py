@@ -91,17 +91,9 @@ def get_hydration_manifest_path(investigation_dir: Path) -> Path:
     )
 
 
-def state_paths_for_host(investigation_dir: Path, hostname: str) -> list[Path]:
-    return layout.state_paths_for_host(investigation_dir, hostname)
-
-
-def request_hosts_from_systems(investigation_dir: Path) -> list[str]:
-    return layout.hostnames_with_collection_state(investigation_dir)
-
-
 def resolve_scope_hosts(investigation_dir: Path, explicit_hosts: list[str]) -> list[dict[str, str]]:
     requested = [normalize(host) for host in explicit_hosts if normalize(host)]
-    hosts = requested or request_hosts_from_systems(investigation_dir)
+    hosts = requested or layout.hostnames_with_collection_state(investigation_dir)
     return [{"hostname": host, "system_status": "", "scope_source": "explicit" if requested else "requests"} for host in hosts]
 
 
@@ -158,7 +150,6 @@ def summarize_request_result(
 def hydrate_saved_request(
     api: Any,
     investigation_id: str,
-    investigation_dir: Path,
     hostname: str,
     state_path: Path,
     *,
@@ -353,12 +344,11 @@ def main(argv: list[str] | None = None, *, scope_records: list[dict[str, str]] |
                     completed=index - 1,
                     total=len(scope_hosts),
                 )
-                request_paths = state_paths_for_host(investigation_dir, hostname)
+                request_paths = layout.state_paths_for_host(investigation_dir, hostname)
                 request_results = [
                     hydrate_saved_request(
                         api,
                         storage_investigation_id,
-                        investigation_dir,
                         hostname,
                         state_path,
                         force_export=bool(args.force_export),

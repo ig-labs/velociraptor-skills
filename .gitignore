@@ -217,17 +217,10 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
-# Velociraptor local state and credentials
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.ruff_cache/
-.venv/
-.env
+# macOS metadata
 .DS_Store
-*.egg-info/
-build/
-dist/
+
+# Velociraptor local state and credentials
 /tools/
 *.yaml.tmp
 *_api_client.yaml
@@ -255,3 +248,12 @@ server.config.yaml
 
 # Local repository synchronization baseline.
 /.sync-state.json
+
+# GoldenDB writer locks and default backups; the authoritative CSV and SQLite are tracked.
+src/vraptor/resources/golden/backups/
+src/vraptor/resources/golden/*.lock
+
+# Personal coding-agent instructions and settings
+CLAUDE.local.md
+AGENTS.override.md
+.claude/settings.local.json

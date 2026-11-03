@@ -128,10 +128,9 @@ class RunVelociraptorHuntingPathTest(unittest.TestCase):
             module.CASE_ROOT = Path(temp_dir)
             expected = Path(temp_dir) / "IR9002" / "hunts"
 
-            self.assertEqual(module.target_hunt_root("IR9002", "windows"), expected)
-            self.assertEqual(module.target_hunt_root("IR9002", "linux"), expected)
+            self.assertEqual(module.hunt_root("IR9002"), expected)
             self.assertEqual(
-                module.hunt_state_path("IR9002", "H.1234", target_os="windows"),
+                module.hunt_state_path("IR9002", "H.1234"),
                 expected / "H.1234" / "state.json",
             )
             self.assertEqual(
@@ -999,14 +998,13 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
 
     def test_review_sample_vql_defaults_to_1000_limit_and_field_profile(self):
         module = load_run_velociraptor_hunting_module()
-        self.assertEqual(module.HUNT_REVIEW_DEFAULT_LIMIT, 1000)
         self.assertEqual(module.HUNT_REVIEW_LIMIT_PRESETS["explore"], 1000)
         vql = module.build_review_sample_vql(
             source=None,
             field_profile="minimal",
             fields=[],
             where="ClientId = 'C.123'",
-            limit=module.HUNT_REVIEW_DEFAULT_LIMIT,
+            limit=module.HUNT_REVIEW_LIMIT_PRESETS["explore"],
         )
         self.assertIn("SELECT ClientId, Fqdn, Hostname, Timestamp", vql)
         self.assertIn("FROM hunt_results(hunt_id=HuntId, artifact=ArtifactName)", vql)
@@ -1072,7 +1070,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-review-limit",
                 "H.1234",
                 request,
-                target_os="windows",
                 operation="sample",
                 field_profile="minimal",
                 fields=["EventID"],
@@ -1124,7 +1121,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-inventory-quick",
                 "H.1234",
                 request,
-                target_os="windows",
                 operation="inventory",
                 field_profile="stacking",
                 fields=[],
@@ -1182,7 +1178,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-inventory-channel",
                 "H.1234",
                 request,
-                target_os="windows",
                 operation="inventory",
                 field_profile="stacking",
                 fields=[],
@@ -1236,7 +1231,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-inventory-exact",
                 "H.1234",
                 request,
-                target_os="windows",
                 operation="inventory",
                 field_profile="stacking",
                 fields=[],
@@ -1289,7 +1283,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-inventory-both",
                 "H.1234",
                 request,
-                target_os="windows",
                 operation="inventory",
                 field_profile="stacking",
                 fields=[],
@@ -1384,7 +1377,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-profile-stack",
                 "H.1234",
                 request,
-                target_os="windows",
                 operation="stack",
                 field_profile="stacking",
                 fields=[],
@@ -1443,7 +1435,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-services-stack",
                 "H.5678",
                 request,
-                target_os="windows",
                 operation="stack",
                 field_profile="stacking",
                 fields=[],
@@ -1489,7 +1480,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                     "case-services-hash-stack",
                     "H.6789",
                     request,
-                    target_os="windows",
                     operation="stack",
                     field_profile="stacking",
                     fields=[],
@@ -1528,7 +1518,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                     "case-profile-stack",
                     "H.1234",
                     request,
-                    target_os="windows",
                     operation="stack",
                     field_profile="stacking",
                     fields=[],
@@ -1583,7 +1572,7 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                     )
                 ],
             )
-            manifest = module.export_hunt(api, "case-export-retry", "H.1234", request, target_os="windows")
+            manifest = module.export_hunt(api, "case-export-retry", "H.1234", request)
 
             exported = manifest["exported_files"][0]
             self.assertEqual(api.max_rows, [10000, 5000])
@@ -1626,7 +1615,7 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                     )
                 ],
             )
-            manifest = module.export_hunt(FakeApi(), "case-export-error", "H.1234", request, target_os="windows")
+            manifest = module.export_hunt(FakeApi(), "case-export-error", "H.1234", request)
 
             exported = manifest["exported_files"][0]
             self.assertEqual(exported["status"], "resource_exhausted")
@@ -1673,7 +1662,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-multi-source",
                 "H.1234",
                 request,
-                target_os="linux",
                 artifact_sources=sources,
             )
 
@@ -1721,7 +1709,6 @@ class RunVelociraptorHuntingSearchStateRegressionTest(unittest.TestCase):
                 "case-multi-source",
                 "H.1234",
                 request,
-                target_os="linux",
                 artifact_sources=sources,
             )
 

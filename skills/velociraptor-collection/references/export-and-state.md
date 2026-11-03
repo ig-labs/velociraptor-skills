@@ -3,6 +3,7 @@
 ## Contents
 
 - State paths
+- Progress log
 - Export controls
 - Export projections
 - Hydration
@@ -39,8 +40,11 @@ artifact reports; request copies retain history and checkpoint integrity.
 `--rebuild-host-summary` restores current reports from validated checkpoints.
 
 A failed artifact summary is a terminal local-analysis result and does not block
-sibling artifacts. Retry it explicitly with `--reset-artifact` and the exact request
-ID; the existing Velociraptor flow is reused and only that component is replaced.
+sibling artifacts. Resume it with `--retry-failed` and the exact request ID, which
+reuses accepted chunks; `--reset-artifact` discards them. Either way the existing
+Velociraptor flow is reused and only that component is replaced. Chunks that fail
+every attempt are listed in the request's `analysis/failed-chunks.json`, including
+those an AI repair call then recovered (`resolution` `by: repair`).
 
 `state.json` is created before queue submission and carries `queue_progress`:
 `starting`, `running`, `complete`, or `failed`, plus the active artifact,
@@ -55,10 +59,48 @@ components returned by the same Flow.
 If one result component fails, preserve successful sibling components and record
 partial artifact coverage rather than dropping all rows.
 
+The gRPC packet starts at 5,000 rows and may rise to 20,000 rows after two full
+5,000-row responses of at most 2 MiB with no row above 64 KiB; EVTX and
+PowerShell stay at 5,000. Size failures retry down to one row, and later
+100,000-row windows continue without changing logical chunks.
+
 Validate an exact saved request without recollection with
 `utils/validate_collection_analysis_forward.py`. The harness checks
 the provisional host report, checkpoint and artifact hashes, retry counts,
 durable-state hygiene, canonical paths, and coverage.
+
+## Progress log
+
+Read this when inspecting `<case-root>/<id>/logs/velociraptor-progress.log`
+for a collection command. The shared
+[logging reference](../../../docs/reference/velociraptor-logging.md#progress-logging)
+covers DEBUG mode, waiting messages, rotation and `logs status`.
+
+- The file records stage progress, safe query purposes, command scope,
+  model/provider identity and usage, retries, counts, timings, query-aware
+  heartbeats, and sanitized server messages. `VELO_PROGRESS_FILE_DEBUG=true`
+  adds DEBUG lines with response part/query IDs, server-reported totals,
+  transport sizing, and provider lifecycle detail.
+- The submitted VQL, evidence rows, prompts, model responses, environment
+  values, provider bodies, and raw stderr are never logged.
+- Concurrent commands interleave safely under distinct operation ids. Parallel
+  task lifecycle events are not throttled, heartbeats aggregate task state, and
+  every operation ends with query, model, task, retry, row, batch, rotation, and
+  dropped-event counts when applicable.
+- The mode-`0600` adjacent `.lock` file serializes cross-process append and
+  rotation with a bounded wait; logging failure never fails collection.
+- INFO records bounded, single-line sanitized server messages and extracts valid
+  numeric completed, total, percent, rows-scanned, bytes-scanned, and
+  elapsed-seconds fields under `progress_*`. Server text may contain
+  evidence-sensitive hostnames, usernames, paths, or VQL. Recognized API keys,
+  tokens, passwords, secrets, authorization values, URL credentials, PEM
+  material, and configured credential values are redacted. Message length and
+  SHA-256 are not logged.
+- Each query has a local `q-NNNN` identifier and one heartbeat with elapsed and
+  server-idle time; unbounded queries and server silence are warned, and
+  unchanged queries receive five-minute reminders. `logs status --id <id>`
+  checks local PID/start identity and retained operation overlap; old logs
+  without PID identity report `UNKNOWN`.
 
 ## Export controls
 
@@ -84,7 +126,7 @@ not overwrite each other.
 Hydrate previously saved host requests with:
 
 ```bash
-dfir collect hydrate --investigation-id IR1234
+vraptor collect hydrate --investigation-id IR1234
 ```
 
 Use `--host` to restrict the target and `--force-export` only when a new snapshot is

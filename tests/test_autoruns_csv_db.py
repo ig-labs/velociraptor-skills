@@ -122,7 +122,7 @@ def test_native_hunt_and_host_payload_keep_search_and_exact_category_semantics(t
     index = regex.RegexIndex(cfg["records"])
     assert [index.matches(r) for r in samples] == [True] * 3 + [False] * 4
     native = [row(Category=r["category"], image=r["image_path"], **{"Launch String": r["launch_string"], "Signer": r["signer"]}) for r in samples]
-    stream = execute(native, original=True, config=cfg, vql_file=dedup.template())
+    stream = execute(native, config=cfg, vql_file=dedup.template())
     assert stream[-1]["SourceRows"] == 7
     assert stream[-1]["MatchedRows"] == 3 and stream[-1]["ResidualRows"] == 4
     payload = golden.live_lookup_payload(path)
@@ -154,3 +154,16 @@ def test_cli_build_and_import_accept_csv(tmp_path):
         args = golden.parser().parse_args([command, "--db", str(tmp_path / "db.sqlite"),
             "--input", str(source), "--backup-dir", str(tmp_path / "backups"), "--dry-run"])
         assert args.command == command and args.dry_run
+
+
+def test_packaged_csv_matches_packaged_database():
+    from vraptor.resources import resource_root
+
+    golden_dir = resource_root() / "golden"
+    with (golden_dir / "autoruns-golden.csv").open(newline="", encoding="utf-8-sig") as stream:
+        source = list(csv.DictReader(stream))
+    with sqlite3.connect(f"file:{golden_dir / 'autoruns-golden.sqlite'}?mode=ro", uri=True) as connection:
+        stored = db.records(connection)
+    key = lambda item: tuple(item[field] for field in db.COLUMNS)  # noqa: E731
+    # The README tells maintainers to version both together; dates must agree too.
+    assert sorted(map(key, source)) == sorted(map(key, stored))

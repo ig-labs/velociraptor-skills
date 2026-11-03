@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextvars
 import errno
 import fcntl
 import hashlib
+import json
 import os
 import re
 import socket
 import stat
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -18,7 +21,9 @@ from contextlib import AbstractContextManager, contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Mapping
+from typing import Any, Callable, Iterable, Iterator, Mapping
+
+from vraptor.logging import token_usage
 
 
 MAX_EVENTS = 4096
@@ -182,6 +187,7 @@ INTEGER_FIELDS = {
     "output_tokens",
     "cached_input_tokens",
     "local_output_tokens",
+    "usage_records_dropped",
     "progress_bytes_scanned",
     "progress_completed",
     "progress_rows_scanned",
@@ -314,6 +320,7 @@ NORMAL_FIELD_ORDER = (
     "total_tokens",
     "cached_input_tokens",
     "local_output_tokens",
+    "usage_records_dropped",
 )
 DEBUG_FIELD_ORDER = (
     "first_batch_ms", "consumer_pause_ms", "identity_reference",
@@ -574,13 +581,13 @@ def extract_global_options(argv: list[str]) -> tuple[list[str], LogOptions]:
             index += 2
             continue
         if item.startswith("--log-file="):
-            explicit_path = Path(item.split("=", 1)[1]).expanduser().resolve()
+            explicit_path = Path(item.split("=", 1)[1]).expanduser().absolute()
             index += 1
             continue
         if item == "--log-file":
             if index + 1 >= len(argv):
                 raise ValueError("--log-file requires a path")
-            explicit_path = Path(argv[index + 1]).expanduser().resolve()
+            explicit_path = Path(argv[index + 1]).expanduser().absolute()
             index += 2
             continue
         remaining.append(item)
@@ -750,6 +757,10 @@ class OperationLogger(AbstractContextManager["OperationLogger"]):
         self.created_at = now_utc()
         self.started_monotonic = time.monotonic()
         self.path: Path | None = None
+        self.token_usage_path: Path | None = None
+        self._token_usage = token_usage.TokenUsageLedger()
+        self._usage_warning_written = False
+        self._persistence_error = False
         self._buffer: list[tuple[str, str, dict[str, Any], bool]] = []
         self._lock = threading.RLock()
         self._event_count = 0
@@ -779,10 +790,16 @@ class OperationLogger(AbstractContextManager["OperationLogger"]):
         self._task_states: dict[str, str] = {}
 
     def __enter__(self) -> "OperationLogger":
-        self._token = _ACTIVE_SESSION.set(self)
-        if self.options.explicit_path is not None and self.options.persist:
-            self.bind_path(self.options.explicit_path)
-        _, process_started = process_snapshot(os.getpid())
+        try:
+            if self.options.explicit_path is not None and self.options.persist:
+                self.bind_path(self.options.explicit_path)
+            _, process_started = process_snapshot(os.getpid())
+        except Exception:
+            # Process identity and persistence are best effort; instrumentation
+            # failure must not leak a ContextVar or prevent the actual command.
+            process_started = ""
+            if self.options.explicit_path is not None and self.path is None:
+                self._persistence_error = True
         self.emit(
             "command_started",
             pid=os.getpid(),
@@ -795,13 +812,18 @@ class OperationLogger(AbstractContextManager["OperationLogger"]):
             server_message_mode="sanitized_text",
             status="running",
         )
+        self._token = _ACTIVE_SESSION.set(self)
         return self
 
     def __exit__(self, exc_type: Any, exc: Any, traceback: Any) -> None:
         if exc is not None and not self._finalized:
-            status = "interrupted" if isinstance(exc, KeyboardInterrupt) else "failed"
-            self.record_exception(exc, stage="runtime", status=status)
-            self.finalize(status=status, exit_code=130 if status == "interrupted" else 1)
+            if isinstance(exc, SystemExit):
+                code = exc.code if isinstance(exc.code, int) else 0 if exc.code is None else 1
+                self.finalize(status="complete" if code == 0 else "failed", exit_code=code)
+            else:
+                status = "interrupted" if isinstance(exc, (KeyboardInterrupt, asyncio.CancelledError)) else "failed"
+                self.record_exception(exc, stage="runtime", status=status)
+                self.finalize(status=status, exit_code=130 if status == "interrupted" else 1)
         elif not self._finalized:
             self.finalize(status="complete", exit_code=0)
         if self._token is not None:
@@ -836,21 +858,30 @@ class OperationLogger(AbstractContextManager["OperationLogger"]):
             return self.path
         candidate = Path(path).expanduser()
         if candidate.is_symlink():
+            self._persistence_error = True
             return None
         resolved = candidate.resolve()
         with self._lock:
-            resolved.parent.mkdir(parents=True, exist_ok=True)
             try:
+                resolved.parent.mkdir(parents=True, exist_ok=True)
                 with _exclusive_log_lock(resolved):
                     if resolved.exists() and (
                         resolved.is_symlink() or not resolved.is_file()
                     ):
+                        self._persistence_error = True
                         return None
                     self._retention_pruned = self._rotate_if_needed(resolved)
                     self._ensure_log_file(resolved)
             except (OSError, ValueError):
+                self._persistence_error = True
                 return None
             self.path = resolved
+            self.token_usage_path = resolved.with_name(
+                f"{resolved.stem}-token-usage.jsonl"
+                if self.options.explicit_path is not None
+                else token_usage.LOG_FILENAME
+            )
+            self._append_token_usage({"event": "operation_started", "status": "running"})
             buffered = list(self._buffer)
             self._buffer.clear()
             for event, level, fields, terminal in buffered:
@@ -909,6 +940,126 @@ class OperationLogger(AbstractContextManager["OperationLogger"]):
             self._task_states.pop(removable, None)
         self._task_states[task_key] = status
 
+    def record_token_usage(
+        self,
+        *,
+        invocation_id: str,
+        task_id: str,
+        request_id: str,
+        provider: str,
+        model: str,
+        protocol: str,
+        attempt: int,
+        status: str,
+        elapsed_seconds: float,
+        usage: Mapping[str, int],
+        usage_status: str,
+        stage: str = "",
+        correction_attempt: int = 0,
+    ) -> None:
+        """Commit one dispatched request attempt without retaining model payloads."""
+        with self._lock:
+            if self._finalized:
+                return
+            identifiers = {
+                "invocation_id": invocation_id,
+                "task_id": task_id,
+                "request_id": request_id,
+                "provider": provider,
+                "model": model,
+                "protocol": protocol,
+                "stage": stage,
+                "status": status,
+            }
+            # Apply credential scrubbing before the existing identifier policy.
+            safe_identifiers = {
+                key: _safe_identifier(sanitize_server_message(value)[0])
+                if value else ""
+                for key, value in identifiers.items()
+            }
+            record = self._token_usage.record(
+                **safe_identifiers,
+                attempt=attempt,
+                correction_attempt=correction_attempt,
+                elapsed_seconds=round(max(0.0, elapsed_seconds), 6),
+                usage=usage,
+                usage_status=usage_status,
+            )
+            if record is not None and self.options.persist:
+                self._append_token_usage(record)
+
+    def token_usage_summary(self) -> dict[str, Any]:
+        """Snapshot this command's counters without reading or writing log files."""
+        with self._lock:
+            return {**self._token_usage.summary(), "scope": "command",
+                    "operation_id": self.operation_id,
+                    "persistence_enabled": self.options.persist,
+                    "persistence_error": self._persistence_error,
+                    "log_complete": not self._persistence_error and self._token_usage.records_dropped == 0,
+                    "log_file": str(self.token_usage_path) if self.token_usage_path else None}
+
+    def _append_token_usage(self, record: Mapping[str, Any]) -> None:
+        """Append under the shared lock; keep usage independent of progress caps."""
+        payload = {
+            "schema_version": 1,
+            "timestamp": now_utc(),
+            "operation_id": self.operation_id,
+            "pid": os.getpid(),
+            "command": self.command,
+            **record,
+        }
+        try:
+            if self.token_usage_path is None:
+                raise OSError("Token usage log has no bound destination")
+            path = self.token_usage_path
+            encoded = (json.dumps(payload, sort_keys=True, allow_nan=False) + "\n").encode("utf-8")
+            with _exclusive_log_lock(path):
+                if path.is_symlink() or (path.exists() and not path.is_file()):
+                    raise OSError("Token usage log is not a regular file")
+                self._rotate_if_needed(
+                    path, incoming_bytes=len(encoded)
+                )
+                descriptor = os.open(
+                    path,
+                    os.O_WRONLY | os.O_CREAT | os.O_APPEND
+                    | getattr(os, "O_CLOEXEC", 0)
+                    | getattr(os, "O_NOFOLLOW", 0)
+                    | getattr(os, "O_NONBLOCK", 0),
+                    0o600,
+                )
+                try:
+                    file_stat = os.fstat(descriptor)
+                    if not stat.S_ISREG(file_stat.st_mode):
+                        raise OSError("Token usage log is not a regular file")
+                    os.fchmod(descriptor, 0o600)
+                    try:
+                        written = 0
+                        while written < len(encoded):
+                            count = os.write(descriptor, encoded[written:])
+                            if count <= 0:
+                                raise OSError("Token usage append made no progress")
+                            written += count
+                    except OSError:
+                        # The lock also protects rollback, so a failed short write
+                        # cannot corrupt the next process's JSONL record.
+                        os.ftruncate(descriptor, file_stat.st_size)
+                        raise
+                finally:
+                    os.close(descriptor)
+        except (OSError, ValueError):
+            self._persistence_error = True
+            self._token_usage.records_dropped += 1
+            if not self._usage_warning_written:
+                self._usage_warning_written = True
+                try:
+                    print(
+                        "Warning: token usage log write failed; usage records are incomplete.",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                except (OSError, ValueError):
+                    pass
+
     def _observe_event(self, event: str, fields: Mapping[str, Any]) -> None:
         query_instance_id = str(fields.get("query_instance_id") or "")
         if event == "api_query_started":
@@ -964,6 +1115,8 @@ class OperationLogger(AbstractContextManager["OperationLogger"]):
             fields["events_dropped"] = self._events_dropped
         if self._retention_pruned:
             fields["retention_pruned"] = self._retention_pruned
+        if self._token_usage.records_dropped:
+            fields["usage_records_dropped"] = self._token_usage.records_dropped
         return fields
 
     def emit(self, event: str, *, level: str = "info", **fields: Any) -> None:
@@ -1097,6 +1250,28 @@ class OperationLogger(AbstractContextManager["OperationLogger"]):
             if self._finalized:
                 return
             self._finalized = True
+            if self.options.persist:
+                self._append_token_usage({
+                    **self.token_usage_summary(),
+                    "status": _safe_identifier(status),
+                    "exit_code": exit_code,
+                    "elapsed_seconds": round(time.monotonic() - self.started_monotonic, 6),
+                })
+            if self._token_usage.attempt_count:
+                usage = self.token_usage_summary()
+                completeness = "reported" if usage["usage_complete"] else "partial; unknown usage excluded"
+                try:
+                    print(
+                        f"Vraptor token usage (this command): {usage['total_tokens']:,} known tokens; "
+                        f"input={usage['input_tokens']:,}, output={usage['output_tokens']:,}, "
+                        f"cached input={usage['cached_input_tokens']:,} (included); "
+                        f"attempts={usage['attempts']}, retries={usage['retry_attempts']} "
+                        f"(transport={usage.get('transport_retry_attempts', 0)}, "
+                        f"corrections={usage.get('correction_attempts', 0)}); {completeness}.",
+                        file=sys.stderr,
+                    )
+                except (OSError, ValueError):
+                    pass
             event = (
                 "command_interrupted"
                 if status == "interrupted"
@@ -1138,14 +1313,124 @@ def is_active() -> bool:
     return current_session() is not None
 
 
-def correlation_metadata() -> dict[str, str]:
+def correlation_metadata() -> dict[str, Any]:
     session = current_session()
     if session is None:
         return {}
     result = {"operation_id": session.operation_id}
     if session.path is not None:
         result["progress_log_file"] = str(session.path)
+    usage = session.token_usage_summary()
+    result["token_usage"] = usage
     return result
+
+
+def user_log_directory() -> Path:
+    """Return the non-case log directory without creating it."""
+    configured = os.environ.get("XDG_STATE_HOME", "")
+    root = Path(configured).expanduser() if configured else Path.home() / ".local" / "state"
+    if not root.is_absolute():
+        root = Path.home() / ".local" / "state"
+    return root / "vraptor" / "logs"
+
+
+def cli_option(args: list[str], *names: str) -> str:
+    for index, arg in enumerate(args):
+        for name in names:
+            if arg == name and index + 1 < len(args):
+                return args[index + 1]
+            if arg.startswith(name + "="):
+                return arg.partition("=")[2]
+    return ""
+
+
+def _checkpoint_case(path: str) -> Path | None:
+    """Infer case ownership only from an existing canonical checkpoint layout."""
+    try:
+        candidate = Path(path).expanduser().absolute()
+        canonical = candidate.resolve()
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if canonical != candidate or not candidate.is_file():
+        return None
+    parts = candidate.parts
+    if (len(parts) >= 8 and parts[-1] == "request-analysis.json"
+            and parts[-2] == "analysis" and parts[-4] == "requests"
+            and parts[-5] == "collection" and parts[-7] == "systems"):
+        case = candidate.parents[6]
+    elif (len(parts) >= 5 and parts[-1] == "hunt-analysis-state.json"
+          and parts[-2] == "analysis" and parts[-4] == "hunts"):
+        case = candidate.parents[3]
+    else:
+        return None
+    return case if SAFE_ENGAGEMENT_RE.fullmatch(case.name) and case.name not in {".", ".."} else None
+
+
+def bind_cli_destination(args: list[str]) -> Path | None:
+    """Choose the operation destination before inference, with no raw argv retention."""
+    logger = current_session()
+    if logger is None or logger.is_bound or not logger.options.persist:
+        return logger.path if logger else None
+    if logger.options.explicit_path is not None:
+        # An explicit destination failure must not silently redirect records.
+        return None
+    if args[:2] == ["setup", "init"]:
+        # Folder initialization determines whether a case exists. Creating its
+        # log directory first would change initialized/reused semantics.
+        return logger.bind_path(user_log_directory() / LOG_FILENAME)
+    if args[:1] in (["query"], ["clients"]):
+        # Instance-only commands accept --id as a server-profile alias, not a case.
+        return logger.bind_path(user_log_directory() / LOG_FILENAME)
+    engagement_id = cli_option(args, "--id", "--investigation-id", "--engagement-id")
+    if engagement_id and SAFE_ENGAGEMENT_RE.fullmatch(engagement_id) and engagement_id not in {".", ".."}:
+        from vraptor import settings
+        from vraptor.paths import resolve_case_root
+        from vraptor.resources import repository_root
+
+        case_root = cli_option(args, "--case-root") or settings.active_value("case_root")
+        return logger.bind_case(resolve_case_root(case_root, repository_root()), engagement_id)
+    checkpoint = cli_option(args, "--checkpoint")
+    case = _checkpoint_case(checkpoint) if checkpoint else None
+    if case is not None:
+        return logger.bind_case(case.parent, case.name)
+    return logger.bind_path(user_log_directory() / LOG_FILENAME)
+
+
+def run_operation(
+    argv: list[str], dispatch: Callable[[list[str]], int], *,
+    command: str | None = None, defer_binding: bool = False,
+) -> int:
+    """Own one CLI lifecycle, or borrow the caller's existing operation."""
+    try:
+        args, options = extract_global_options(argv)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    if current_session() is not None:
+        return dispatch(args)
+    if not args or args[0] in {"help", "-h", "--help", "logs"} or args[:2] == ["config", "help"] or any(arg in {"-h", "--help"} for arg in args):
+        return dispatch(args)
+    if command is None:
+        words = []
+        for arg in args[:3]:
+            if arg.startswith("-"):
+                break
+            words.append(arg)
+        command = ".".join(words) or "vraptor"
+    with OperationLogger(command, options=options) as logger:
+        try:
+            if not defer_binding:
+                bind_cli_destination(args)
+            result = dispatch(args)
+        finally:
+            # Parse/configuration failures still get a terminal operation record.
+            if not logger.is_bound:
+                try:
+                    bind_cli_destination(args)
+                except (OSError, RuntimeError, ValueError):
+                    logger._persistence_error = True
+        logger.finalize(status="complete" if result == 0 else "failed", exit_code=result)
+        return result
 
 
 def bind_case(case_root: Path, engagement_id: str) -> Path | None:

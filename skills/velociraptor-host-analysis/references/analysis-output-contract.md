@@ -79,8 +79,11 @@ Use the configured chunk/synthesis correction budgets, both defaulting to two
 extra attempts, for successful provider responses with forbidden metadata,
 unsupported records, invalid tactics or references. Provider/transport failures
 use their own retry policy. The correction brief contains only defect metadata
-and allowed identities. Budget exhaustion is a fail-closed coverage limitation.
-Do not mutate a model response into an accepted result. See the shared
+and allowed identities. When the budget is exhausted on a validation failure,
+one bounded [AI repair call](../../../docs/reference/analysis-recovery.md#repair-a-chunk-after-its-correction-attempts) quotes the rejected answer as untrusted data;
+its answer must pass the same validator and is labelled `accepted after AI
+repair`. A chunk whose repair fails or is skipped is a fail-closed coverage
+limitation. Do not mutate a model response into an accepted result. See the shared
 [correction and recovery contract](../../../docs/reference/analysis-recovery.md).
 
 `collect analyze --debug` persists the bounded, value-free

@@ -31,7 +31,7 @@ def write_settings(root, document):
 
 def test_example_env_preserves_saved_settings(workstation):
     root = workstation
-    example = Path(__file__).resolve().parents[1] / "config" / "example.env"
+    example = Path(__file__).resolve().parents[1] / "config/example.env"
     (root / ".env").write_text(example.read_text())
     write_settings(root, {
         "workstation": {"case_root": "~/custom-cases"},
@@ -338,7 +338,7 @@ def test_operational_defaults_ignore_files_environment_and_resolver(workstation,
     assert cli.main(["config", *view]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["view"] == "defaults"
-    assert payload["values"]["api_user"] == "vraptor"
+    assert "api_user" not in payload["values"]
     assert payload["values"]["velociraptor_bin"] == "~/velociraptor/velociraptor"
     assert set(payload["sources"].values()) == {"default"}
     assert str(workstation) not in json.dumps(payload)

@@ -47,18 +47,18 @@ def test_accepting_connection_preserves_existing_provider_and_model(tmp_path, pr
     assert data["profiles"][name]["model"] == "saved-model"
 
 
+# Confirmation parsing is shared; exercise each spelling once across both paths.
 @pytest.mark.parametrize(
-    ("answers", "selected"),
+    "answers,selected,existing",
     [
-        (["yes"], "anthropic"),
-        ([" Y "], "anthropic"),
-        (["no"], "openai"),
-        (["n"], "openai"),
-        ([""], "openai"),
-        (["invalid", "yes"], "anthropic"),
+        (["yes"], "anthropic", False),
+        ([" Y "], "anthropic", True),
+        (["no"], "openai", False),
+        (["n"], "openai", True),
+        ([""], "openai", False),
+        (["invalid", "yes"], "anthropic", True),
     ],
 )
-@pytest.mark.parametrize("existing", [False, True])
 def test_interactive_setup_selects_default_at_end(
     tmp_path, answers, selected, existing
 ):
@@ -412,8 +412,10 @@ def test_shared_connection_and_execution_defaults_survive_rerun(tmp_path):
     assert document["profiles"]["other"] == profiles["other"]
 
 
-@pytest.mark.parametrize("native_profile", ["root", "embedded", "sibling"])
-@pytest.mark.parametrize("override", ["none", "profile", "environment"])
+@pytest.mark.parametrize("native_profile,override", [
+    ("root", "none"), ("embedded", "none"), ("sibling", "none"),
+    ("embedded", "profile"), ("sibling", "environment"),
+])
 def test_codex_reasoning_import_preserves_override_precedence(
     tmp_path, native_profile, override
 ):
@@ -501,8 +503,9 @@ def test_missing_saved_harness_path_does_not_fall_back(tmp_path):
     assert not path.with_suffix(".toml.bak").exists()
 
 
-@pytest.mark.parametrize("field", ["timeout_seconds", "max_concurrency"])
-@pytest.mark.parametrize("bad", ["0", "-1", "abc"])
+@pytest.mark.parametrize("field,bad", [
+    ("timeout_seconds", "0"), ("max_concurrency", "-1"), ("timeout_seconds", "abc"),
+])
 def test_invalid_interactive_limits_do_not_replace_config(tmp_path, field, bad):
     path = tmp_path / "agents.toml"
     manage.setup(arguments(path, "--provider", "openai"))

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+from vraptor.analyze import chunk_repair
 from vraptor.analyze import prompt_debug
 
 import argparse
 import concurrent.futures
 import csv
-import hashlib
 import io
 import json
 import math
@@ -27,6 +27,8 @@ REPO_ROOT = repository_root()
 from vraptor.agent import diagnostics as agent_diagnostics
 from vraptor.analyze import limits as analysis_limits
 from vraptor.common import atomic_io
+from vraptor.common.clock import now_utc, parse_utc
+from vraptor.common.hashing import canonical_json, sha256_bytes
 from vraptor import case_layout
 from vraptor.agent.profiles import PROFILE_NAMES
 from vraptor.agent.profiles import RESPONSE_DEPTH_NAMES
@@ -94,10 +96,6 @@ AUTORUNS_ALLOWED_OPTIONS = frozenset({
 }) | model_options.OPTIONS
 
 
-def now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def resolve_task_output(args: argparse.Namespace) -> tuple[str, str]:
     requested_mode = normalize_profile_name(getattr(args, "task_mode", ""))
     stored_mode, stored_depth = stored_task_output(args)
@@ -126,7 +124,7 @@ def stored_task_output(args: argparse.Namespace) -> tuple[str, str]:
     case_root = resolve_case_root(args)
     hunt_id = str(getattr(args, "hunt_id", "") or "").strip()
     group = str(getattr(args, "group", "") or "").strip()
-    hunt_case_root = hunts_root(case_root, investigation_id)
+    hunt_case_root = case_layout.hunts_dir(case_root, investigation_id)
 
     if hunt_id:
         state_path = hunt_case_root / hunt_id / "analysis" / "hunt-analysis-state.json"
@@ -152,7 +150,7 @@ def stored_task_output(args: argparse.Namespace) -> tuple[str, str]:
         if manifest:
             manifests.append(manifest)
     elif hunt_id:
-        group_root = hunt_case_root / "groups"
+        group_root = case_layout.hunt_groups_dir(case_root, investigation_id)
         for path in sorted(group_root.glob("*.json"))[:500]:
             payload = generic.read_json(path)
             if any(
@@ -180,14 +178,6 @@ def stored_task_output(args: argparse.Namespace) -> tuple[str, str]:
 
 def timestamp_token() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-
-
-def stable_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str)
-
-
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
 
 
 def safe_token(value: str) -> str:
@@ -226,15 +216,11 @@ def resolve_case_root(args: argparse.Namespace) -> Path:
     return dfir_paths.resolve_case_root(getattr(args, "case_root", None), REPO_ROOT)
 
 
-def hunts_root(case_root: Path, investigation_id: str) -> Path:
-    return case_root / investigation_id / "hunts"
-
-
 def resolved_hunts_root(args: argparse.Namespace) -> Path:
     investigation_id = str(getattr(args, "investigation_id", "") or "").strip()
     if not investigation_id:
         raise RuntimeError("--id is required to resolve the case hunt directory.")
-    return hunts_root(resolve_case_root(args), investigation_id)
+    return case_layout.hunts_dir(resolve_case_root(args), investigation_id)
 
 
 def validate_live_engagement(args: argparse.Namespace) -> Path | None:
@@ -265,10 +251,7 @@ def validate_live_engagement(args: argparse.Namespace) -> Path | None:
 
 def group_manifest_path(case_root: Path, investigation_id: str, group: str) -> Path:
     return (
-        case_root
-        / investigation_id
-        / "hunts"
-        / "groups"
+        case_layout.hunt_groups_dir(case_root, investigation_id)
         / f"{safe_token(group)}.json"
     )
 
@@ -424,19 +407,6 @@ def flow_client_ids(flows: list[dict[str, Any]]) -> set[str]:
         if client_id:
             client_ids.add(client_id)
     return client_ids
-
-
-def parse_utc(value: Any) -> datetime | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    try:
-        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
 
 
 def retry_missing_clients(
@@ -721,11 +691,9 @@ def find_reusable_group(
         str(item["artifact"]): str(item["request_signature"])
         for item in contexts
     }
-    groups_root = (
-        resolve_case_root(args)
-        / investigation_id
-        / "hunts"
-        / "groups"
+    groups_root = case_layout.hunt_groups_dir(
+        resolve_case_root(args),
+        investigation_id,
     )
     local_matches: list[tuple[str, str]] = []
     if groups_root.is_dir():
@@ -894,8 +862,11 @@ def command_run(args: argparse.Namespace) -> dict[str, Any]:
     for artifact, generic_args in generic_args_by_artifact:
         result = generic.command_ensure(generic_args)
         retry_policy = None if autoruns_profile else configure_retry_policy(
-            hunts_root(resolve_case_root(args), investigation_id)
-            / str(result["hunt_id"]),
+            case_layout.hunt_dir(
+                resolve_case_root(args),
+                investigation_id,
+                str(result["hunt_id"]),
+            ),
             retry_after_hours=getattr(args, "retry_missing_after_hours", None),
             max_attempts=getattr(args, "retry_max_attempts", 1),
             batch_size=getattr(
@@ -969,7 +940,7 @@ def command_run(args: argparse.Namespace) -> dict[str, Any]:
         payload["automatic_missing_client_retries"] = False
         payload["analysis_follow_up"] = {
             "argv": [
-                "dfir", "velociraptor", "hunt", "analyze", "--profile", "autoruns",
+                "vraptor", "hunt", "analyze", "--profile", "autoruns",
                 "--engagement-id", investigation_id, "--api-client", str(api_client),
                 "--org-id", org_id, "--case-root", str(resolve_case_root(args)),
                 "--hunt-id", str(hunts[0]["hunt_id"]), "--artifact", artifacts[0],
@@ -1320,10 +1291,7 @@ def load_cached_baseline(
 ) -> dict[str, Any] | None:
     if investigation_id:
         state_path = (
-            case_root
-            / investigation_id
-            / "hunts"
-            / hunt_id
+            case_layout.hunt_dir(case_root, investigation_id, hunt_id)
             / "state.json"
         )
         state = generic.read_json(state_path) if state_path.is_file() else None
@@ -1355,7 +1323,7 @@ def resolve_review_scope(
     """Classify local collection ownership without overriding Velociraptor."""
     state: dict[str, Any] | None = None
     if investigation_id:
-        state_path = case_root / investigation_id / "hunts" / hunt_id / "state.json"
+        state_path = case_layout.hunt_dir(case_root, investigation_id, hunt_id) / "state.json"
         if state_path.is_file():
             state = generic.read_json(state_path)
     else:
@@ -1789,37 +1757,6 @@ def artifact_matches_flow_results(
         name == artifact_name or name.startswith(f"{artifact_name}/")
         for name in names
     )
-
-
-def query_client_identity_map(
-    api: Any,
-    client_ids: set[str],
-) -> dict[str, dict[str, str]]:
-    if not client_ids:
-        return {}
-    rows = api.query(
-        """
-        SELECT
-          client_id,
-          os_info.fqdn AS Fqdn,
-          os_info.hostname AS Hostname
-        FROM clients()
-        """,
-        max_wait=30,
-        max_row=1000,
-    )
-    identities: dict[str, dict[str, str]] = {}
-    for row in rows:
-        client_id = str(
-            row.get("client_id") or row.get("ClientId") or ""
-        ).strip()
-        if not client_id or client_id not in client_ids:
-            continue
-        identities[client_id] = {
-            "fqdn": str(row.get("Fqdn") or "").strip(),
-            "hostname": str(row.get("Hostname") or "").strip(),
-        }
-    return identities
 
 
 def flow_snapshot_targets(
@@ -2529,7 +2466,7 @@ def snapshot_evidence_fingerprint(
         "hunt_id": hunt_id,
         "artifacts": artifacts,
     }
-    return sha256_bytes(stable_json(content_basis).encode("utf-8"))[:16]
+    return sha256_bytes(canonical_json(content_basis).encode("utf-8"))[:16]
 
 
 def snapshot_operational_state(
@@ -2623,7 +2560,7 @@ def snapshot_hunt(
         resolved_policy = policy_snapshot
         projections = load_snapshot_projections(resolved_policy)
         projection_reference_sha256 = sha256_bytes(
-            stable_json(projections).encode("utf-8")
+            canonical_json(projections).encode("utf-8")
         )
         flow_rows = (
             generic.query_hunt_flows(api, hunt_id)
@@ -2645,7 +2582,7 @@ def snapshot_hunt(
         }
         flow_client_ids.discard("")
         client_identities = (
-            query_client_identity_map(api, flow_client_ids)
+            flow_analysis_runtime.query_client_identity_map(api, flow_client_ids)
             if query_workers > 1
             else {}
         )
@@ -2807,7 +2744,7 @@ def command_snapshot(args: argparse.Namespace) -> dict[str, Any]:
         "output": str(output_root),
     }
     if args.group:
-        group_root = output_root / "groups" / safe_token(args.group)
+        group_root = case_layout.hunt_groups_dir(case_root, args.investigation_id) / safe_token(args.group)
         manifest_path = group_root / "snapshots" / f"{timestamp_token()}.json"
         generic.write_json(manifest_path, payload)
         generic.write_json(
@@ -2900,6 +2837,10 @@ def command_analyze_snapshot(
         output_root = snapshot_path.parent
     return {
         "action": "hunt_snapshot_analyzed",
+        # Snapshot replay prepares evidence only; it never runs AI review.
+        "status": "prepared",
+        "ai_review_status": "skipped",
+        "review_complete": False,
         "group": "",
         "hunt_count": len(results),
         "task_mode": task_mode,
@@ -2941,9 +2882,15 @@ def analysis_chat_summary_for_response(item: dict[str, Any]) -> str:
         ).strip()
     hunt_id = str(item.get("hunt_id") or "snapshot")
     status = str(item.get("status") or "complete")
+    stage = (
+        f"- Analysis: {analysis_summary.analysis_stage(item, status)}\n"
+        if item.get("ai_review_status") == "skipped"
+        else ""
+    )
     return (
         f"## Hunt {hunt_id} analysis summary\n\n"
         f"- Status: `{status}`\n"
+        f"{stage}"
         "- Detailed structured results are present in the command response."
     )
 
@@ -2958,16 +2905,7 @@ def render_hunt_chat_summary(analyses: list[dict[str, Any]]) -> str:
     if not rendered:
         return "## Hunt analysis summary\n\nNo analyses were returned.\n"
     rendered += "\n"
-    if len(rendered) <= analysis_summary.MAX_CHAT_SUMMARY_CHARS:
-        return rendered
-    suffix = (
-        "\n\nCombined chat summary reached its 32,000-character guard; consult "
-        "the per-hunt summaries and canonical reports for remaining detail.\n"
-    )
-    clipped = rendered[
-        : analysis_summary.MAX_CHAT_SUMMARY_CHARS - len(suffix)
-    ].rsplit("\n", 1)[0].rstrip()
-    return clipped + suffix
+    return analysis_summary.bound_chat_markdown(rendered)
 
 
 def preflight_hunt_outputs(output_root: Path, hunt_id: str) -> None:
@@ -3247,7 +3185,7 @@ def command_analyze(args: argparse.Namespace) -> dict[str, Any]:
                 analyses.append(
                     flow_analysis_coordinator.analyze_hunt_flows(
                         api,
-                        synthesis_mode=getattr(args, "synthesis", "none"),
+                        synthesis_mode=getattr(args, "synthesis", "full"),
                         org_id=str(getattr(api, "org_id", "root") or "root"),
                         hunt_id=hunt_id,
                         hunt_state=normalized_hunt_state,
@@ -3322,9 +3260,6 @@ def command_analyze(args: argparse.Namespace) -> dict[str, Any]:
                     ),
                     indicators=list(args.indicator or []),
                     use_case=str(args.use_case or ""),
-                    # Only focused Autoruns scopes reach this shared legacy engine.
-                    autoruns_golden_disabled=True,
-                    autoruns_golden_sync=False,
                     autoruns_rmm_reference=(
                         Path(args.autoruns_rmm_reference)
                         .expanduser()
@@ -3353,7 +3288,7 @@ def command_analyze(args: argparse.Namespace) -> dict[str, Any]:
                     autoruns_ai_review_enabled=bool(analyst_spec and analyst_spec.enabled),
                     skip_ai=skip_ai,
                     finding_consolidation_spec=analyst_spec,
-                    synthesis_mode=getattr(args, "synthesis", "none"),
+                    synthesis_mode=getattr(args, "synthesis", "full"),
                     debug_validation=bool(getattr(args, "debug", False)),
                     include_review_rows=bool(args.include_review_rows),
                     progress_callback=(
@@ -3392,16 +3327,25 @@ def command_analyze(args: argparse.Namespace) -> dict[str, Any]:
     return payload
 
 
-def add_connection_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--api-client", help="Velociraptor API client YAML.")
-    parser.add_argument("--server-profile", help="Velociraptor instance profile. Required when --engagement-id is omitted.")
-    parser.add_argument("--org-id", help="Velociraptor org id. Defaults to root.")
-
-
-def add_subcommand_connection_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--api-client", default=argparse.SUPPRESS, help="Velociraptor API client YAML.")
-    parser.add_argument("--server-profile", default=argparse.SUPPRESS, help="Velociraptor instance profile.")
-    parser.add_argument("--org-id", default=argparse.SUPPRESS, help="Velociraptor org id. Defaults to root.")
+def add_connection_args(
+    parser: argparse.ArgumentParser,
+    *,
+    subcommand: bool = False,
+) -> None:
+    # Subcommand copies suppress defaults so values given before the
+    # subcommand are kept.
+    defaults = {"default": argparse.SUPPRESS} if subcommand else {}
+    parser.add_argument("--api-client", help="Velociraptor API client YAML.", **defaults)
+    parser.add_argument(
+        "--server-profile",
+        help=(
+            "Velociraptor instance profile."
+            if subcommand
+            else "Velociraptor instance profile. Required when --engagement-id is omitted."
+        ),
+        **defaults,
+    )
+    parser.add_argument("--org-id", help="Velociraptor org id. Defaults to root.", **defaults)
 
 
 def add_case_root_arg(parser: argparse.ArgumentParser) -> None:
@@ -3446,7 +3390,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     commands = parser.add_subparsers(dest="command", required=True)
 
     run = commands.add_parser("run", help="Reuse or create a bounded hunt group.")
-    add_subcommand_connection_args(run)
+    add_connection_args(run, subcommand=True)
     run.add_argument("--profile", choices=("detectraptor", "lateral-movement", "autoruns"))
     run.add_argument("--artifact", action="append", default=[])
     run.add_argument("--question", required=True)
@@ -3509,7 +3453,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     status = commands.add_parser("status", help="Query live status without exporting results.")
-    add_subcommand_connection_args(status)
+    add_connection_args(status, subcommand=True)
     add_live_investigation_arg(status)
     add_live_selector(status)
     add_case_root_arg(status)
@@ -3534,7 +3478,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
 
     snapshot = commands.add_parser("snapshot", help="Create immutable token-bounded CSV snapshots.")
-    add_subcommand_connection_args(snapshot)
+    add_connection_args(snapshot, subcommand=True)
     add_live_investigation_arg(snapshot)
     add_live_selector(snapshot)
     add_case_root_arg(snapshot)
@@ -3556,7 +3500,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "explicit offline snapshot analysis."
         ),
     )
-    add_subcommand_connection_args(analyze)
+    add_connection_args(analyze, subcommand=True)
     selector = analyze.add_mutually_exclusive_group(required=True)
     selector.add_argument("--hunt-id")
     selector.add_argument("--group")
@@ -3619,6 +3563,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     analysis_cli_arguments.add_skip_ai_argument(analyze)
     analysis_cli_arguments.add_prompt_debug_argument(analyze)
+    analysis_cli_arguments.add_chunk_repair_argument(analyze)
     model_options.add_arguments(analyze)
     analysis_cli_arguments.add_snapshot_review_arguments(analyze)
     analyze.add_argument(
@@ -3792,6 +3737,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     if args.command == "analyze":
         if args.debug_chunk_prompts and args.snapshot:
             parser.error("--debug-chunk-prompts requires live host or hunt analysis")
+        if args.keep_failed_chunk_evidence and args.snapshot:
+            parser.error("--keep-failed-chunk-evidence requires live host or hunt analysis")
         if args.stack_max_total_rows is None and args.profile == "autoruns":
             args.stack_max_total_rows = 20
         elif args.stack_max_total_rows == 0:
@@ -3844,6 +3791,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "--max-review-tokens",
             "--include-review-rows",
             "--analysis-mode",
+            "--chunk-repair-limit",
         }
         supplied = analysis_cli_arguments.supplied_options(raw_argv, live_only)
         if supplied:
@@ -3909,7 +3857,11 @@ def main(argv: list[str] | None = None, *, existing_only: bool = False) -> int:
             with prompt_debug.session(
                 resolve_case_root(args) / investigation_id,
                 args.debug_chunk_prompts,
-            ) as prompt_dump:
+                keep_failed=bool(getattr(args, "keep_failed_chunk_evidence", False)),
+            ) as prompt_dump, chunk_repair.session(
+                0 if args.snapshot or getattr(args, "skip_ai", False)
+                else chunk_repair.resolve_limit(getattr(args, "chunk_repair_limit", None))
+            ):
                 payload = command_analyze(args)
             if args.debug_chunk_prompts:
                 payload["debug_chunk_prompts"] = prompt_dump.summary()

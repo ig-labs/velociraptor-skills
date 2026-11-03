@@ -26,7 +26,7 @@ GoldenDB updates, removals, and publication belong to the reviewed
 `velociraptor-hunting` workflow. Machine analysis must not modify GoldenDB.
 
 Live and offline host filtering use the shared
-[Autoruns identity contract](../../velociraptor-hunting/references/windows-persistence-autoruns.md#accounting-and-identity-diagnostics).
+[Autoruns identity contract](../../velociraptor-hunting/references/goldendb-maintenance.md#accounting-and-identity-diagnostics).
 Version 4 preserves non-ASCII spelling exactly and rejects earlier GoldenDB
 versions. Use `--no-autoruns-golden` for unfiltered review while a compatible
 database is rebuilt from reviewed original rows. Host cache identities are
@@ -39,7 +39,7 @@ versioned to invalidate results produced under the earlier contract.
 2. Run the completed saved request through the canonical analyzer:
 
    ```bash
-   dfir collect analyze \
+   vraptor collect analyze \
      --id IR1234 \
      --client-id C.1234abcd \
      --request-id REQUEST_ID \
@@ -72,7 +72,7 @@ Only when immutable or offline evidence is required:
 
 ## Collection Manifest
 
-`--manifest` is the JSON index written when `dfir collect export`
+`--manifest` is the JSON index written when `vraptor collect export`
 downloads finished collection results, or when `queue`, `ensure`, or `poll`
 is invoked with explicit `--export`. It records exported artifacts, flow IDs,
 row counts, and local output paths.
@@ -89,7 +89,7 @@ typically:
 Example:
 
 ```bash
-dfir autoruns filter \
+vraptor autoruns filter \
   --manifest \
   /cases/IR1234/systems/HOST01/exports/velociraptor-collection-export-all.json
 ```
@@ -101,7 +101,7 @@ returned by the collection command instead of guessing it. A request-scoped
 If no manifest is available, pass the downloaded CSV directly:
 
 ```bash
-dfir autoruns filter \
+vraptor autoruns filter \
   --input /path/to/Windows.Sysinternals.Autoruns_full.csv \
   --output /path/to/autoruns-residual.csv
 ```
@@ -185,7 +185,7 @@ close unseen rows.
 Query one identity without changing GoldenDB:
 
 ```bash
-dfir autoruns lookup \
+vraptor autoruns lookup \
   --category Logon \
   --image-path 'C:\Program Files\Vendor\app.exe' \
   --launch-string '"C:\Program Files\Vendor\app.exe" --background' \

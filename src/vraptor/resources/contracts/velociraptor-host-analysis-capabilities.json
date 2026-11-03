@@ -1,7 +1,7 @@
 {
   "version": 18,
   "canonical_skill": "velociraptor-host-analysis",
-  "collection_runtime": "./dfir collect analyze",
+  "collection_runtime": "./vraptor collect analyze",
   "resource_ownership_contract": "config/skill-resource-ownership.json",
   "source_of_truth": "Velociraptor server client, flow, and result state",
   "retirement_status": "The workflow, monitor, analysis-plan, analysis-read, manager-handoff, range-read, and model-generated JSON paths are retired from host analysis.",

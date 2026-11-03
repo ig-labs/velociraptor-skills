@@ -10,8 +10,8 @@ from pathlib import Path
 
 from unittest import mock
 
+import vraptor
 from vraptor.artifacts import policy as artifact_policy
-from vraptor.artifacts import profiles as artifact_profiles
 from vraptor.artifacts import schema as artifact_schema_compatibility
 from vraptor import legacy_cli as cli
 
@@ -271,7 +271,7 @@ class VelociraptorArtifactSchemaCompatibilityTest(unittest.TestCase):
             result = subprocess.run(
                 [*VALIDATOR_COMMAND, str(snapshot), "--strict"], cwd=root,
                 env={"HOME": str(root), "PATH": os.defpath,
-                     "PYTHONPATH": str(REPO_ROOT / "src"), "PYTHONNOUSERSITE": "1"},
+                     "PYTHONPATH": str(Path(vraptor.__file__).resolve().parents[1]), "PYTHONNOUSERSITE": "1"},
                 text=True, capture_output=True,
             )
             self.assertEqual(result.returncode, 0, result.stderr)

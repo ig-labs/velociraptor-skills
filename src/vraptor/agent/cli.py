@@ -172,7 +172,13 @@ def _configuration_payload(
     view: str,
     credentials: list[dict[str, Any]],
 ) -> dict[str, Any]:
+    from vraptor.analyze import reporting
     route = execution.route
+    # An invocation-wide scope already includes CLI overrides; do not re-resolve it.
+    policy = (
+        reporting.ReportingPolicy() if view == "defaults"
+        else reporting.active_policy() or reporting.resolve_reporting_policy(execution=execution)
+    )
     return {
         "schema_version": AGENT_CONFIG_SCHEMA_VERSION,
         "view": view,
@@ -185,6 +191,7 @@ def _configuration_payload(
             "identity": route.identity(),
         },
         "analysis_limits": limits.public_dict(),
+        "reporting": policy.public_dict(),
         "analysis_routing": analysis_limits.routing_catalog(),
         "credentials": credentials,
     }

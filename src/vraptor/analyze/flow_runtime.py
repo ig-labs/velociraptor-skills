@@ -7,9 +7,8 @@ import os
 from dataclasses import dataclass
 from typing import Any, Iterable, Iterator, Mapping, Sequence
 
-import grpc
-
 from vraptor.analyze import flow as flow_analysis
+from vraptor.api import is_resource_exhausted_error
 
 
 HUNT_FLOW_PAGE_ROWS = 5_000
@@ -942,7 +941,7 @@ def _iter_query_segments(
                 )
             return
         except Exception as exc:
-            if not is_resource_exhausted_error(exc):
+            if not is_resource_exhausted_error(exc, match_text=True):
                 raise
             if candidate_index == len(
                 _transport_candidates(flow_analysis.DEFAULT_TRANSPORT_ROWS)
@@ -1083,21 +1082,6 @@ def batched_source_groups(
                 )
             )
     return groups
-
-
-def is_resource_exhausted_error(exc: Exception) -> bool:
-    code_method = getattr(exc, "code", None)
-    if callable(code_method):
-        try:
-            code = code_method()
-            if code == grpc.StatusCode.RESOURCE_EXHAUSTED:
-                return True
-            if str(getattr(code, "name", "")) == "RESOURCE_EXHAUSTED":
-                return True
-        except Exception:
-            pass
-    text = str(exc).lower()
-    return "resource exhausted" in text or "received message larger than max" in text
 
 
 def grpc_status_name(exc: Exception) -> str:
@@ -1382,7 +1366,7 @@ def iter_flow_segments(
                 )
                 break
             except Exception as exc:
-                if not is_resource_exhausted_error(exc):
+                if not is_resource_exhausted_error(exc, match_text=True):
                     raise
                 if candidate_index == len(candidate_rows) - 1:
                     raise RuntimeError(

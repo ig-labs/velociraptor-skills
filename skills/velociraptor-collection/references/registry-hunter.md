@@ -5,7 +5,7 @@ Use Registry Hunter only for a concrete registry question.
 ## Category-scoped collection
 
 ```bash
-dfir collect ensure \
+vraptor collect ensure \
   --investigation-id IR1234 \
   --client-id C.1234abcd \
   --artifact 'Windows.Registry.Hunter[persistence]'

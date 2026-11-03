@@ -1,0 +1,4 @@
+interface:
+  display_name: "Velociraptor Collection"
+  short_description: "Queue, reuse, monitor, analyze and export one-host flows"
+  default_prompt: "Use $velociraptor-collection to queue or exactly reuse, monitor, analyze through collect analyze and explicitly export one-host Velociraptor flows, run a bounded timeline, or recover a saved request with its exact --request-id. Ask before adding --force-run unless already authorized; use $velociraptor-host-analysis for open-ended host investigation."

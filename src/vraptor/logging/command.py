@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import shlex
 import socket
@@ -28,6 +29,8 @@ SINCE_RE = re.compile(r"^(?P<amount>[1-9][0-9]*)(?P<unit>[smhd])$")
 
 
 def _log_dir(args: argparse.Namespace) -> Path:
+    if getattr(args, "global_scope", False):
+        return operation_log.user_log_directory()
     engagement_id = case_layout.safe_component(
         str(args.engagement_id),
         label="engagement id",
@@ -255,7 +258,7 @@ def _add_read_args(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="dfir logs",
+        prog="vraptor logs",
         description=__doc__,
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -270,6 +273,14 @@ def build_parser() -> argparse.ArgumentParser:
     status_parser.add_argument("--operation")
     status_parser.add_argument("--hunt-id")
     status_parser.set_defaults(file=None, lines=200, scope=None, task_id=None)
+    usage_parser = subparsers.add_parser("usage", help="Reconcile token totals across retained analysis logs.")
+    add_case_root_arg(usage_parser)
+    usage_scope = usage_parser.add_mutually_exclusive_group(required=True)
+    usage_scope.add_argument("--engagement-id", "--id")
+    usage_scope.add_argument("--global", dest="global_scope", action="store_true",
+                             help="Read the user-level ledger for operations without a case.")
+    usage_parser.add_argument("--json", action="store_true")
+    usage_parser.add_argument("--ledger-only", action="store_true", help="Exclude older progress-log usage.")
     return parser
 
 
@@ -362,6 +373,11 @@ def _follow(args: argparse.Namespace, path: Path) -> int:
 
 def _run(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "usage":
+        from vraptor.logging.usage_report import render, summarize
+        report = summarize(_log_dir(args), ledger_only=args.ledger_only)
+        print(json.dumps(report, indent=2) if args.json else render(report))
+        return 0 if report["coverage"]["retained_records_consistent"] else 2
     if args.command == "list":
         directory = _log_dir(args)
         found = False

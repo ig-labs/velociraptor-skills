@@ -14,7 +14,7 @@ from vraptor.agent.runtime import TimeoutPolicy
 
 
 @pytest.mark.parametrize("command", ["setup", "config"])
-def test_cli_rejects_ollama_before_writing(tmp_path, command):
+def test_cli_rejects_ollama_before_writing(tmp_path, tmp_path_factory, command):
     path = tmp_path / "agents.toml"
     before = b'schema_version = 2\n[profiles.work]\nprovider = "openai"\n'
     path.write_bytes(before)
@@ -32,6 +32,8 @@ def test_cli_rejects_ollama_before_writing(tmp_path, command):
         ],
         env={
             "HOME": str(tmp_path),
+            # Operation receipts are separate from configuration writes.
+            "XDG_STATE_HOME": str(tmp_path_factory.mktemp("operation-state")),
             "AI_SKILLS_REPO_ROOT": str(tmp_path),
             "PATH": os.defpath,
         },

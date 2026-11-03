@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from vraptor.common import atomic_io
-from vraptor.common.hashing import sha256_file
+from vraptor.common.hashing import sha256_file, sha256_json
 from vraptor.collect import requests as collection
 
 
@@ -20,16 +19,22 @@ TERMINAL_ANALYSIS_STATUSES = {"complete", "failed"}
 REUSABLE_ANALYSIS_STATUSES = {*TERMINAL_ANALYSIS_STATUSES, "complete_with_failures"}
 
 
-def canonical_hash(value: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(
-            value,
-            ensure_ascii=True,
-            sort_keys=True,
-            separators=(",", ":"),
-            default=str,
-        ).encode("utf-8")
-    ).hexdigest()
+canonical_hash = sha256_json
+
+
+def request_checkpoint_fingerprint(payload: Mapping[str, Any]) -> str:
+    """Hash a request checkpoint without its fingerprint and completion time."""
+    return canonical_hash(
+        {
+            key: value
+            for key, value in payload.items()
+            if key not in {"checkpoint_fingerprint", "completed_at"}
+        }
+    )
+
+
+def request_checkpoint_valid(payload: Mapping[str, Any]) -> bool:
+    return request_checkpoint_fingerprint(payload) == payload.get("checkpoint_fingerprint")
 
 
 def artifact_name(item: Mapping[str, Any]) -> str:
@@ -110,10 +115,8 @@ def load_or_initialize(
             return state
         try:
             saved_request = json.loads(request_checkpoint.read_text())
-            expected = saved_request.get("checkpoint_fingerprint")
-            actual = canonical_hash({key: value for key, value in saved_request.items()
-                                     if key not in {"checkpoint_fingerprint", "completed_at"}})
-            if (expected == actual and saved_request.get("analysis_identity") == analysis_identity
+            if (request_checkpoint_valid(saved_request)
+                    and saved_request.get("analysis_identity") == analysis_identity
                     and saved_request.get("client_id") == client_id
                     and saved_request.get("hostname") == hostname
                     and saved_request.get("request_id") == request_id):
@@ -521,8 +524,6 @@ def write_request_checkpoint(
         "synthesis_cache": copy.deepcopy(dict(state.get("synthesis_cache") or {})),
         "evidence_persisted": False,
     }
-    payload["checkpoint_fingerprint"] = canonical_hash(
-        {key: value for key, value in payload.items() if key != "completed_at"}
-    )
+    payload["checkpoint_fingerprint"] = request_checkpoint_fingerprint(payload)
     atomic_io.write_json_atomic(path, payload, sort_keys=True)
     return payload

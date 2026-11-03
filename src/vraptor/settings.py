@@ -40,6 +40,8 @@ SCHEMA = {
         "run_as": ("run_as", "VELO_REMOTE_RUN_AS", "string"),
     },
     "connections": {
+        "bootstrap_api_config": ("bootstrap_api_config", "VELO_REMOTE_BOOTSTRAP_API_CONFIG", "string"),
+        "bootstrap_api_user": ("bootstrap_api_user", "VELO_REMOTE_BOOTSTRAP_API_USER", "string"),
         "api_client": ("api_client", "VELO_LOCAL_API_CLIENT", "path"),
         "client_config": ("client_config", None, "path"),
         "server_ip": ("server_ip", None, "string"),
@@ -70,7 +72,7 @@ APPLICATION_DEFAULTS = MappingProxyType({
     "config_root": "~/.config/velociraptor", "grpc_max_message_bytes": 64 * 1024 * 1024,
     "startup_timeout_seconds": 120, "ready_timeout_seconds": 45,
     "run_as": "velociraptor",
-    "api_user": "vraptor", "api_role_profile": "provisioning-admin",
+    "api_role_profile": "provisioning-admin",
 })
 _ACTIVE: ContextVar[SettingsSnapshot | None] = ContextVar("vraptor_settings", default=None)
 

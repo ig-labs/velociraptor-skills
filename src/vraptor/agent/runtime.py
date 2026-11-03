@@ -17,7 +17,9 @@ from typing import Any, Callable, Iterable, Mapping, Protocol, TypeVar
 
 from vraptor.agent import diagnostics as agent_diagnostics
 from vraptor.common import atomic_io
+from vraptor.common.clock import now_utc
 from vraptor.common import token_budget
+from vraptor.logging import operations as operation_log
 from vraptor.agent.config import ResolvedAgentExecution
 from vraptor.agent.config import VALID_AGENT_PROVIDERS
 
@@ -32,20 +34,11 @@ _PROVIDER_GATES: weakref.WeakKeyDictionary[
 RATE_LIMIT_FALLBACK_SECONDS = 60.0
 
 
-def now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 @dataclass(frozen=True)
 class ProviderCapabilities:
     streaming: bool = True
     structured_output: bool = False
     json_mode: bool = False
-    remote_cancellation: bool = False
-    background_execution: bool = False
-    stored_response_retrieval: bool = False
-    tool_calling: bool = False
-    usage_reporting: bool = True
     reasoning_configuration: bool = False
     request_output_token_limit: bool = False
     stateless_operation: bool = True
@@ -93,9 +86,23 @@ class AgentUsage:
     output_tokens: int = 0
     total_tokens: int = 0
     cached_input_tokens: int = 0
+    raw_usage: Mapping[str, Any] | None = None
+    availability: str = ""
+
+    @property
+    def status(self) -> str:
+        """Distinguish provider-reported zero from absent usage metadata."""
+        if self.availability in {"reported", "partial", "unavailable"}:
+            return self.availability
+        return "reported" if any(self.as_dict().values()) else "unavailable"
 
     def as_dict(self) -> dict[str, int]:
-        payload = asdict(self)
+        payload = {
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,
+            "cached_input_tokens": self.cached_input_tokens,
+        }
         if not payload["total_tokens"]:
             payload["total_tokens"] = payload["input_tokens"] + payload["output_tokens"]
         return payload
@@ -139,6 +146,19 @@ class AgentRequest:
     required_capabilities: frozenset[str] = frozenset({"streaming", "stateless_operation"})
     stream: bool = True
     max_output_tokens: int | None = None
+    prompt_cache_prefix_chars: int | None = None
+
+
+def validate_prompt_cache_prefix(request: AgentRequest, protocol: str) -> int | None:
+    """Validate an explicitly opted-in Responses cache boundary."""
+    prefix = request.prompt_cache_prefix_chars
+    if prefix is None:
+        return None
+    if type(prefix) is not int or not 0 < prefix <= len(request.prompt):
+        raise ValueError("prompt_cache_prefix_chars must be a positive integer within the prompt")
+    if protocol != "responses":
+        raise ValueError("Explicit prompt cache boundaries require the Responses protocol")
+    return prefix
 
 
 @dataclass(frozen=True)
@@ -177,6 +197,8 @@ class AgentResult:
     max_output_tokens_requested: int | None = None
     max_output_tokens_sent: bool = False
     local_output_tokens: int | None = None
+    raw_usage: Mapping[str, Any] | None = None
+    attempt_usage: tuple[Mapping[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -276,11 +298,17 @@ class AgentProviderException(RuntimeError):
 
 
 class AgentCancelled(RuntimeError):
-    pass
+    def __init__(self, message: str, *, request_id: str = "", usage: AgentUsage | None = None):
+        super().__init__(message)
+        self.request_id = request_id
+        self.usage = usage
 
 
 class AgentOperationTimeout(TimeoutError):
-    pass
+    def __init__(self, message: str, *, request_id: str = "", usage: AgentUsage | None = None):
+        super().__init__(message)
+        self.request_id = request_id
+        self.usage = usage
 
 
 async def _await_with_deadline(
@@ -310,13 +338,20 @@ async def _await_with_deadline(
         if operation in done:
             return await operation
         operation.cancel()
+        observed_usage = None
+        observed_request_id = ""
         try:
-            await operation
-        except asyncio.CancelledError:
-            pass
+            completed = await operation
+            observed_usage = getattr(completed, "usage", None)
+            observed_request_id = getattr(completed, "request_id", "")
+        except asyncio.CancelledError as exc:
+            observed_usage = getattr(exc, "usage", None)
+            observed_request_id = getattr(exc, "request_id", "")
         if cancellation_wait in done:
-            raise AgentCancelled("agent request was cancelled")
-        raise AgentOperationTimeout("agent operation exceeded total timeout")
+            raise AgentCancelled("agent request was cancelled", request_id=observed_request_id,
+                                 usage=observed_usage)
+        raise AgentOperationTimeout("agent operation exceeded total timeout",
+                                    request_id=observed_request_id, usage=observed_usage)
     except asyncio.CancelledError:
         operation.cancel()
         try:
@@ -627,6 +662,7 @@ class ApiAgentRunner:
         await self.close()
 
     def _preflight(self, request: AgentRequest) -> None:
+        validate_prompt_cache_prefix(request, self.adapter.configuration.protocol)
         capabilities = self.capabilities()
         required = set(request.required_capabilities)
         if self.adapter.configuration.reasoning_effort:
@@ -767,10 +803,28 @@ class ApiAgentRunner:
         ]
         events: list[AgentEvent] = []
         last_progress = 0.0
+        usage_logger = operation_log.current_session()
+        invocation_id = uuid.uuid4().hex
 
         def emit(event_type: str, attempt: int, **metadata: Any) -> None:
-            nonlocal last_progress
+            nonlocal last_progress, last_usage, latest_request_id
             request_id = str(metadata.pop("request_id", ""))
+            if request_id:
+                latest_request_id = request_id
+            if event_type == "usage_updated":
+                counts = {
+                    key: value for key, value in metadata.items()
+                    if key in {"input_tokens", "output_tokens", "total_tokens", "cached_input_tokens"}
+                    and isinstance(value, int) and not isinstance(value, bool)
+                    and value >= 0
+                }
+                if counts:
+                    snapshot = AgentUsage(
+                        **counts, availability=str(metadata.get("usage_status") or "partial")
+                    )
+                    if snapshot.status != "unavailable":
+                        # Streaming notifications are cumulative snapshots, not deltas.
+                        last_usage = snapshot
             event = AgentEvent(
                 type=event_type,
                 task_id=request.task_id,
@@ -803,9 +857,18 @@ class ApiAgentRunner:
         last_local_output_tokens: int | None = None
         status = "failed"
         attempt_count = 0
+        attempt_usage: list[dict[str, Any]] = []
         for attempt in range(1, self.retry_policy.max_retries + 2):
             attempt_count = attempt
+            manifest_attempt_started = time.monotonic()
+            attempt_request_id = ""
+            final_error = None
             last_usage = AgentUsage()
+            latest_request_id = ""
+            usage_is_final = False
+            attempt_dispatched = False
+            attempt_started = time.monotonic()
+            status = "failed"
             last_finish_reason = ""
             last_local_output_tokens = None
             attempt_retry_delay: float | None = None
@@ -831,23 +894,40 @@ class ApiAgentRunner:
                         cancellation=token,
                         deadline=deadline,
                     )
+
+                async def execute_attempt(
+                    provider_request: AgentRequest = provider_request,
+                    attempt: int = attempt,
+                ) -> ProviderResponse:
+                    nonlocal attempt_dispatched, attempt_started
+                    attempt_started = time.monotonic()
+                    attempt_dispatched = True
+                    return await self.adapter.execute(
+                        provider_request,
+                        progress_callback=lambda event: emit(
+                            event.type,
+                            attempt,
+                            request_id=event.request_id,
+                            **dict(event.metadata),
+                        ),
+                        cancellation=token,
+                        attempt=attempt,
+                    )
+
                 try:
                     try:
                         response = await _await_with_deadline(
-                            self.adapter.execute(
-                                provider_request,
-                                progress_callback=lambda event: emit(
-                                    event.type,
-                                    attempt,
-                                    request_id=event.request_id,
-                                    **dict(event.metadata),
-                                ),
-                                cancellation=token,
-                                attempt=attempt,
-                            ),
+                            execute_attempt(),
                             cancellation=token,
                             deadline=deadline,
                         )
+                        if response.usage.status != "unavailable":
+                            last_usage = response.usage
+                            usage_is_final = True
+                        elif response.usage.raw_usage is not None:
+                            last_usage = replace(last_usage, raw_usage=response.usage.raw_usage)
+                        latest_request_id = response.request_id or latest_request_id
+                        last_finish_reason = response.finish_reason
                     except AgentProviderException as exc:
                         if (
                             gate is not None
@@ -869,8 +949,6 @@ class ApiAgentRunner:
                         await gate.release()
                 token.raise_if_cancelled()
                 output = response.output.strip()
-                last_usage = response.usage
-                last_finish_reason = response.finish_reason
                 if not output:
                     raise AgentProviderException(
                         AgentError(
@@ -910,8 +988,8 @@ class ApiAgentRunner:
                     )
                 final_response = ProviderResponse(
                     output=output,
-                    request_id=response.request_id,
-                    usage=response.usage,
+                    request_id=response.request_id or latest_request_id,
+                    usage=last_usage,
                     finish_reason=response.finish_reason,
                     protocol=response.protocol or config.protocol,
                 )
@@ -919,33 +997,85 @@ class ApiAgentRunner:
                 emit(
                     "request_completed",
                     attempt,
-                    request_id=response.request_id,
+                    request_id=final_response.request_id,
                     finish_reason=response.finish_reason,
                     local_output_tokens=output_tokens,
                     max_output_tokens_requested=output_token_limit,
                     max_output_tokens_sent=output_token_limit_sent,
-                    **response.usage.as_dict(),
+                    # An absent final usage object must not overwrite a known
+                    # streaming snapshot or emit fabricated zero counters into
+                    # progress logs that are reconciled with the usage ledger.
+                    **(last_usage.as_dict() if last_usage.status != "unavailable" else {}),
                 )
                 break
             except AgentCancelled as exc:
-                final_error = AgentError("cancelled", str(exc), retryable=False)
+                if exc.usage is not None and exc.usage.status != "unavailable":
+                    last_usage = exc.usage
+                attempt_request_id = exc.request_id or attempt_request_id
+                final_error = AgentError("cancelled", str(exc), retryable=False,
+                                         request_id=attempt_request_id, usage=last_usage)
                 status = "cancelled"
                 emit("request_cancelled", attempt)
                 break
+            except asyncio.CancelledError:
+                status = "cancelled"
+                raise
             except AgentOperationTimeout as exc:
-                final_error = AgentError("timeout", str(exc), retryable=False)
+                if exc.usage is not None and exc.usage.status != "unavailable":
+                    last_usage = exc.usage
+                attempt_request_id = exc.request_id or attempt_request_id
+                final_error = AgentError("timeout", str(exc), retryable=False,
+                                         request_id=attempt_request_id, usage=last_usage)
                 status = "timeout"
             except TimeoutError as exc:
                 final_error = AgentError("timeout", str(exc), retryable=True)
                 status = "timeout"
             except AgentProviderException as exc:
                 final_error = exc.error
-                last_usage = final_error.usage
+                if final_error.usage.status != "unavailable":
+                    last_usage = final_error.usage
+                    usage_is_final = True
+                elif final_error.usage.raw_usage is not None:
+                    last_usage = replace(last_usage, raw_usage=final_error.usage.raw_usage)
+                latest_request_id = final_error.request_id or latest_request_id
                 last_finish_reason = final_error.finish_reason
                 status = "timeout" if final_error.classification == "timeout" else "failed"
             except RuntimeError as exc:
                 final_error = AgentError("invalid_response", str(exc), retryable=False)
                 status = "failed"
+            finally:
+                attempt_request_id = attempt_request_id or latest_request_id
+                # Record one entry for each runner attempt, including failures
+                # without telemetry. Retry delay is excluded from attempt time.
+                attempt_usage.append({
+                    "attempt": attempt,
+                    "request_id": attempt_request_id,
+                    "status": status,
+                    "usage": last_usage.raw_usage,
+                    "normalized_usage": last_usage.as_dict(),
+                    "elapsed_seconds": round(time.monotonic() - manifest_attempt_started, 6),
+                })
+                if attempt_dispatched and usage_logger is not None:
+                    usage_status = last_usage.status
+                    if usage_status != "unavailable" and not usage_is_final:
+                        usage_status = "partial"
+                    validation_attempt = request.metadata.get("attempt", 1)
+                    usage_logger.record_token_usage(
+                        invocation_id=invocation_id,
+                        task_id=request.task_id,
+                        request_id=attempt_request_id,
+                        provider=config.provider,
+                        model=config.model,
+                        protocol=config.protocol,
+                        attempt=attempt,
+                        correction_attempt=(max(0, validation_attempt - 1)
+                                            if type(validation_attempt) is int else 0),
+                        status=status,
+                        elapsed_seconds=round(time.monotonic() - attempt_started, 6),
+                        usage=last_usage.as_dict(),
+                        usage_status=usage_status,
+                        stage=str(request.metadata.get("stage") or ""),
+                    )
             if final_error is None:
                 break
             can_retry = (
@@ -1064,6 +1194,8 @@ class ApiAgentRunner:
                 if final_response
                 else last_usage.as_dict()
             ),
+            "raw_usage": last_usage.raw_usage,
+            "attempt_usage": attempt_usage,
             "finish_reason": (
                 final_response.finish_reason
                 if final_response
@@ -1079,6 +1211,7 @@ class ApiAgentRunner:
                 "max_output_tokens_requested": output_token_limit,
                 "max_output_tokens_sent": output_token_limit_sent,
                 "replace_existing": replace_existing,
+                "prompt_cache_prefix_chars": request.prompt_cache_prefix_chars,
             },
             "metadata": dict(request.metadata),
             "output_file": (
@@ -1086,7 +1219,7 @@ class ApiAgentRunner:
             ),
             "events_file": str(events_path) if persist_result_files else "",
             "previous_analysis_directory": str(replacement_archive or ""),
-            "request_id": final_response.request_id if final_response else (final_error.request_id if final_error else ""),
+            "request_id": final_response.request_id if final_response else ((final_error.request_id if final_error else "") or attempt_request_id),
             "protocol": final_response.protocol if final_response else config.protocol,
             "prompt_persisted": False,
             "reasoning_trace_persisted": False,
@@ -1156,7 +1289,7 @@ class ApiAgentRunner:
             provider=config.provider,
             model=config.model,
             protocol=final_response.protocol if final_response else config.protocol,
-            request_id=final_response.request_id if final_response else (final_error.request_id if final_error else ""),
+            request_id=final_response.request_id if final_response else ((final_error.request_id if final_error else "") or attempt_request_id),
             attempt_count=attempt_count,
             error=error_message,
             error_classification=final_error.classification if final_error else "",
@@ -1165,6 +1298,8 @@ class ApiAgentRunner:
                 if final_response
                 else last_usage.as_dict()
             ),
+            raw_usage=last_usage.raw_usage,
+            attempt_usage=tuple(attempt_usage),
             finish_reason=(
                 final_response.finish_reason
                 if final_response

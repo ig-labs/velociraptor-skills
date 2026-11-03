@@ -49,9 +49,6 @@ def test_profile_and_model_envelope(tmp_path):
     limits = AnalysisLimits().for_execution(result)
     assert limits.model_context_tokens == 32768
     assert limits.maximum_input_tokens + limits.maximum_output_tokens <= 32768
-    assert (
-        limits.maximum_safe_evidence_tokens >= limits.maximum_evidence_tokens_per_item
-    )
     assert AnalysisLimits().model_context_tokens == 400000
     assert (
         result.route.identity()

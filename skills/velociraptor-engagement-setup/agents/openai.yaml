@@ -1,0 +1,4 @@
+interface:
+  display_name: "Velociraptor Engagement Setup"
+  short_description: "Set up live, local and remote dead-disk engagements"
+  default_prompt: "Use $velociraptor-engagement-setup to initialize or resume an investigation, configure reusable settings, and verify live-remote, local dead-disk or remote dead-disk readiness. Follow the operation authorization policy for API-user or endpoint provisioning, use --regenerate-remote-api only on an explicit request, and stop only resources the investigation owns."

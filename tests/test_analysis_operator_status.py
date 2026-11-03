@@ -113,12 +113,14 @@ def test_blocked_running_report_keeps_actionable_continuation():
     assert 'vraptor collect analyze --request-id R.1' in rendered
 
 
-def test_existing_only_recovery_keeps_existing_only_route(monkeypatch, tmp_path):
+@pytest.mark.parametrize("synthesis", ["none", "full"])
+def test_existing_only_recovery_keeps_existing_only_route(monkeypatch, tmp_path, synthesis):
     monkeypatch.setattr(collection, 'CASE_ROOT', tmp_path)
-    args = command.build_parser().parse_args(['--id', 'IR1', '--client-id', 'C.1', '--query-timeout-seconds', '90'])
+    args = command.build_parser().parse_args(['--id', 'IR1', '--client-id', 'C.1', '--query-timeout-seconds', '90', '--synthesis', synthesis])
     args.existing_only = True
     argv = shlex.split(command.resume_analysis_command(args, {'client_id': 'C.1', 'request_id': 'R.1'}, retry_failed=True))
     assert argv[:2] == ['vraptor', 'analyze']
     assert '--retry-failed' in argv
     assert argv[argv.index('--query-timeout-seconds') + 1] == '90'
+    assert argv[argv.index('--synthesis') + 1] == synthesis
     assert not command._target_arguments_present(command.build_parser().parse_args(argv[2:]))

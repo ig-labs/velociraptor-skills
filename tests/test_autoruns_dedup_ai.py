@@ -16,44 +16,29 @@ from vraptor.autoruns import golden
 from vraptor.autoruns import regex_store as db
 from vraptor.autoruns import review
 from vraptor.analyze import host as collection_analysis
-from vraptor.autoruns import testing as autoruns_test
 from vraptor.analyze import source as review_source
 from vraptor.hunt import command as hunt_workflow
 from vraptor.artifacts import persistence as persistence_policy
 from tests import test_autoruns_regex as legacy_tests
 from tests.test_autoruns_regex import EXACT, RULE
-from tests.test_autoruns_regex_review import execute, row
+from tests.test_autoruns_regex_review import execute, requires_velociraptor, row
 from tests.test_autoruns_ai_review import _test_execution
 
 
 class MigrationTest(unittest.TestCase):
     rows = legacy_tests.AutorunsRegexTest.rows
     expected_ids = legacy_tests.AutorunsRegexTest.expected_ids
-    generated_query = legacy_tests.AutorunsRegexTest.generated_query
-    run_vql = legacy_tests.AutorunsRegexTest.run_vql
     test_local_filters_agree_and_do_not_modify_database = legacy_tests.AutorunsRegexTest.test_local_filters_agree_and_do_not_modify_database
-    test_native_single_pass_any_matches_local = legacy_tests.AutorunsRegexTest.test_native_single_pass_any_matches_local
-    # Reuse native and single-host parity fixtures, with schema 9 as the target.
+    # Reuse single-host parity fixtures, with schema 9 as the target.
     def setUp(self):
         legacy_tests.AutorunsRegexTest.setUp(self)
         self.legacy = self.root / "legacy.sqlite"
         self.legacy.write_bytes(self.database.read_bytes())
         self.migration = db.migrate(self.database, self.database, backup_dir=self.root/"backups")
 
-    # The inherited hash-short-circuit instrumentation is specific to schema 6.
-    def test_hash_hit_skips_any_and_any_stops_at_first_match(self):
-        query, env = self.generated_query()
-        self.assertNotIn("hash(", query)
+    def test_migration_drops_exact_identities_and_keeps_backup(self):
         self.assertEqual(self.migration["identity_count"], 0)
         self.assertEqual(Path(self.migration["backup"]).read_bytes(), self.legacy.read_bytes())
-
-    def test_generated_vql_with_more_than_1000_rules(self):
-        with sqlite3.connect(self.database) as conn:
-            for index in range(1105):
-                conn.execute("INSERT INTO autoruns_regex_rules VALUES (?,?,?,?,?,?)",
-                    (".",f"never{index}",".*",".*","Synthetic","2026-01-01"))
-            conn.execute("UPDATE metadata SET value=? WHERE key='rule_count'",("1108",))
-        self.test_native_single_pass_any_matches_local()
 
 
 class DedupAiTest(unittest.TestCase):
@@ -71,18 +56,18 @@ class DedupAiTest(unittest.TestCase):
         cfg = db.load(self.database)
         rows = [row(host, image=r"C:\unknown.exe")]*total + list(extra_rows) + [row("known", **EXACT)]
         selected = dedup.template()
-        stream = execute(rows, original=True, config=cfg, vql_file=selected, max_total_rows=max_total_rows)
+        stream = execute(rows, config=cfg, vql_file=selected, max_total_rows=max_total_rows)
         self.assertEqual(stream[-1]["MatchedRows"], 1)
         with (folder/"review.csv").open("w", newline="") as f:
             writer = csv.DictWriter(f,fieldnames=review.CSV_FIELDS);writer.writeheader()
             counts = review.consume(iter(stream),writer,rule_count=len(cfg["rules"]),
-                max_hostnames=20,expect_cache_metrics=False, pre_golden_cutoff=True, max_total_rows=max_total_rows)
+                max_hostnames=20, pre_golden_cutoff=True, max_total_rows=max_total_rows)
         query, env, _ = review.build_query(cfg,source=review_source.hunt_source("H.test", golden.DEFAULT_AUTORUNS_ARTIFACT),vql_file=selected, max_hostnames=20, max_total_rows=max_total_rows)
         stats = dict(action="autoruns_dedup", status="complete", stream_complete=True, mode="regex-review", hunt_id="H.test",
             artifact=golden.DEFAULT_AUTORUNS_ARTIFACT, database_sha256=cfg["database_sha256"],
             vql_file={"sha256":selected.sha256}, max_example_hosts=20, counts=counts,
             source_contract=review.SOURCE_CONTRACT, max_total_rows=max_total_rows,
-            query_environment_sha256=autoruns_test._query_environment_sha256(query,env),
+            query_environment_sha256=review._query_environment_sha256(query,env),
             review_csv_sha256=hashlib.sha256((folder/"review.csv").read_bytes()).hexdigest())
         (folder/"stats.json").write_text(json.dumps(stats))
         return folder/"stats.json"
@@ -179,8 +164,8 @@ class DedupAiTest(unittest.TestCase):
             return query + '\nSELECT MatchProbe.Calls AS Calls, len(list=DedupState) AS StoredGroups FROM scope()\n', env, expected
 
         with patch.object(review, "build_query", side_effect=instrument):
-            filtered = execute(rows, original=True, config=cfg, vql_file=dedup.template(), max_total_rows=25)
-            unlimited = execute(rows, original=True, config=cfg, vql_file=dedup.template())
+            filtered = execute(rows, config=cfg, vql_file=dedup.template(), max_total_rows=25)
+            unlimited = execute(rows, config=cfg, vql_file=dedup.template())
         self.assertEqual(filtered[-1], {"Calls": 1, "StoredGroups": 3})
         self.assertEqual(unlimited[-1], {"Calls": 3, "StoredGroups": 3})
         self.assertEqual(filtered[-2], dict(_Review="summary", SourceRows=78, EligibleRows=77,
@@ -190,6 +175,7 @@ class DedupAiTest(unittest.TestCase):
         self.assertEqual(unlimited[-2]["HighCountExcludedRows"], 0)
         self.assertEqual(filtered[1]["TotalRows"], 25)
 
+    @requires_velociraptor
     def test_native_clears_only_over_limit_samples_and_preserves_output(self):
         cfg = db.load(self.database)
         # Interleave groups so even an LRU of one must evict and re-emit keys.
@@ -226,7 +212,7 @@ class DedupAiTest(unittest.TestCase):
                             query, env, expected = build(*args, **kwargs)
                             return transform(query), env, expected
                         with patch.object(review, "build_query", side_effect=modified):
-                            return execute(rows, cap=cap, original=True, config=cfg,
+                            return execute(rows, cap=cap, config=cfg,
                                 vql_file=dedup.template(), max_total_rows=limit)
                     before, after = run(baseline), run(instrument)
                     self.assertEqual(after[:-4], before)
@@ -237,12 +223,12 @@ class DedupAiTest(unittest.TestCase):
     def test_cutoff_stream_rejects_bad_accounting_truncation_and_over_limit_rows(self):
         cfg = db.load(self.database)
         stream = execute([row()]*25 + [row(image=r"C:\frequent.exe")]*26,
-            original=True, config=cfg, vql_file=dedup.template(), max_total_rows=25)
+            config=cfg, vql_file=dedup.template(), max_total_rows=25)
 
         def consume(value, limit=25):
             return review.consume(iter(value), csv.DictWriter(io.StringIO(), fieldnames=review.CSV_FIELDS),
                 rule_count=len(cfg["rules"]), max_hostnames=20, pre_golden_cutoff=True,
-                max_total_rows=limit, expect_cache_metrics=False)
+                max_total_rows=limit)
 
         counts = consume(stream)
         self.assertEqual(counts["HighCountExcludedRows"], 26)
@@ -278,8 +264,8 @@ class DedupAiTest(unittest.TestCase):
 
     def test_source_run_binds_cutoff_and_publishes_accounted_empty_csv(self):
         cfg = db.load(self.database)
-        stream = execute([row()]*26, original=True, config=cfg, vql_file=dedup.template(), max_total_rows=25)
-        with patch.object(autoruns_test, "_stream_rows", return_value=(r for r in stream)):
+        stream = execute([row()]*26, config=cfg, vql_file=dedup.template(), max_total_rows=25)
+        with patch.object(review, "_stream_rows", return_value=(r for r in stream)):
             result = review.run(Mock(org_id="root"), hunt_id="H.test",
                 artifact=golden.DEFAULT_AUTORUNS_ARTIFACT, database=self.database,
                 output_dir=self.root/"exported", vql_file=dedup.template(),
@@ -350,20 +336,22 @@ class DedupAiTest(unittest.TestCase):
         path.write_text(json.dumps(state))
         persistence_policy.preflight_analysis_tree(path.parent, ["hunt:H.test"])
 
+    @requires_velociraptor
     def test_native_empty_and_all_matched_cutoff_accounting(self):
         cfg = db.load(self.database)
         for rows, matched, excluded in (([], 0, 0), ([row(**EXACT)]*25, 25, 0),
                                         ([row(**EXACT)]*26, 0, 26)):
             with self.subTest(rows=len(rows)):
-                stream = execute(rows, cap=0, original=True, config=cfg,
+                stream = execute(rows, cap=0, config=cfg,
                     vql_file=dedup.template(), max_total_rows=25)
                 counts = review.consume(iter(stream), csv.DictWriter(io.StringIO(), fieldnames=review.CSV_FIELDS),
                     rule_count=len(cfg["rules"]), max_hostnames=0, pre_golden_cutoff=True,
-                    max_total_rows=25, expect_cache_metrics=False)
+                    max_total_rows=25)
                 self.assertEqual(counts["GroupCount"], 0)
                 self.assertEqual(counts["MatchedRows"], matched)
                 self.assertEqual(counts["HighCountExcludedRows"], excluded)
 
+    @requires_velociraptor
     def test_native_materialization_threshold_preserves_disk_and_memory_results(self):
         from tests.test_autoruns_regex_review import subprocess as native_subprocess
         cfg = db.load(self.database)
@@ -388,13 +376,14 @@ class DedupAiTest(unittest.TestCase):
                     return output
                 with patch.object(review, "build_query", side_effect=configured), \
                      patch.object(native_subprocess, "run", side_effect=capture):
-                    results.append(execute(rows, cap=10, original=True, config=cfg,
+                    results.append(execute(rows, cap=10, config=cfg,
                         vql_file=dedup.template(), max_total_rows=20))
                 self.assertEqual("Materialize of LET deduplicated_keys" in "".join(messages), limit == 1000)
         self.assertEqual(results[0], results[1])
         self.assertEqual(results[0][-1]["HighCountExcludedRows"], 21)
         self.assertEqual(results[0][-1]["EligibleGroups"], 1105)
 
+    @requires_velociraptor
     def test_native_many_groups_keep_late_counts_and_host_samples(self):
         cfg = db.load(self.database)
         rows = [row("early", image=f"c:\\fixture\\item{i}.exe") for i in range(1105)]
@@ -403,11 +392,11 @@ class DedupAiTest(unittest.TestCase):
         rows += [row("last", image="c:\\fixture\\item1.exe")]
         for limit, cap in ((25, 20), (None, 20), (None, 0)):
             with self.subTest(limit=limit, cap=cap):
-                stream = execute(rows, cap=cap, original=True, config=cfg,
+                stream = execute(rows, cap=cap, config=cfg,
                     vql_file=dedup.template(), max_total_rows=limit)
                 counts = review.consume(iter(stream), csv.DictWriter(io.StringIO(), fieldnames=review.CSV_FIELDS),
                     rule_count=len(cfg["rules"]), max_hostnames=cap, pre_golden_cutoff=True,
-                    max_total_rows=limit, expect_cache_metrics=False)
+                    max_total_rows=limit)
                 stacks = {dedup.identity(r): r for r in stream[1:-1]}
                 self.assertEqual(len(stacks), len(stream)-2)
                 self.assertEqual(counts["SourceRows"], 1131)
@@ -532,7 +521,7 @@ class DedupAiTest(unittest.TestCase):
     def test_command_runs_native_stream_through_canonical_publisher(self):
         cfg = db.load(self.database)
         stream = execute([row(f"PRIVATE_HOST_{i}", image=r"C:\unknown.exe") for i in range(15)], cap=10,
-                         original=True, config=cfg, vql_file=dedup.template(), max_total_rows=20)
+                         config=cfg, vql_file=dedup.template(), max_total_rows=20)
         self.assertEqual(stream[1]["TotalRows"], 15)
         self.assertEqual(len(stream[1]["ExampleHosts"]), 10)
         api = Mock(org_id="root")
@@ -602,7 +591,7 @@ class DedupAiTest(unittest.TestCase):
         old=collection_analysis.reduce_autoruns_with_golden_db(samples,database=legacy)[0]
         new=collection_analysis.reduce_autoruns_with_golden_db(samples,database=target)[0]
         self.assertEqual(old,new)
-        stream=execute([row(**r) for r in samples],original=True,config=db.load(target),vql_file=dedup.template())
+        stream=execute([row(**r) for r in samples],config=db.load(target),vql_file=dedup.template())
         self.assertEqual(stream[-1]["MatchedRows"],1)
 
     def test_default_cli_requires_live_readiness(self):
@@ -631,7 +620,7 @@ class DedupAiTest(unittest.TestCase):
         cfg=db.load(self.database)
         rule=cfg["rules"][0]
         cfg["rules"]=[{**rule,"ImagePath":f"never{i}"} for i in range(1105)]+cfg["rules"]
-        stream=execute([row(**EXACT)],original=True,config=cfg,vql_file=dedup.template())
+        stream=execute([row(**EXACT)],config=cfg,vql_file=dedup.template())
         self.assertEqual(stream[-1]["MatchedRows"],1)
 
 
@@ -650,8 +639,10 @@ class DedupAiTest(unittest.TestCase):
 
     def test_schema9_rejects_experimental_templates(self):
         cfg=db.load(self.database)
+        selected=dedup.template()
         with self.assertRaisesRegex(RuntimeError,"pinned production"):
-            review.build_query(cfg,source=review_source.hunt_source("H.test",golden.DEFAULT_AUTORUNS_ARTIFACT))
+            review.build_query(cfg,source=review_source.hunt_source("H.test",golden.DEFAULT_AUTORUNS_ARTIFACT),
+                vql_file=replace(selected,text=selected.text+"\n"))
 
     def test_unsupported_artifact_is_rejected_before_queries(self):
         with self.assertRaises(SystemExit), patch("sys.stderr",io.StringIO()):
@@ -684,7 +675,7 @@ class DedupAiTest(unittest.TestCase):
         golden.filter_autoruns_rows(self.database,samples,output=target)
         with target.open() as stream:
             self.assertEqual(len(list(csv.DictReader(stream))),1)
-        output=execute([row(**r) for r in samples],original=True,config=db.load(self.database),vql_file=dedup.template())
+        output=execute([row(**r) for r in samples],config=db.load(self.database),vql_file=dedup.template())
         self.assertEqual(output[-1]["MatchedRows"],2)
 
     def test_legacy_schema9_baseline_mutation_rejected(self):

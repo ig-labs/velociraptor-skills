@@ -14,7 +14,7 @@ from vraptor.analyze import host as collection_analysis
 from vraptor.analyze.references import normalize_response_references
 
 DISPOSITIONS = {"supported_finding", "investigative_lead", "relevant_context", "omit"}
-VERSION = 2
+VERSION = 4
 
 
 def candidates(workers: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -80,12 +80,23 @@ def prompt_suffix(*, workers: dict, plan: dict, artifact_results: list[dict]) ->
         "\t<output FINDING ID or ->\t<comma-separated candidate refs>\t<concise rationale>\n"
         "A supported_finding must map to a FINDING in your FINDINGS section and cite candidate "
         "references used by that finding. Every output finding must have a supported candidate. "
+        "For every supported DISPOSITION, its output ID must exist and ALL its references "
+        "must also appear as EVIDENCE records for that same output ID. Choose the smallest "
+        "supported reference set, not every available candidate row. When merging candidates, "
+        "include the union of their selected disposition references under the merged finding. "
+        "Structural example (placeholders, never source references): FINDING <output-id>; "
+        "EVIDENCE <output-id> <candidate-ref>; DISPOSITION <candidate-id> supported_finding "
+        "<output-id> <candidate-ref> <rationale>. "
         "For other dispositions use '-' as output ID; Python creates separate lead/context sections "
         "from the rationale and cited evidence. Do not put downgraded candidates in FINDINGS. "
+        "Do not also emit CONTEXT records for downgraded candidates: their evidence rows "
+        "are not accepted CONTEXT records. For each DISPOSITION copy only references from "
+        "that candidate's own EVIDENCE records; references from another candidate, prose, "
+        "or omitted rows are invalid even when the source alias matches. "
         "All dispositions, including omit, require candidate references and a rationale. "
         "If there are no candidates write None. in DISPOSITIONS. Zero supported findings is valid. "
         "ANSWER must be a concise final assessment consistent with your dispositions; LIMITATIONS "
-        "must include material gaps; FOLLOW_UP must prioritize at most five bounded actions. "
+        "must include material gaps; FOLLOW_UP must contain concise, prioritized bounded actions. "
         "Do not call a review failure or incomplete coverage clean.\n"
         f"Selected task profile: {json.dumps(profile, ensure_ascii=False, default=str)}\n"
         f"Python-owned coverage/reduction: {json.dumps(accounting, ensure_ascii=False, default=str)}\n"
@@ -106,8 +117,14 @@ def validate(output: str, *, accepted_chunks: dict, **kwargs: Any) -> dict:
     if lines.count("DISPOSITIONS") != 1 or not lines or lines[-1] != "END":
         raise ValueError("final review requires one DISPOSITIONS section before END")
     boundary = lines.index("DISPOSITIONS")
-    if not set(re.findall(r"\bS[0-9]+-R[0-9]+\b", output)) <= available_refs:
-        raise ValueError("final review text cites an unavailable source reference")
+    unknown_refs = set(re.findall(r"\bS[0-9]+-R[0-9]+\b", output)) - available_refs
+    if unknown_refs:
+        raise collection_analysis.WorkerResultError(
+            "final review text cites an unavailable source reference",
+            diagnostics=[{"code": "unavailable_source", "record": "TEXT",
+                          "received": sorted(unknown_refs)[:50],
+                          "allowed": sorted(available_refs)[:50]}],
+        )
     dispositions = []
     seen = set()
     for line in lines[boundary + 1:-1]:
@@ -151,19 +168,42 @@ def validate(output: str, *, accepted_chunks: dict, **kwargs: Any) -> dict:
         )
     story = collection_analysis.validate_analysis_story(
         "\n".join([*lines[:boundary], "END"]), accepted_chunks=accepted_chunks, **kwargs)
-    if len(story["bounded_follow_up"]) > 5:
-        raise ValueError("final review follow-up must contain at most five prioritized actions")
     findings = {f["id"]: f for f in story["findings"]}
     mapped = set()
     supported_refs: dict[str, set[str]] = {}
+    mapping_defects = []
     for item in dispositions:
         if item["disposition"] != "supported_finding":
             continue
         finding = findings.get(item["finding_id"])
-        if finding is None or not set(item["refs"]) <= {e["ref"] for e in finding["evidence"]}:
-            raise ValueError("final review supported candidate must cite its mapped finding evidence")
+        if finding is None:
+            mapping_defects.append({
+                "code": "missing_mapped_finding", "record": "DISPOSITION",
+                "candidate_id": item["candidate_id"], "finding_id": item["finding_id"],
+                "allowed": sorted(findings)[:50], "received": item["refs"][:50],
+                "reason": "output_finding_id_does_not_exist",
+            })
+            continue
+        finding_refs = {e["ref"] for e in finding["evidence"]}
+        if not set(item["refs"]) <= finding_refs:
+            mapping_defects.append({
+                "code": "mapped_finding_evidence_mismatch", "record": "DISPOSITION",
+                "candidate_id": item["candidate_id"], "finding_id": item["finding_id"],
+                "allowed": sorted(finding_refs & {
+                    row["ref"] for row in candidate_map[item["candidate_id"]]["rows"]
+                })[:50],
+                "received": item["refs"][:50],
+                "missing": sorted(set(item["refs"]) - finding_refs)[:50],
+                "reason": "disposition_refs_missing_from_mapped_evidence",
+            })
+            continue
         mapped.add(item["finding_id"])
         supported_refs.setdefault(item["finding_id"], set()).update(row["ref"] for row in candidate_map[item["candidate_id"]]["rows"])
+    if mapping_defects:
+        raise collection_analysis.WorkerResultError(
+            "final review supported candidate must cite its mapped finding evidence",
+            diagnostics=mapping_defects[:50],
+        )
     if mapped != set(findings):
         raise ValueError("final review contains an unaccounted output finding")
     confidence_rank = {"low": 0, "medium": 1, "high": 2}
@@ -225,7 +265,7 @@ def artifact_publication(candidate_result: dict, reviewed: dict) -> dict:
     artifact = candidate_result["artifact"]
     result = copy.deepcopy(candidate_result)
     result["result_role"] = "final_publication"
-    for key in ("answer", "limitations", "bounded_follow_up", "final_review", "synthesis_mode", "review_status", "analysis_status"):
+    for key in ("answer", "limitations", "bounded_follow_up", "final_review", "synthesis_mode", "review_status", "analysis_status", "priority_schema_version"):
         result[key] = copy.deepcopy(reviewed.get(key))
     result["status"] = reviewed["status"]
     result["findings"] = []

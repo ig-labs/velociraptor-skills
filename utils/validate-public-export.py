@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import os
 import re
@@ -10,18 +11,41 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from public_audit import append_audit, finding_metadata
+from sync_policy import PolicyError, load_deny_patterns, load_held, load_manifest, load_state
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DENY_FILE = REPO_ROOT / "config" / "public-deny-patterns.tsv"
 MANIFEST = REPO_ROOT / "config" / "sync-manifest.tsv"
+HELD = REPO_ROOT / "config" / "sync-held.tsv"
 STATE = REPO_ROOT / ".sync-state.json"
 GOLDEN_DB = REPO_ROOT / "src" / "vraptor" / "resources" / "golden" / "autoruns-golden.sqlite"
 MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 SECRET_NAMES = re.compile(r"(?:KEY|TOKEN|PASSWORD|SECRET)$")
+# Release-gate wording for each sync_policy problem reason.
+MANIFEST_ERRORS = {
+    "row": "invalid manifest row: {manifest}:{line}",
+    "ai_path": "unsafe manifest source: {value}",
+    "public_path": "unsafe manifest target: {value}",
+    "overlap": "overlapping manifest paths at line {line}",
+    "duplicate": "duplicate manifest path at line {line}",
+    "empty": "manifest has no mappings",
+}
+HELD_ERRORS = {
+    "row": "invalid held row: {held}:{line}",
+    "path": "unsafe held path: {value}",
+    "fingerprint": "invalid reviewed fingerprint at held line {line}",
+    "duplicate": "duplicate held path at line {line}",
+}
+STATE_ERRORS = {
+    "schema": "sync state has an unsupported schema",
+    "record": "invalid sync state record {line}",
+    "paths": "invalid sync state paths or key in record {line}",
+    "fingerprint": "invalid sync fingerprint in record {line}",
+}
 
 
 def git_files() -> list[Path]:
@@ -42,32 +66,13 @@ def git_files() -> list[Path]:
     return [REPO_ROOT / raw.decode("utf-8") for raw in proc.stdout.split(b"\0") if raw]
 
 
-def load_patterns() -> list[tuple[str, re.Pattern[str]]]:
-    patterns: list[tuple[str, re.Pattern[str]]] = []
-    for number, raw in enumerate(DENY_FILE.read_text(encoding="utf-8").splitlines(), 1):
-        if not raw.strip() or raw.lstrip().startswith("#"):
-            continue
-        fields = raw.split("\t", 1)
-        if len(fields) != 2:
-            raise ValueError(f"{DENY_FILE}:{number}: expected label and regex")
-        patterns.append((fields[0], re.compile(fields[1], re.IGNORECASE)))
-    return patterns
-
-
 def has_symlink(path: Path) -> bool:
     relative = path.relative_to(REPO_ROOT)
     return any((REPO_ROOT / part).is_symlink() for part in (relative, *relative.parents))
 
 
-def valid_relative_path(value: object) -> bool:
-    if not isinstance(value, str) or not value:
-        return False
-    path = PurePosixPath(value)
-    return bool(path.parts) and not path.is_absolute() and ".." not in path.parts and path.as_posix() == value
-
-
 def check_deny_patterns(files: list[Path], errors: list[str]) -> list[tuple[str, str]]:
-    patterns = load_patterns()
+    patterns = load_deny_patterns(DENY_FILE)
     findings: list[tuple[str, str]] = []
     excluded = {DENY_FILE}
     for path in files:
@@ -156,53 +161,49 @@ def check_env(errors: list[str]) -> None:
 
 
 def check_state(errors: list[str]) -> None:
+    # A fresh checkout has no local synchronization baseline yet; load_state
+    # treats it as empty.
+    problems: list[PolicyError] = []
     try:
-        state = json.loads(STATE.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        # A fresh checkout has no local synchronization baseline yet.
-        return
+        load_state(STATE, problems)
     except (OSError, json.JSONDecodeError) as exc:
         errors.append(f"invalid sync state: {exc}")
         return
-    if (not isinstance(state, dict) or state.get("schema_version") != 1
-            or not isinstance(state.get("files"), dict)):
-        errors.append("sync state has an unsupported schema")
-        return
-    for number, (key, record) in enumerate(state["files"].items(), 1):
-        if not isinstance(record, dict):
-            errors.append(f"invalid sync state record {number}")
-            continue
-        ai_path, public_path = record.get("ai_path"), record.get("public_path")
-        if (not valid_relative_path(ai_path) or not valid_relative_path(public_path)
-                or key != f"{ai_path} => {public_path}"):
-            errors.append(f"invalid sync state paths or key in record {number}")
-        fingerprint = record.get("fingerprint", "")
-        if not isinstance(fingerprint, str) or not re.fullmatch(r"sha256:[0-9a-f]{64};mode:100(?:644|755)", fingerprint):
-            errors.append(f"invalid sync fingerprint in record {number}")
+    errors.extend(STATE_ERRORS[problem.reason].format(line=problem.line) for problem in problems)
 
 
 def check_manifest(errors: list[str]) -> None:
-    seen_source: set[str] = set()
-    seen_target: set[str] = set()
-    for number, raw in enumerate(MANIFEST.read_text(encoding="utf-8").splitlines(), 1):
-        if not raw.strip() or raw.lstrip().startswith("#"):
-            continue
-        fields = [field.strip() for field in raw.split("\t")]
-        if len(fields) != 3 or fields[2] not in {"file", "tree"}:
-            errors.append(f"invalid manifest row: {MANIFEST.relative_to(REPO_ROOT)}:{number}")
-            continue
-        for label, value in (("source", fields[0]), ("target", fields[1])):
-            if not valid_relative_path(value):
-                errors.append(f"unsafe manifest {label}: {value}")
-        for current, seen in ((fields[0], seen_source), (fields[1], seen_target)):
-            if any(current.startswith(prior + "/") or prior.startswith(current + "/") for prior in seen):
-                errors.append(f"overlapping manifest paths at line {number}")
-        if fields[0] in seen_source or fields[1] in seen_target:
-            errors.append(f"duplicate manifest path at line {number}")
-        seen_source.add(fields[0])
-        seen_target.add(fields[1])
-    if not seen_source:
-        errors.append("manifest has no mappings")
+    problems: list[PolicyError] = []
+    load_manifest(MANIFEST, problems)
+    errors.extend(
+        MANIFEST_ERRORS[problem.reason].format(
+            manifest=MANIFEST.relative_to(REPO_ROOT), line=problem.line, value=problem.value
+        )
+        for problem in problems
+    )
+
+
+def check_held(errors: list[str]) -> None:
+    problems: list[PolicyError] = []
+    held = load_held(HELD, problems)
+    errors.extend(
+        HELD_ERRORS[problem.reason].format(held=HELD.relative_to(REPO_ROOT), line=problem.line, value=problem.value)
+        for problem in problems
+    )
+    mappings = load_manifest(MANIFEST, []) if MANIFEST.is_file() else []
+    for path in held:
+        if not (REPO_ROOT / path).is_file():
+            errors.append(f"held path is not a file: {path}")
+        elif not any(managed(mapping, path) for mapping in mappings):
+            errors.append(f"held path is not a managed file: {path}")
+
+
+def managed(mapping, path: str) -> bool:
+    """Match synchronization's file pairing, including tree exclude globs."""
+    if mapping.kind == "file":
+        return path == mapping.public_path
+    suffix = path[len(mapping.public_path) + 1:] if path.startswith(mapping.public_path + "/") else ""
+    return bool(suffix) and not any(fnmatch.fnmatchcase(suffix, glob) for glob in mapping.exclude)
 
 
 def check_database(errors: list[str]) -> None:
@@ -232,7 +233,7 @@ def validate_static() -> int:
         findings = check_deny_patterns(scan_files, errors)
     for path, check in (
         (REPO_ROOT / "config/example.env", check_env), (STATE, check_state),
-        (MANIFEST, check_manifest), (GOLDEN_DB, check_database),
+        (MANIFEST, check_manifest), (HELD, check_held), (GOLDEN_DB, check_database),
     ):
         if has_symlink(path):
             errors.append(f"validation input must not use symlinks: {path.relative_to(REPO_ROOT)}")

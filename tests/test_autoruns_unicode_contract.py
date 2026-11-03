@@ -54,6 +54,17 @@ class UnicodeContractTest(unittest.TestCase):
                 self.assertEqual(actual['Category'], expected['category'])
                 self.assertEqual(autoruns.normalize_user_path(actual['ImagePath']), actual['ImagePath'])
 
+    @unittest.skipUnless(BINARY.exists(), 'Local Velociraptor unavailable')
+    def test_shared_serialized_tuple_matches_vql_bytes(self):
+        values = ['日本語', 'Σσς', '<&>\u2028\u2029 "quoted"', '\n\t\x00', r'C:\Users\Alice\CAFÉ.dll']
+        rows = [{'Image Path': value, 'Launch String': value, 'Signer': value} for value in values]
+        query = 'SELECT ' + autoruns.trusted_key_serialized_vql() + ' AS Payload FROM foreach(row=parse_json_array(data=Rows))'
+        completed = subprocess.run([str(BINARY), 'query', '--format=jsonl', '--env',
+            'Rows=' + json.dumps(rows), query], text=True, capture_output=True, check=True, timeout=30)
+        actual = [json.loads(line)['Payload'] for line in completed.stdout.splitlines()]
+        self.assertEqual(actual, [autoruns.trusted_key_serialized(image_path=value, launch_string=value,
+            signer=value) for value in values])
+
     def test_host_does_not_suppress_distinct_unicode_identity(self):
         for trusted, observed in [('strasse', 'straße'), ('σ', 'ς'), ('i', 'İ'),
                                   ('é', 'e\u0301'), ('café', 'CAFÉ')]:

@@ -12,7 +12,7 @@ ARGS=()
 usage() {
     cat <<'EOF'
 Usage:
-  ./dfir mapped add-remote \
+  ./vraptor mapped add-remote \
     --client-config <local-client.config.yaml> \
     --api-client <local-api_client.yaml> \
     [add_mapped_client options] \
@@ -21,8 +21,8 @@ Usage:
 Remote dead-disk wrapper for mapping local evidence into an external
 Velociraptor server. Most operators should fetch the two configs first with:
 
-  ./dfir config fetch-api
-  ./dfir config fetch-client
+  ./vraptor config fetch-api
+  ./vraptor config fetch-client
 EOF
     exit 0
 }

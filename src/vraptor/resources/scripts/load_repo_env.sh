@@ -26,6 +26,9 @@ _load_dotenv_file_safely() {
   local line=""
   local key=""
   local value=""
+  local quote=""
+  local rest=""
+  local blanks=$' \t'
 
   [[ -n "${dotenv_path}" && -f "${dotenv_path}" ]] || return 0
 
@@ -53,13 +56,27 @@ _load_dotenv_file_safely() {
         ;;
     esac
 
-    # Values are data, never shell source. Strip one matching quote pair but
-    # deliberately do not expand variables, substitutions, escapes, or globs.
-    if [[ ${#value} -ge 2 ]]; then
-      if [[ "${value:0:1}" == "'" && "${value: -1}" == "'" ]]; then
-        value="${value:1:${#value}-2}"
-      elif [[ "${value:0:1}" == '"' && "${value: -1}" == '"' ]]; then
-        value="${value:1:${#value}-2}"
+    # Values are data, never shell source. Strip one matching quote pair, or
+    # keep only the quoted text when a "#" comment follows the closing quote,
+    # and drop a comment after a blank in an unquoted value. This matches
+    # vraptor.paths.parse_dotenv_value. Variables, substitutions, escapes and
+    # globs are deliberately never expanded.
+    quote="${value:0:1}"
+    if [[ "${quote}" == "'" || "${quote}" == '"' ]]; then
+      rest="${value:1}"
+      if [[ "${rest}" == *"${quote}"* ]]; then
+        if [[ "${rest#*"${quote}"}" =~ ^[${blanks}]*# ]]; then
+          value="${rest%%"${quote}"*}"
+        elif [[ "${value: -1}" == "${quote}" ]]; then
+          value="${value:1:${#value}-2}"
+        fi
+      fi
+    else
+      rest="${line#*=}"
+      rest="${rest%%[${blanks}]#*}"
+      if [[ "${rest}" != *[\"\']* ]]; then
+        value="${rest#"${rest%%[![:space:]]*}"}"
+        value="${value%"${value##*[![:space:]]}"}"
       fi
     fi
 

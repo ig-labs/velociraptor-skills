@@ -69,7 +69,7 @@ expand_home_path() {
 usage() {
     cat <<'EOF'
 Usage:
-  ./dfir config fetch-api \
+  ./vraptor config fetch-api \
     --server-profile <profile> \
     [--server-ip <ip-or-host>] \
     [--output-path <local-path>] \
@@ -258,7 +258,8 @@ API_USER="$(first_env VELO_REMOTE_API_USER || true)"
 if [ -z "$API_USER" ]; then
     error "Missing required config: set VELO_REMOTE_API_USER to the explicitly provisioned API user"
 fi
-if [[ "$API_USER" == "api_username" || "$API_USER" == "your_api_user" || "$API_USER" == '<api-user>' ]]; then
+API_USER_LOWER="$(printf '%s' "$API_USER" | tr '[:upper:]' '[:lower:]')"
+if [[ "$API_USER_LOWER" == *_username || "$API_USER_LOWER" == "your_api_user" || "$API_USER" == '<api-user>' ]]; then
     error "VELO_REMOTE_API_USER is still set to the example placeholder '${API_USER}'. Set it to the explicitly provisioned API user"
 fi
 if [[ ! "$API_USER" =~ ^[A-Za-z0-9._-]+$ ]]; then
@@ -339,7 +340,7 @@ SSH_ARGS=(-o BatchMode=yes -o IdentitiesOnly=yes "${SSH_KEYCHAIN_ARGS[@]}" -o Us
 SSH_TARGET="${REMOTE_SSH_USER}@${SERVER_IP}"
 LOCAL_TEMP_PATH="${LOCAL_DEST_PATH}.tmp.$$"
 REMOTE_DEST_DIR="$(remote_dirname "$REMOTE_OUTPUT_PATH")"
-prepare_remote_commands "$REMOTE_OUTPUT_PATH" "set -e; umask 077; mkdir -p $(shell_quote "$REMOTE_DEST_DIR"); $(shell_quote "$REMOTE_VELOCIRAPTOR_BIN") --config $(shell_quote "$REMOTE_SERVER_CONFIG_PATH") config api_client --name $(shell_quote "$API_USER") --role $(shell_quote "$API_ROLES") $(shell_quote "$REMOTE_OUTPUT_PATH")" api
+prepare_remote_commands "$REMOTE_OUTPUT_PATH" "set -e; umask 077; mkdir -p $(shell_quote "$REMOTE_DEST_DIR"); $(shell_quote "$REMOTE_VELOCIRAPTOR_BIN") --config $(shell_quote "$REMOTE_SERVER_CONFIG_PATH") config api_client --name $(shell_quote "$API_USER") $(shell_quote "$REMOTE_OUTPUT_PATH")" api
 
 if [ "$DRY_RUN" -eq 1 ]; then
     printf 'umask 077\n'

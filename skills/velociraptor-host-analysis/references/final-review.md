@@ -61,8 +61,11 @@ not live-model detection accuracy.
 
 ## Publication, failure and resume
 
-The final assessment, material limitations and up to five prioritized bounded
-follow-ups must agree with the dispositions. Python attaches coverage and derives
+The final assessment, material limitations and prioritized bounded follow-ups
+must agree with the dispositions. All valid follow-ups remain in accepted results;
+the shared reporting policy defaults to five detailed actions and indexes the
+remainder. Changing that display limit does not invalidate accepted review.
+Python attaches coverage and derives
 finding counts from the final findings. Markdown, chat summary, request checkpoint
 and host state use these results. Compact `final_review` provenance retains every
 candidate-to-disposition mapping and source references. Per-artifact reports show
@@ -86,6 +89,13 @@ distinguish file presence from ATT&CK behavior and weigh benign explanations.
 Deterministic validation rejects confidence above supporting candidates and
 returns candidate-specific reference defects for correction. Consolidate
 equivalent limitations without discarding distinct source/coverage caveats.
+
+Keep confidence (`low`, `medium`, `high`) separate from new report priority
+(`critical`, `high`, `medium`, `low`). Follow the shared
+[priority policy](../../../docs/reference/reporting-policy.md)
+for specialized results, retained classifications and missing-priority display.
+New informational observations belong in permitted relevant context; do not
+change evidence roles or create findings merely to attach them.
 
 If review fails or exceeds input limits, publish a clearly provisional
 `complete_with_failures` result when accepted analysis exists, or `failed` when it

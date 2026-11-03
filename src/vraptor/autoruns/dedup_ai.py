@@ -10,12 +10,12 @@ import time
 from importlib import resources
 from itertools import chain
 from vraptor.common import token_budget
+from vraptor.common.hashing import sha256_json
 from pathlib import Path
 
 from vraptor.autoruns import ai_review as ai
 from vraptor.autoruns import review
 from vraptor.autoruns import regex_store as autoruns_regex_db
-from vraptor.autoruns import testing as autoruns_test
 from vraptor.analyze import source as review_source
 from vraptor.autoruns import publication
 
@@ -24,8 +24,7 @@ FIELDS = (*review.FIELDS, "TotalRows")
 
 
 def digest(value):
-    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
-        separators=(",", ":")).encode()).hexdigest()
+    return sha256_json(value, ensure_ascii=False, default=None)
 
 
 def identity(row):
@@ -66,7 +65,7 @@ def load_source(stats_path, *, database, hunt_id, artifact, max_total_rows=None)
     cap = stats.get("max_example_hosts")
     query, env, _ = review.build_query(cfg, source=review_source.hunt_source(hunt_id, artifact),
         max_hostnames=cap, vql_file=selected, max_total_rows=max_total_rows)
-    if autoruns_test._query_environment_sha256(query, env) != stats.get("query_environment_sha256"):
+    if review._query_environment_sha256(query, env) != stats.get("query_environment_sha256"):
         raise RuntimeError("Saved review query/rule fingerprint differs.")
     csv_path = stats_path.parent / "review.csv"
     raw = csv_path.read_bytes()
@@ -95,7 +94,7 @@ def load_source(stats_path, *, database, hunt_id, artifact, max_total_rows=None)
         def writerow(self, row):
             pass
     validated_counts = review.consume(stream, ValidationSink(),
-        rule_count=len(cfg["rules"]), max_hostnames=cap, expect_cache_metrics=False,
+        rule_count=len(cfg["rules"]), max_hostnames=cap,
         pre_golden_cutoff=True, max_total_rows=max_total_rows)
     if validated_counts != stats["counts"]:
         raise RuntimeError("Saved review counts differ from validated source accounting.")

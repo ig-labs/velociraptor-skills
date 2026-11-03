@@ -12,10 +12,11 @@ from typing import Any, Mapping
 
 import yaml
 from cryptography import x509
+from cryptography.x509.oid import NameOID
 
 from vraptor.common import atomic_io
 from vraptor import case_layout
-from vraptor.common.hashing import sha256_file
+from vraptor.common.hashing import sha256_file, sha256_json
 
 
 SCHEMA_VERSION = 5
@@ -23,17 +24,11 @@ CERTIFICATE_WARNING_DAYS = 30
 
 
 def state_path(case_root: Path, engagement_id: str) -> Path:
-    return case_layout.engagement_dir(case_root, engagement_id) / "engagement.json"
+    return case_layout.engagement_state_path(case_root, engagement_id)
 
 
 def _canonical_hash(value: Any) -> str:
-    rendered = json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-    ).encode("utf-8")
-    return hashlib.sha256(rendered).hexdigest()
+    return sha256_json(value, default=None)
 
 
 def _certificate_time(value: datetime) -> datetime:
@@ -73,6 +68,7 @@ def api_metadata(path: Path, *, config: dict[str, Any] | None = None) -> dict[st
     not_before = ""
     not_after = ""
     days_remaining: int | None = None
+    certificate_identity = ""
     if certificate_value:
         try:
             certificate = x509.load_pem_x509_certificate(
@@ -81,6 +77,9 @@ def api_metadata(path: Path, *, config: dict[str, Any] | None = None) -> dict[st
         except ValueError:
             certificate_status = "invalid"
         else:
+            names = certificate.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
+            if len(names) == 1:
+                certificate_identity = names[0].value
             certificate_not_before = _certificate_time(
                 certificate.not_valid_before_utc
                 if hasattr(certificate, "not_valid_before_utc")
@@ -120,7 +119,9 @@ def api_metadata(path: Path, *, config: dict[str, Any] | None = None) -> dict[st
         "server_fingerprint": _canonical_hash(server_basis),
         "connection": connection,
         "org_id": org_id,
+        "ca_sha256": server_basis["ca_sha256"],
         "credential_security": {
+            "certificate_identity": certificate_identity,
             "certificate_status": certificate_status,
             "certificate_not_before": not_before,
             "certificate_not_after": not_after,
@@ -137,6 +138,8 @@ def api_metadata(path: Path, *, config: dict[str, Any] | None = None) -> dict[st
 def credential_security_failures(metadata: Mapping[str, Any]) -> list[str]:
     security = dict(metadata.get("credential_security") or {})
     failures: list[str] = []
+    if security.get("certificate_identity") != metadata.get("identity"):
+        failures.append("API YAML name and certificate identity differ")
     certificate_status = str(security.get("certificate_status") or "missing")
     if certificate_status in {"missing", "invalid", "expired", "not_yet_valid"}:
         failures.append(f"API client certificate status is {certificate_status}")

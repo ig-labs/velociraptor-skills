@@ -1,8 +1,5 @@
 """Synthetic CLI, source-selection and no-mutation contracts."""
-import asyncio
 import hashlib
-import json
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -10,6 +7,7 @@ from vraptor import cli, results
 from vraptor.collect import requests as collection
 from vraptor.analyze import command as analysis
 from vraptor.analyze import existing as existing_analysis
+from vraptor.common import token_budget
 
 
 @pytest.mark.parametrize("args", [
@@ -27,10 +25,14 @@ def test_conflicting_or_mutating_selectors_fail(args):
 
 
 @pytest.mark.parametrize("target", ["venv", "velociraptor", "volatility", "plaso", "tsk", "all"])
-def test_preparation_dispatch_preserves_targets_without_installing(target):
-    with patch.object(cli.subprocess, "run", return_value=Mock(returncode=17)) as run:
+def test_preparation_dispatch_preserves_targets_without_installing(target, capsys):
+    offline = token_budget.TokenBudgetError("encoding unavailable")
+    with patch.object(cli.subprocess, "run", return_value=Mock(returncode=17)) as run, \
+            patch.object(token_budget, "token_encoder", side_effect=offline) as prefetch:
         assert cli.main(["tools", "prep", "-t", target, "-d", "/synthetic/tools"]) == 17
     assert run.call_args.args[0][2:] == ["-t", target, "-d", "/synthetic/tools"]
+    prefetch.assert_called_once_with()
+    assert "encoding unavailable" in capsys.readouterr().err
 
 
 def test_guard_blocks_mutations_through_nested_operations():
@@ -59,7 +61,7 @@ def test_exact_flow_adoption_reuses_request_in_place(tmp_path, monkeypatch):
     spec = collection.ArtifactSpec("Artifact.Test", "Artifact.Test", {})
     flow = collection.FlowRecord("F.1", "FINISHED", 0, "1", "2", None, [], [spec])
     request = collection.CollectionRequest("custom", [], [spec.artifact], [spec])
-    state = collection.build_state_payload(client, "IR1", "host01", request, [collection.artifact_status_from_flow(spec, flow)])
+    state = collection.build_state_payload(client, "IR1", request, [collection.artifact_status_from_flow(spec, flow)])
     collection.write_state("IR1", "host01", state, update_current_pointer=False)
     state_path = collection.get_request_state_path("IR1", "host01", state["request_id"])
     evidence = state_path.parent / "evidence.jsonl"

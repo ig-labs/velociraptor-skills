@@ -36,10 +36,10 @@ def test_static_gate_handles_untracked_local_state(tmp_path, monkeypatch, state_
     marker = "Info" + "Guard"
     monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(validator, "git_files", lambda: [])
-    for setting in ("DENY_FILE", "STATE", "MANIFEST", "GOLDEN_DB"):
+    for setting in ("DENY_FILE", "STATE", "MANIFEST", "HELD", "GOLDEN_DB"):
         monkeypatch.setattr(validator, setting, tmp_path / setting.lower())
     validator.DENY_FILE.write_text("private-organization\t" + marker + "\n")
-    for name in ("check_env", "check_manifest", "check_database"):
+    for name in ("check_env", "check_manifest", "check_held", "check_database"):
         monkeypatch.setattr(validator, name, lambda errors: None)
     if state_kind != "missing":
         state = {"schema_version": 1, "files": {}}
@@ -105,10 +105,10 @@ def test_static_gate_logs_result_without_matched_content(tmp_path, monkeypatch, 
     path.write_text(marker if denied else "ordinary content")
     monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
     monkeypatch.setattr(validator, "git_files", lambda: [path])
-    for setting in ("DENY_FILE", "STATE", "MANIFEST", "GOLDEN_DB"):
+    for setting in ("DENY_FILE", "STATE", "MANIFEST", "HELD", "GOLDEN_DB"):
         monkeypatch.setattr(validator, setting, tmp_path / setting.lower())
     validator.DENY_FILE.write_text("private-organization\t" + marker + "\n")
-    for name in ("check_env", "check_state", "check_manifest", "check_database"):
+    for name in ("check_env", "check_state", "check_manifest", "check_held", "check_database"):
         monkeypatch.setattr(validator, name, lambda errors: None)
     assert validator.validate_static() == int(denied)
     log = tmp_path / ".local/public-checks.jsonl"
@@ -133,6 +133,53 @@ def test_invalid_or_overlapping_manifest_is_reported(tmp_path, monkeypatch, mani
     errors = []
     validator.check_manifest(errors)
     assert errors
+
+
+HELD_FINGERPRINT = "sha256:" + "0" * 64 + ";mode:100644"
+
+
+@pytest.mark.parametrize("held,expected", [
+    (f"held.txt\t{HELD_FINGERPRINT}\treviewed adaptation\n", []),
+    ("held.txt\treviewed adaptation\n", ["invalid held row: held:1"]),
+    (f"../held.txt\t{HELD_FINGERPRINT}\tescape\n", ["unsafe held path: ../held.txt"]),
+    ("held.txt\tnot-a-fingerprint\treason\n", ["invalid reviewed fingerprint at held line 1"]),
+    (f"held.txt\t{HELD_FINGERPRINT}\ta\nheld.txt\t{HELD_FINGERPRINT}\tb\n", ["duplicate held path at line 2"]),
+    (f"missing.txt\t{HELD_FINGERPRINT}\tgone\n", ["held path is not a file: missing.txt"]),
+    (f"tree/skip.pdf\t{HELD_FINGERPRINT}\texcluded\n", ["held path is not a managed file: tree/skip.pdf"]),
+])
+def test_held_list_is_validated(tmp_path, monkeypatch, held, expected):
+    (tmp_path / "held.txt").write_text("adaptation\n")
+    (tmp_path / "tree").mkdir()
+    (tmp_path / "tree" / "skip.pdf").write_bytes(b"%PDF")
+    monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(validator, "HELD", tmp_path / "held")
+    monkeypatch.setattr(validator, "MANIFEST", tmp_path / "manifest")
+    validator.MANIFEST.write_text("up/held.txt\theld.txt\tfile\nup/tree\ttree\ttree\t*.pdf\n")
+    validator.HELD.write_text(held)
+    errors = []
+    validator.check_held(errors)
+    assert errors == expected
+
+
+def test_manifest_and_state_errors_are_all_reported(tmp_path, monkeypatch):
+    monkeypatch.setattr(validator, "REPO_ROOT", tmp_path)
+    for setting in ("MANIFEST", "STATE"):
+        monkeypatch.setattr(validator, setting, tmp_path / setting.lower())
+    validator.MANIFEST.write_text("a\tb\tbad\n../a\tb\tfile\na\tb/c\ttree\n")
+    validator.STATE.write_text(json.dumps({"schema_version": 1, "files": {
+        "x": "not a record", "y": {"ai_path": "a", "public_path": "b"},
+    }}))
+    errors = []
+    validator.check_manifest(errors)
+    validator.check_state(errors)
+    assert errors == [
+        "invalid manifest row: manifest:1",
+        "unsafe manifest source: ../a",
+        "overlapping manifest paths at line 3",
+        "invalid sync state record 1",
+        "invalid sync state paths or key in record 2",
+        "invalid sync fingerprint in record 2",
+    ]
 
 
 def test_force_added_log_is_rejected(tmp_path, monkeypatch):

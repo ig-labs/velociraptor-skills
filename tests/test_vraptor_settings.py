@@ -4,10 +4,12 @@ import os
 from pathlib import Path
 import shlex
 import stat
+import subprocess
 
 import pytest
 
 from vraptor import paths, settings
+from vraptor.resources import resource_root
 
 
 @pytest.fixture
@@ -170,9 +172,9 @@ def test_command_override_does_not_contaminate_other_cached_connections(workstat
     assert snapshot.value("api_client", "two") == str(home / "two.yaml")
     other = snapshot.select("two")
     assert other.values["api_client"] == str(home / "two.yaml")
-    assert other.values["api_user"] == "vraptor"
+    assert "api_user" not in other.values
     assert "api_client" not in snapshot.select("unknown").values
-    assert other.environment["VELO_REMOTE_API_USER"] == "vraptor"
+    assert "VELO_REMOTE_API_USER" not in other.environment
 
 
 def test_unselected_command_override_applies_only_when_explicitly_passed_to_selected_profile(workstation):
@@ -266,6 +268,41 @@ def test_dotenv_does_not_execute_or_import_dangerous_keys(workstation):
     assert snapshot.environment["API_SECRET"] == "$(touch SENTINEL)"
     assert "PYTHONPATH" not in snapshot.environment
     assert snapshot.environment["PATH"] == os.defpath
+
+
+def shell_dotenv_values(path, *keys):
+    loaded = subprocess.run(
+        ["bash", "-c", 'source "$1" && _load_dotenv_file_safely "$2" "" && shift 2 && for key; do printf "%s\\0" "${!key}"; done',
+         "bash", str(resource_root() / "scripts/load_repo_env.sh"), str(path), *keys],
+        capture_output=True, text=True, check=True, env={"PATH": os.environ.get("PATH", os.defpath)},
+    )
+    return dict(zip(keys, loaded.stdout.split("\0")))
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ('"abc123" # rotated', "abc123"),
+    ("'abc123'\t# rotated", "abc123"),
+    ('"abc123"# rotated', "abc123"),
+    ('"a # b" # rotated "c"', "a # b"),
+    ('"" # rotated', ""),
+    ("abc123 # rotated", "abc123"),
+    ("abc123\t# rotated", "abc123"),
+    (" # rotated", ""),
+    ('"abc123"', "abc123"),
+    ("abc123", "abc123"),
+])
+def test_dotenv_inline_comment_matches_shell_loader(tmp_path, raw, expected):
+    path = tmp_path / ".env"
+    path.write_text(f"API_SECRET={raw}\n")
+    assert paths.read_dotenv_file(path) == shell_dotenv_values(path, "API_SECRET") == {"API_SECRET": expected}
+    assert " ".join(shlex.split(raw, comments=True)) == expected
+
+
+def test_dotenv_keeps_hash_inside_a_value(tmp_path):
+    path = tmp_path / ".env"
+    path.write_text("API_SECRET=abc#123\nCHANNEL=#alerts\nQUOTED=\"a#b\"\n")
+    expected = {"API_SECRET": "abc#123", "CHANNEL": "#alerts", "QUOTED": "a#b"}
+    assert paths.read_dotenv_file(path) == shell_dotenv_values(path, *expected) == expected
 
 
 def test_apply_keeps_explicit_and_sets_supported_unset_fields(workstation):
@@ -485,9 +522,9 @@ def test_interactive_blank_remote_fields_preserve_saved_paths_and_other_profiles
 
 
 def test_templates_share_valid_generic_schema():
-    root = Path(__file__).resolve().parents[1]
-    for name in ("vraptor.example.toml",):
-        settings.read(root / "config" / name, required=True)
+    templates = Path(__file__).resolve().parents[1] / "config"
+    for path in (templates / "vraptor.example.toml", *sorted(templates.glob("vraptor-*.example.toml"))):
+        settings.read(path, required=True)
 
 
 @pytest.mark.parametrize("section", ["connection_defaults", "connections.lab"])
@@ -515,7 +552,7 @@ def test_configure_preserves_saved_api_user(workstation, monkeypatch, capsys, se
 
 
 @pytest.mark.parametrize("interactive", [False, True])
-def test_configure_writes_default_remote_identity(workstation, monkeypatch, capsys, interactive):
+def test_configure_leaves_remote_identity_unset(workstation, monkeypatch, capsys, interactive):
     from vraptor import cli
 
     monkeypatch.setattr(settings.sys.stdin, "isatty", lambda: interactive)
@@ -527,8 +564,8 @@ def test_configure_writes_default_remote_identity(workstation, monkeypatch, caps
     assert cli.main(["setup", "configure"]) == 0
     result = json.loads(capsys.readouterr().out)
     assert result["configuration"]["connection_defaults"] == {
-        "api_user": "vraptor", "api_role_profile": "provisioning-admin", "run_as": "velociraptor"}
-    assert ("Remote API username [vraptor]: " in prompts) == interactive
+        "api_role_profile": "provisioning-admin", "run_as": "velociraptor"}
+    assert ("Remote API username [blank to leave unset]: " in prompts) == interactive
 
 
 def test_configure_explicit_identity_targets_defaults_or_named_profile(workstation, capsys):
@@ -547,7 +584,7 @@ def test_connection_identity_precedence_and_sources(workstation, level):
     levels = ["default", "connection_defaults", "named", "shared", "repository", "selected", "process", "cli"]
     rank = levels.index(level)
     text = ''
-    expected_user, expected_role, source = "vraptor", "provisioning-admin", "default"
+    expected_user, expected_role, source = None, "provisioning-admin", "default"
     path = settings.default_path()
     if rank >= 1:
         text += '[connection_defaults]\napi_user="vraptor_operator"\napi_role_profile="investigation"\n'
@@ -575,6 +612,10 @@ def test_connection_identity_precedence_and_sources(workstation, level):
     config(home, text)
     result = settings.resolve("lab", repo_root=repo, process_environment=environment, overrides=overrides)
     for key, expected in (("api_user", expected_user), ("api_role_profile", expected_role)):
+        if expected is None:
+            assert key not in result.values
+            assert key not in result.sources
+            continue
         assert result.values[key] == expected
         suffix = (":" + settings.SCHEMA["connections"][key][1]) if source.startswith("environment:") else "." + key
         assert result.sources[key] == (source if source in {"default", "command_line"} else source + suffix)

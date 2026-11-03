@@ -12,7 +12,6 @@ from typing import Mapping
 
 
 CASE_ROOT_ENV = "CASE_ROOT"
-EVIDENCE_ROOT_ENV = "CASE_EVIDENCE_ROOT"
 VELO_LOCAL_API_CLIENT_ENV = "VELO_LOCAL_API_CLIENT"
 VELO_LOCAL_CONFIG_ROOT_ENV = "VELO_LOCAL_CONFIG_ROOT"
 VELO_BIN_ENV = "VELO_BIN"
@@ -86,10 +85,17 @@ def expand_home_path(value: str | Path) -> Path:
 
 
 def parse_dotenv_value(raw_value: str) -> str:
+    """Strip quotes and a trailing comment, a ``#`` after a closing quote or a blank, as load_repo_env.sh does."""
     value = raw_value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-        value = value[1:-1]
-    return value
+    if value[:1] in {"'", '"'}:
+        closing = value.find(value[0], 1)
+        if closing > 0 and value[closing + 1 :].lstrip(" \t").startswith("#"):
+            return value[1:closing]
+        if len(value) >= 2 and value[0] == value[-1]:
+            value = value[1:-1]
+        return value
+    head = re.split(r"[ \t]#", raw_value, maxsplit=1)[0]
+    return value if "'" in head or '"' in head else head.strip()
 
 
 def load_dotenv_file(path: Path, *, override: bool = False) -> dict[str, str]:
@@ -230,13 +236,6 @@ def default_case_root(repo_root: Path) -> Path:
     if configured:
         return expand_home_path(configured).resolve()
     return (Path.home() / "cases").resolve()
-
-
-def default_evidence_root(repo_root: Path, investigation_id: str | None = None) -> Path:
-    configured = env_value(repo_root, EVIDENCE_ROOT_ENV)
-    if configured:
-        return expand_home_path(configured).resolve()
-    return (Path.home() / "data").resolve()
 
 
 def default_velociraptor_config_root(repo_root: Path) -> Path:

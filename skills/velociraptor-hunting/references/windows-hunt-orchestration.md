@@ -27,16 +27,16 @@ without a concrete cross-host question. Move machine-specific questions to the
 ## Grouped DetectRaptor Hunt
 
 ```bash
-dfir hunt run \
+vraptor hunt run \
   --id IR1234 \
   --profile detectraptor \
   --question "Find Windows compromise leads"
 
-dfir hunt status \
+vraptor hunt status \
   --id IR1234 \
   --group DR-20260725T120000Z
 
-dfir hunt analyze \
+vraptor hunt analyze \
   --id IR1234 \
   --group DR-20260725T120000Z
 ```
@@ -48,7 +48,7 @@ required.
 ## Targeted Hunt
 
 ```bash
-dfir hunt run \
+vraptor hunt run \
   --id IR1234 \
   --artifact Windows.EventLogs.EvtxHunter \
   --env 'EvtxGlob=%SystemRoot%\\System32\\Winevt\\Logs\\*{security,powershell}*.evtx' \
@@ -87,12 +87,12 @@ stopped, failed or cancelled hunts. Analyze their in-scope evidence with explici
 coverage limits; `--force-run` is not needed for existing-evidence analysis.
 
 ```bash
-dfir hunt native check \
+vraptor hunt native check \
   --investigation-id IR1234 \
   --target windows \
   --artifact DetectRaptor.Windows.Detection.Evtx
 
-dfir hunt native ensure \
+vraptor hunt native ensure \
   --investigation-id IR1234 \
   --target windows \
   --artifact DetectRaptor.Windows.Detection.Evtx \
@@ -112,7 +112,7 @@ before any hunt is created.
 Opt in only when late endpoints must receive the original hunt:
 
 ```bash
-dfir hunt run \
+vraptor hunt run \
   --id IR1234 \
   --profile detectraptor \
   --question "Find Windows compromise leads" \
@@ -123,7 +123,7 @@ dfir hunt run \
 For an existing hunt with a saved original target baseline:
 
 ```bash
-dfir hunt retry-missing \
+vraptor hunt retry-missing \
   --id IR1234 \
   --hunt-id H.1234 \
   --after-hours 24 \

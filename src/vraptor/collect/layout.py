@@ -12,14 +12,6 @@ def engagement_dir(case_root: Path, investigation_id: str) -> Path:
     return case_layout.engagement_dir(case_root, investigation_id)
 
 
-def engagement_state_path(case_root: Path, investigation_id: str) -> Path:
-    return case_layout.engagement_state_path(case_root, investigation_id)
-
-
-def systems_dir(case_root: Path, investigation_id: str) -> Path:
-    return case_layout.systems_dir(case_root, investigation_id)
-
-
 def system_dir(case_root: Path, investigation_id: str, hostname: str) -> Path:
     return case_layout.system_dir(case_root, investigation_id, hostname)
 
@@ -72,10 +64,6 @@ def request_coverage_path(
     request_id: str,
 ) -> Path:
     return request_dir(case_root, investigation_id, hostname, request_id) / "coverage.json"
-
-
-def analysis_dir(case_root: Path, investigation_id: str, hostname: str) -> Path:
-    return system_dir(case_root, investigation_id, hostname) / "analysis"
 
 
 def exports_dir(case_root: Path, investigation_id: str, hostname: str) -> Path:

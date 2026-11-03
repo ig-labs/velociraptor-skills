@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from vraptor.agent.config import ResolvedAgentExecution
-from vraptor.agent.config import ResolvedAgentRoute
+from vraptor.agent.config import ResolvedAgentExecution, ResolvedAgentRoute
 from vraptor.autoruns import ai_review as autoruns_ai_review
+from vraptor.autoruns import reporting as autoruns_reporting
 
 
 def _test_execution(
@@ -60,6 +60,57 @@ def focused_response(recommendations):
 
 
 class AutorunsAiReviewTest(unittest.TestCase):
+    def test_specialized_prompts_use_four_priorities_separate_from_confidence(self):
+        args = {"csv_text": "ReviewId\n", "part_number": 1, "part_count": 1, "row_count": 0}
+        prompts = [
+            autoruns_ai_review._prompt(**args),
+            autoruns_ai_review._focused_stack_prompt(**args, use_case="autoruns-lolbin"),
+            autoruns_ai_review._focused_prompt(**args, use_case="autoruns-rmm"),
+        ]
+        for prompt in prompts:
+            self.assertIn("severity must be one of critical, high, medium, low.", prompt)
+            self.assertIn("independently of evidence confidence", prompt)
+            self.assertIn("informational observations in expected context", prompt)
+        self.assertIn("Confidence must be low, medium, or high", prompts[-1])
+
+    def test_new_reportable_records_reject_info_and_preserve_expected_context(self):
+        for level in ("info", "informational", "unranked"):
+            with self.subTest(level=level):
+                with self.assertRaisesRegex(autoruns_ai_review.AutorunsAiReviewError, "invalid severity"):
+                    autoruns_ai_review._validate_result(
+                        f"SUSPICIOUS\t1\t{level}\tSuspicious launch.\nEND",
+                        rows=[{"RowId": "1"}],
+                    )
+                for disposition in ("notable", "suspicious"):
+                    with self.assertRaisesRegex(autoruns_ai_review.AutorunsAiReviewError, "invalid severity"):
+                        autoruns_ai_review._validate_focused_result(
+                            f"RECOMMENDATION\tR1\t{disposition}\t{level}\thigh\ttrue\tReview intent.\nEND",
+                            rows=[{"ReviewId": "R1"}],
+                        )
+        accepted = autoruns_ai_review._validate_focused_result(
+            "RECOMMENDATION\tR1\texpected\tinfo\thigh\tfalse\tExpected OS component.\nEND",
+            rows=[{"ReviewId": "R1"}],
+        )
+        self.assertEqual(accepted[0]["disposition"], "expected")
+        self.assertEqual(accepted[0]["severity"], "info")
+        self.assertEqual(accepted[0]["confidence"], "high")
+
+    def test_context_priority_preserves_legacy_info_and_missing_classification(self):
+        rows = [
+            {"Entry": "low", "Severity": "low", "Reason": "Limited impact."},
+            {"Entry": "legacy", "Severity": "info", "Reason": "Retained legacy observation."},
+            {"Entry": "unknown", "Reason": "Priority has not been assessed."},
+            {"Entry": "urgent", "report_priority": "high", "Severity": "low", "Reason": "Explicit report priority."},
+        ]
+        groups = autoruns_reporting.grouped_context(rows)
+        self.assertEqual([item["row"]["Entry"] for item in groups], ["urgent", "unknown", "low", "legacy"])
+        rendered = "\n".join(autoruns_reporting.render_context(rows, heading_level=3))
+        self.assertIn("Report priority: `Not assessed`", rendered)
+        self.assertIn("Report priority: `informational`", rendered)
+        self.assertIn("INFO: `legacy`", rendered)
+        self.assertEqual(rows[1]["Severity"], "info")
+        self.assertNotIn("report_priority", rows[2])
+
     def test_line_v2_prompt_contract_is_stable(self):
         csv_text = "RowId,ExampleCategory,ImagePath,LaunchString,Signer,Total\n"
         general = autoruns_ai_review._prompt(

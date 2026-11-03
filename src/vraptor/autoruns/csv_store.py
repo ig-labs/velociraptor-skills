@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import csv
-import fcntl
 import hashlib
 import io
 import os
@@ -103,8 +102,7 @@ def write_csv(target, input_path, *, backup_dir, replace=False, dry_run=False):
         raise RuntimeError("GoldenDB CSV must contain at least one rule.")
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    with target.with_name("." + target.name + ".lock").open("a+b") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    with autoruns_regex_db.golden_db_lock(target):
         before = target.read_bytes() if target.exists() else None
         previous = []
         if before is not None:

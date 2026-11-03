@@ -2,17 +2,18 @@
 
 This module deliberately contains no Velociraptor client or analyst-agent calls.
 Host and hunt coordinators own acquisition and execution; this module owns the
-stable identities, terminal-flow classification, logical segmentation and frozen
-best-fit packing shared by both workflows.
+stable identities, terminal-flow classification and logical segmentation shared
+by both workflows.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Sequence
+
+from vraptor.common import hashing
+from vraptor.common.clock import now_utc
 
 
 SCHEMA_VERSION = 7
@@ -50,18 +51,8 @@ FAILURE_STATE_FRAGMENTS = (
 )
 
 
-def now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def canonical_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        default=str,
-    )
+    return hashing.canonical_json(value, ensure_ascii=False)
 
 
 def sha256_identity(prefix: str, value: Any, *, length: int = 32) -> str:
@@ -186,15 +177,6 @@ class FlowSource:
             flow_id=self.flow_id,
             artifact=self.artifact,
             source=self.source,
-        )
-
-    @property
-    def compatibility_key(self) -> str:
-        return canonical_json(
-            {
-                "artifact": self.artifact,
-                "source": self.source,
-            }
         )
 
 

@@ -2,11 +2,13 @@ import asyncio
 import json
 import os
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest import mock
 
 import httpx
 import pytest
 from vraptor.agent.additional_providers import (
+    AnthropicMessagesAdapter,
     ClaudeAgentSDKAdapter,
 )
 from vraptor.agent.config import (
@@ -99,6 +101,30 @@ def test_anthropic_real_sdk_terminal_contract(tmp_path, stop, expected, effort):
     else:
         assert "output_config" not in captured[0]
     assert (tmp_path / "result.txt").exists() == (expected == "succeeded")
+
+
+@pytest.mark.parametrize(
+    "model,thinking",
+    [
+        ("claude-opus-5-5", {"type": "adaptive"}),
+        ("claude-haiku-5-5", {"type": "adaptive"}),
+        ("custom-claude", {"type": "adaptive"}),
+        # Adaptive thinking starts with Claude 4.6.
+        ("claude-opus-4-5-20251101", None),
+    ],
+)
+def test_anthropic_effort_sends_adaptive_thinking_only_where_supported(
+    model, thinking
+):
+    selected = execution("anthropic", "messages")
+    selected = replace(
+        selected, route=replace(selected.route, model=model, reasoning_effort="low")
+    )
+    options = AnthropicMessagesAdapter(
+        selected, TimeoutPolicy(), client=object()
+    )._request_options(request())
+    assert options.get("thinking") == thinking
+    assert options["output_config"]["effort"] == "low"
 
 
 @pytest.mark.parametrize("effort", ["", "low", "medium", "high", "xhigh", "max"])
@@ -278,8 +304,28 @@ def test_claude_sdk_rejects_tool_blocks(streamed):
         asyncio.run(run())
 
 
-@pytest.mark.parametrize("stop", ["max_tokens", "tool_use", "refusal"])
-def test_claude_sdk_rejects_incomplete_success_result(stop):
+STOP_CLASSIFICATIONS = [
+    ("max_tokens", "output_limit_reached"),
+    ("model_context_window_exceeded", "context_window_exceeded"),
+    ("refusal", "refusal"),
+    ("tool_use", "incomplete_response"),
+]
+
+
+@pytest.mark.parametrize("stop,classification", STOP_CLASSIFICATIONS)
+def test_anthropic_stop_reasons_are_classified(stop, classification):
+    adapter = AnthropicMessagesAdapter(
+        execution("anthropic", "messages"), TimeoutPolicy(), client=object()
+    )
+    response = SimpleNamespace(stop_reason=stop, id="msg_1", usage=None, content=[])
+    with pytest.raises(AgentProviderException) as raised:
+        adapter._finish(response)
+    assert raised.value.error.classification == classification
+    assert raised.value.error.finish_reason == stop
+
+
+@pytest.mark.parametrize("stop,classification", STOP_CLASSIFICATIONS)
+def test_claude_sdk_rejects_incomplete_success_result(stop, classification):
     ResultMessage = pytest.importorskip("claude_agent_sdk").ResultMessage
 
     async def query(**kwargs):
@@ -292,6 +338,7 @@ def test_claude_sdk_rejects_incomplete_success_result(stop):
             session_id="test-session",
             result="partial",
             stop_reason=stop,
+            usage={"input_tokens": 5, "output_tokens": 2},
         )
 
     async def run():
@@ -301,9 +348,179 @@ def test_claude_sdk_rejects_incomplete_success_result(stop):
 
     with (
         mock.patch("claude_agent_sdk.query", query),
-        pytest.raises(AgentProviderException),
+        pytest.raises(AgentProviderException) as raised,
     ):
         asyncio.run(run())
+    assert raised.value.error.classification == classification
+    assert raised.value.error.usage.status == "reported"
+    assert raised.value.error.usage.as_dict()["total_tokens"] == 7
+    assert raised.value.error.request_id == "test-session"
+
+
+@pytest.mark.parametrize(
+    "api_stop,result_stop,classification",
+    [
+        ("max_tokens", "stop_sequence", "output_limit_reached"),
+        ("model_context_window_exceeded", "stop_sequence", "context_window_exceeded"),
+        ("refusal", "refusal", "refusal"),
+        (None, "refusal", "refusal"),
+        (None, "stop_sequence", "incomplete_response"),
+    ],
+)
+@pytest.mark.parametrize("result", ["partial", "Prompt is too long: 210000 tokens > 200000 maximum"])
+def test_claude_sdk_classifies_cli_error_results(
+    api_stop, result_stop, classification, result
+):
+    # Claude Code reports these stops as is_error results; the streamed
+    # message_delta carries the API stop reason.
+    pytest.importorskip("claude_agent_sdk")
+    from claude_agent_sdk import ResultMessage
+    from claude_agent_sdk.types import StreamEvent
+
+    async def query(**kwargs):
+        if api_stop:
+            yield StreamEvent(
+                uuid="delta",
+                session_id="test-session",
+                event={
+                    "type": "message_delta",
+                    "delta": {"stop_reason": api_stop, "stop_sequence": None},
+                    "usage": {"output_tokens": 2},
+                },
+            )
+        yield ResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=True,
+            num_turns=1,
+            session_id="test-session",
+            result=result,
+            stop_reason=result_stop,
+        )
+
+    async def run():
+        return await ClaudeAgentSDKAdapter(
+            execution("anthropic", "claude_agent_sdk"), TimeoutPolicy()
+        ).execute(request())
+
+    with (
+        mock.patch("claude_agent_sdk.query", query),
+        pytest.raises(AgentProviderException) as raised,
+    ):
+        asyncio.run(run())
+    if result.startswith("Prompt is too long") and result_stop != "refusal":
+        # Claude Code's own text when the prompt exceeds its window.
+        classification = "context_window_exceeded"
+        expected = "model_context_window_exceeded"
+    else:
+        expected = result_stop if classification == "incomplete_response" else (
+            api_stop or result_stop
+        )
+    assert raised.value.error.classification == classification
+    assert raised.value.error.finish_reason == expected
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+def test_claude_sdk_passes_disabled_1m_context_to_claude_code(enabled):
+    pytest.importorskip("claude_agent_sdk")
+    from claude_agent_sdk import ResultMessage
+
+    seen = {}
+
+    async def query(**kwargs):
+        seen.update(kwargs["options"].env)
+        yield ResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=1,
+            session_id="test-session",
+            result="READY",
+        )
+
+    selected = execution("anthropic", "claude_agent_sdk")
+    selected = replace(
+        selected, route=replace(selected.route, claude_code_1m_context=enabled)
+    )
+
+    async def run():
+        return await ClaudeAgentSDKAdapter(selected, TimeoutPolicy()).execute(
+            request()
+        )
+
+    with mock.patch("claude_agent_sdk.query", query):
+        assert asyncio.run(run()).output == "READY"
+    # Settings from vraptor .env files must reach Claude Code as budgeted.
+    assert ("CLAUDE_CODE_DISABLE_1M_CONTEXT" in seen) is not enabled
+    if not enabled:
+        assert seen["CLAUDE_CODE_DISABLE_1M_CONTEXT"] == "1"
+
+
+def test_anthropic_unexpected_action_preserves_usage():
+    adapter = AnthropicMessagesAdapter(execution("anthropic", "messages"), TimeoutPolicy())
+    with pytest.raises(AgentProviderException) as raised:
+        adapter._finish({
+            "id": "msg-actions", "stop_reason": "end_turn",
+            "usage": {"input_tokens": 5, "output_tokens": 2},
+            "content": [{"type": "tool_use"}],
+        })
+    assert raised.value.error.usage.status == "reported"
+    assert raised.value.error.usage.as_dict()["total_tokens"] == 7
+    assert raised.value.error.request_id == "msg-actions"
+
+
+def test_anthropic_stream_failure_preserves_latest_cumulative_counts():
+    class BrokenMessageStream:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def __aiter__(self):
+            yield {"type": "message_start", "message": {
+                "id": "msg-partial", "usage": {
+                    "input_tokens": 5, "output_tokens": 0,
+                    "cache_read_input_tokens": 10, "cache_creation_input_tokens": 3,
+                },
+            }}
+            for count in (1, 2, 2):
+                yield {"type": "message_delta", "usage": {"output_tokens": count}}
+            raise ConnectionError("provider disconnected")
+
+    progress = []
+    adapter = AnthropicMessagesAdapter(
+        execution("anthropic", "messages"), TimeoutPolicy(),
+        client=SimpleNamespace(messages=SimpleNamespace(stream=lambda **_kwargs: BrokenMessageStream())),
+    )
+    with pytest.raises(AgentProviderException) as raised:
+        asyncio.run(adapter.execute(request(), progress_callback=progress.append))
+    assert raised.value.error.usage.status == "partial"
+    assert raised.value.error.usage.as_dict()["total_tokens"] == 20
+    assert raised.value.error.usage.cached_input_tokens == 10
+    assert raised.value.error.request_id == "msg-partial"
+    assert [event.metadata["output_tokens"] for event in progress if event.type == "usage_updated"] == [0, 1, 2, 2]
+
+
+@pytest.mark.parametrize("is_error,subtype", [(True, "error_during_execution"), (False, "error_max_turns")])
+def test_claude_unsuccessful_result_preserves_usage(is_error, subtype):
+    ResultMessage = pytest.importorskip("claude_agent_sdk").ResultMessage
+
+    async def query(**_kwargs):
+        yield ResultMessage(
+            subtype=subtype, duration_ms=1, duration_api_ms=1, is_error=is_error,
+            num_turns=1, session_id="failed-session", result="partial",
+            usage={"input_tokens": 5, "output_tokens": 2},
+        )
+
+    adapter = ClaudeAgentSDKAdapter(execution("anthropic", "claude_agent_sdk"), TimeoutPolicy())
+    with mock.patch("claude_agent_sdk.query", query), pytest.raises(AgentProviderException) as raised:
+        asyncio.run(adapter.execute(request()))
+    assert raised.value.error.usage.status == "reported"
+    assert raised.value.error.usage.as_dict()["total_tokens"] == 7
+    assert raised.value.error.request_id == "failed-session"
 
 
 def test_anthropic_real_sdk_streaming_and_cache_usage(tmp_path):

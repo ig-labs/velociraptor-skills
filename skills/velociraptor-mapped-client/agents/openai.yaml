@@ -1,0 +1,4 @@
+interface:
+  display_name: "Velociraptor Mapped Client"
+  short_description: "Map offline evidence as a verified read-only client"
+  default_prompt: "Use $velociraptor-mapped-client to create, supervise, validate or inspect a read-only mapped client for a disk image, mounted Windows volume or Velociraptor KapeFiles collection when $velociraptor-engagement-setup is not used. Never write to the evidence, and treat a missing client id, LastSeen, identity mismatch or non-online supervisor as a blocking failure."

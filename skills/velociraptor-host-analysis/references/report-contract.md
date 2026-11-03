@@ -39,11 +39,13 @@ when analysis closes.
 ## Size controls
 
 - Keep the answer to two short paragraphs.
-- Keep at most ten context items.
-- Keep at most ten highest-priority findings.
-- Keep at most five next actions.
-- Indicate additional grouped items without expanding them.
-- Cap selected full-row Markdown content at 2,000,000 characters per report;
+- Use the shared [reporting policy](../../../docs/reference/reporting-policy.md)
+  and its effective overrides, rather than separate skill-level numeric limits.
+- Defaults are ten context items, twenty detailed findings and five next actions.
+- Rank findings by explicit reporting priority before limiting detail; never use
+  confidence as a substitute for incident priority. Index additional findings and
+  retain accepted findings and provenance when a lower-priority entry loses detail.
+- The default selected full-row content budget is 2,000,000 characters per rendering;
   identify omitted groups and leave their authoritative content in Velociraptor.
 
 ## Evidence detail
@@ -78,7 +80,10 @@ lateral movement, and network activity. Distinguish `observed`,
 Do not add landscape, RMM, greyware, administration, or benign context unless the
 question requests it or it materially changes a finding.
 
-Final publication follows the mandatory [final AI review](final-review.md).
-Disposition records control findings, leads, context, counts and structured state;
-zero supported findings is valid. A failed review remains provisional and does
-not publish the original candidates as supported findings.
+With `--synthesis full`, publication follows the mandatory
+[final harness review](final-review.md). Disposition records control findings,
+leads, context, counts and structured state; zero supported findings is valid.
+A failed review remains provisional and does not publish the original candidates
+as supported findings. With `--synthesis none`, the harness publishes candidates;
+the caller reviews them and writes a separate
+[assessment-host.md](../../../docs/reference/analysis-synthesis.md#caller-assessment-files).

@@ -7,7 +7,7 @@ Offline settings/setup regression checks (no live endpoint or provisioning):
   tests/test_operational_connection_options.py tests/test_vraptor_lifecycle.py \
   tests/test_setup_config_transfer.py tests/test_reset_vraptor_config.py \
   tests/test_agent_profile_schema.py tests/test_agent_setup.py \
-  tests/test_agent_setup_defaults.py tests/test_agent_settings_environment.py \
+  tests/test_agent_setup_defaults.py tests/test_agent_settings_environment.py
 ```
 
 These cover connection-default precedence/source reporting, API-user prompting,
@@ -54,19 +54,24 @@ Both local-server and remote-server mapped-client workflows support these inputs
 |---|---|---|
 | Windows disk image | `windows-disk` | Supported Windows disk image |
 | Windows folder / mounted volume | `windows-directory` | Windows directory tree |
-| Extracted Velociraptor KapeFiles collection | `velociraptor-export` | Extracted collection with `uploads.json` |
-| Velociraptor KapeFiles zip | `velociraptor-kapefiles-zip` | Collection ZIP, optionally AES-protected `data.zip` |
+| Extracted Velociraptor KapeFiles collection | `velociraptor-export` | Extracted Windows collection with `uploads.json` |
+| Velociraptor KapeFiles zip | `velociraptor-kapefiles-zip` | Windows collection ZIP with `uploads.json`, optionally AES-protected `data.zip` |
 
-`auto` detects supported collection folders and ZIP containers. These are input
-variants of the two offline deployment workflows, not additional server modes.
-Use a distinct mapping ID/workspace for each input binding.
+`auto` detects supported collection folders and ZIP containers. Collections map
+Windows drive uploads only; Linux/macOS collections and results-only collector
+ZIPs are rejected. `setup start` accepts `--evidence-type`; the lower-level
+`setup remote-deaddisk` auto-detects and `setup local-deaddisk` only verifies.
+These are input variants of the two offline deployment workflows, not additional
+server modes. Use a distinct mapping ID/workspace for each input binding.
 
 For ZIP acceptance, verify file enumeration, actual content reads, registry
 reads, client identity, heartbeat, supervisor health and same-identity resume.
 Test missing/wrong passwords and changed ZIP rejection. Run
 `.venv/bin/python -m pytest tests/test_zip_mapping.py tests/test_export_mapping.py`.
 See [ZIP mapping](../skills/velociraptor-mapped-client/SKILL.md#velociraptor-kapefiles-zip)
-for password handling, coverage limitations and performance trade-offs.
+for password handling and coverage limitations, and
+[ZIP mapping performance](../skills/velociraptor-mapped-client/references/kapefiles-zip.md#zip-mapping-performance)
+for performance trade-offs.
 
 ## Required DetectRaptor setup gate
 
@@ -564,12 +569,11 @@ vtest setup stop --id test-remote --mapping-id wkstn01
 vtest setup stop --id test-remote --mapping-id wkstn05
 ```
 
-Offline regression checks from the `ai_skills` checkout:
+Offline regression checks from the repository checkout:
 
 ```sh
 .venv/bin/python -m pytest tests/test_remote_config_privileges.py \
-  tests/test_remote_config_sudo.py \
-  tests/test_velociraptor_live_api_client_sh.py tests/test_vraptor_setup.py \
+  tests/test_remote_config_sudo.py tests/test_vraptor_setup.py \
   tests/test_engagement_state.py
 ```
 

@@ -8,7 +8,6 @@ import argparse
 from contextlib import closing
 import base64
 import csv
-import fcntl
 import fnmatch
 import functools
 import gzip
@@ -29,7 +28,9 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator
 
 from vraptor.common import atomic_io
+from vraptor.common.clock import now_utc
 from vraptor import paths as dfir_paths
+from vraptor.common.hashing import canonical_json
 from vraptor.common.hashing import sha256_file as file_sha256
 from vraptor import api as velociraptor_api
 from vraptor.autoruns import pipeline as autoruns
@@ -102,20 +103,6 @@ REQUIRED_METADATA = {
 }
 
 
-def now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def stable_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        default=str,
-    )
-
-
 def field(
     row: dict[str, Any],
     *names: str,
@@ -176,7 +163,7 @@ def context_payload(row: dict[str, Any]) -> dict[str, str]:
 
 def context_key(payload: dict[str, str]) -> str:
     return hashlib.sha256(
-        stable_json(payload).encode("utf-8")
+        canonical_json(payload).encode("utf-8")
     ).hexdigest()
 
 
@@ -500,7 +487,7 @@ class RmmClassifier:
             if str(value).strip()
         }
         self.reference_hash = hashlib.sha256(
-            stable_json(payload).encode("utf-8")
+            canonical_json(payload).encode("utf-8")
         ).hexdigest()
 
     def regex(self) -> str:
@@ -855,7 +842,7 @@ def promote_records(
         build_metadata = {
             "build_mode": "delta" if baseline_paths else "full",
             "baseline_database_count": str(len(baseline_paths)),
-            "baseline_database_sha256s": stable_json(
+            "baseline_database_sha256s": canonical_json(
                 sorted(file_sha256(path) for path in baseline_paths)
             ),
         }
@@ -1007,7 +994,7 @@ def validate_database(
         version = metadata(probe).get("schema_version")
     if version in {"7", "8", "9", "10"}:
         from vraptor.autoruns.regex_store import report
-        return report(path, rmm_reference=rmm_reference)
+        return report(path)
     classifier = RmmClassifier(rmm_reference)
     connection = connect_database(path, readonly=True)
     try:
@@ -1168,14 +1155,14 @@ def live_lookup_payload(
                 })
     finally:
         connection.close()
-    serialized = stable_json(keys).encode("utf-8")
+    serialized = canonical_json(keys).encode("utf-8")
     compressed = gzip.compress(
         serialized,
         compresslevel=PUBLISH_GZIP_LEVEL,
         mtime=0,
     )
     encoded = base64.b64encode(compressed).decode("ascii")
-    regex_serialized = stable_json(regex_rules).encode("utf-8") if regex_rules else b""
+    regex_serialized = canonical_json(regex_rules).encode("utf-8") if regex_rules else b""
     regex_compressed = (
         gzip.compress(regex_serialized, compresslevel=PUBLISH_GZIP_LEVEL, mtime=0)
         if regex_rules else b""
@@ -1229,7 +1216,7 @@ def merge_databases(
             merge_metadata = {
                 "build_mode": "merged",
                 "source_database_count": str(len(source_paths)),
-                "source_database_sha256s": stable_json(
+                "source_database_sha256s": canonical_json(
                     sorted(file_sha256(path) for path in source_paths)
                 ),
             }
@@ -1549,20 +1536,17 @@ def apply_delta_database(
             backup_dir=backup_dir,
             rmm_reference=rmm_reference,
         )
+    from vraptor.autoruns.regex_store import golden_db_lock
+
     target.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = target.with_name(f".{target.name}.lock")
-    with lock_path.open("a+b") as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-        try:
-            return _apply_delta_database_locked(
-                target,
-                delta,
-                dry_run=dry_run,
-                backup_dir=backup_dir,
-                rmm_reference=rmm_reference,
-            )
-        finally:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+    with golden_db_lock(target):
+        return _apply_delta_database_locked(
+            target,
+            delta,
+            dry_run=dry_run,
+            backup_dir=backup_dir,
+            rmm_reference=rmm_reference,
+        )
 
 
 def lookup_hashes(database: Path, hashes: Iterable[str]) -> list[dict[str, Any]]:
@@ -3002,11 +2986,7 @@ def promote_analysis_candidates(
         target,
         Path(staged["delta"]),
         dry_run=True,
-        backup_dir=(
-            Path(args.backup_dir).expanduser().resolve()
-            if args.backup_dir
-            else None
-        ),
+        backup_dir=_optional_path(args.backup_dir),
         rmm_reference=args.rmm_reference,
     )
     effective_changes = int(
@@ -3022,11 +3002,7 @@ def promote_analysis_candidates(
             target,
             Path(staged["delta"]),
             dry_run=False,
-            backup_dir=(
-                Path(args.backup_dir).expanduser().resolve()
-                if args.backup_dir
-                else None
-            ),
+            backup_dir=_optional_path(args.backup_dir),
             rmm_reference=args.rmm_reference,
         )
     manifest_path = Path(staged["delta_manifest"])
@@ -3162,7 +3138,6 @@ def _validated_offline_exact_rows(
 def _validated_offline_regex_rows(
     inputs: Iterable[Path],
     *, input_reports: list[dict[str, str]] | None = None,
-    rmm_reference: Path | None = None,
 ) -> list[dict[str, Any]]:
     """Load reviewed paired regex rules and reject duplicates."""
 
@@ -3221,16 +3196,8 @@ def import_offline_rules(args: argparse.Namespace) -> dict[str, Any]:
             "Offline Autoruns import requires an existing GoldenDB target: "
             f"{target}"
         )
-    rmm_reference = (
-        Path(args.rmm_reference).expanduser().resolve()
-        if args.rmm_reference
-        else None
-    )
-    backup_dir = (
-        Path(args.backup_dir).expanduser().resolve()
-        if args.backup_dir
-        else None
-    )
+    rmm_reference = _optional_path(args.rmm_reference)
+    backup_dir = _optional_path(args.backup_dir)
     input_reports: list[dict[str, str]] = []
     regex_input_reports: list[dict[str, str]] = []
     exact_rows = _validated_offline_exact_rows(
@@ -3239,7 +3206,7 @@ def import_offline_rules(args: argparse.Namespace) -> dict[str, Any]:
         input_reports=input_reports,
     )
     regex_rows = _validated_offline_regex_rows(
-        regex_inputs, input_reports=regex_input_reports, rmm_reference=rmm_reference,
+        regex_inputs, input_reports=regex_input_reports,
     )
     with tempfile.TemporaryDirectory(
         prefix="autoruns-golden-import-"
@@ -3314,9 +3281,13 @@ def _paths(values: Iterable[str]) -> list[Path]:
     return [Path(value).expanduser().resolve() for value in values]
 
 
+def _optional_path(value: str | Path | None) -> Path | None:
+    return Path(value).expanduser().resolve() if value else None
+
+
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
-        prog="dfir autoruns",
+        prog="vraptor autoruns",
         description="Manage the reusable Autoruns GoldenDB.",
     )
     commands = root.add_subparsers(dest="command", required=True)
@@ -3482,23 +3453,6 @@ def parser() -> argparse.ArgumentParser:
     remove.add_argument("--category", default="", help=argparse.SUPPRESS)
     remove.add_argument("--rmm-reference")
 
-    test_build = commands.add_parser(
-        "test-build", help="Build an isolated autoruns_test database without changing production GoldenDB.",
-    )
-    test_build.add_argument("--source-db", required=True)
-    test_build.add_argument("--output", required=True, help="New operator-owned path; existing paths are never replaced.")
-    test_build.add_argument("--rmm-reference")
-    test_build.add_argument("--category-map", help="Optional exact-hash Category association JSON pinned to the source database.")
-
-    test_categories = commands.add_parser("test-categories", help="Recover observed categories by exact identity joins to legacy GoldenDB sources.")
-    test_categories.add_argument("--source-db", required=True)
-    test_categories.add_argument("--category-source", action="append", required=True)
-    test_categories.add_argument("--output", required=True, help="New category-map JSON path; existing paths are never replaced.")
-
-    test_review = commands.add_parser("test-review", help="Export grouped regex fields and descriptions, one identity per row.")
-    test_review.add_argument("--db", required=True)
-    test_review.add_argument("--output", required=True, help="New Markdown review path; existing paths are never replaced.")
-
     build = commands.add_parser("build")
     build.add_argument("--output", required=True)
     build.add_argument("--input", action="append", default=[])
@@ -3584,19 +3538,11 @@ def main(argv: list[str] | None = None) -> int:
         result = migrate(args.source, args.output, backup_dir=args.backup_dir, exclude_exact=args.exclude_exact)
     elif args.command == "stage":
         apply_engagement_context(args)
-        args.rmm_reference = (
-            Path(args.rmm_reference).expanduser().resolve()
-            if args.rmm_reference
-            else None
-        )
+        args.rmm_reference = _optional_path(args.rmm_reference)
         result = stage_analysis_candidates(args)
     elif args.command == "promote":
         resolve_promotion_source_args(args)
-        args.rmm_reference = (
-            Path(args.rmm_reference).expanduser().resolve()
-            if args.rmm_reference
-            else None
-        )
+        args.rmm_reference = _optional_path(args.rmm_reference)
         result = promote_analysis_candidates(args, resolve_context=True)
     elif args.command == "import":
         result = import_offline_rules(args)
@@ -3605,11 +3551,7 @@ def main(argv: list[str] | None = None) -> int:
             args.db,
             REPO_ROOT,
         )
-        rmm_reference = (
-            Path(args.rmm_reference).expanduser().resolve()
-            if args.rmm_reference
-            else None
-        )
+        rmm_reference = _optional_path(args.rmm_reference)
         version = DEFAULT_TOOL_VERSION
         with velociraptor_api.VeloApiClient(
             dfir_paths.resolve_velociraptor_api_client_path(
@@ -3635,16 +3577,8 @@ def main(argv: list[str] | None = None) -> int:
             ),
             Path(args.diff).expanduser().resolve(),
             dry_run=bool(args.dry_run),
-            backup_dir=(
-                Path(args.backup_dir).expanduser().resolve()
-                if args.backup_dir
-                else None
-            ),
-            rmm_reference=(
-                Path(args.rmm_reference).expanduser().resolve()
-                if args.rmm_reference
-                else None
-            ),
+            backup_dir=_optional_path(args.backup_dir),
+            rmm_reference=_optional_path(args.rmm_reference),
         )
     elif args.command == "remove":
         result = remove_hashes(
@@ -3654,27 +3588,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             args.hash,
             category=args.category,
-            rmm_reference=(
-                Path(args.rmm_reference).expanduser().resolve()
-                if args.rmm_reference
-                else None
-            ),
-        )
-    elif args.command == "test-categories":
-        from vraptor.autoruns import test_store as autoruns_test_db
-        result = autoruns_test_db.recover_categories(
-            Path(args.source_db), [Path(path) for path in args.category_source], Path(args.output),
-        )
-    elif args.command == "test-review":
-        from vraptor.autoruns import test_store as autoruns_test_db
-        result = autoruns_test_db.export_grouped_review(Path(args.db).expanduser().resolve(), Path(args.output))
-    elif args.command == "test-build":
-        from vraptor.autoruns import test_store as autoruns_test_db
-
-        result = autoruns_test_db.build_database(
-            Path(args.source_db), Path(args.output),
-            rmm_reference=Path(args.rmm_reference).expanduser().resolve() if args.rmm_reference else None,
-            category_map=Path(args.category_map).expanduser().resolve() if args.category_map else None,
+            rmm_reference=_optional_path(args.rmm_reference),
         )
     elif args.command == "build":
         if not args.input and not args.regex_input:
@@ -3684,11 +3598,7 @@ def main(argv: list[str] | None = None) -> int:
             _paths(args.input),
             replace=bool(args.replace),
             exclude_hashes=load_hashes(_paths(args.exclude_hashes)),
-            rmm_reference=(
-                Path(args.rmm_reference).expanduser().resolve()
-                if args.rmm_reference
-                else None
-            ),
+            rmm_reference=_optional_path(args.rmm_reference),
             baseline_databases=_paths(args.baseline_db),
             regex_inputs=_paths(args.regex_input),
         )
@@ -3697,11 +3607,7 @@ def main(argv: list[str] | None = None) -> int:
             Path(args.output).expanduser().resolve(),
             _paths(args.input),
             replace=bool(args.replace),
-            rmm_reference=(
-                Path(args.rmm_reference).expanduser().resolve()
-                if args.rmm_reference
-                else None
-            ),
+            rmm_reference=_optional_path(args.rmm_reference),
         )
     elif args.command == "inspect":
         result = validate_database(
@@ -3709,11 +3615,7 @@ def main(argv: list[str] | None = None) -> int:
                 args.db,
                 REPO_ROOT,
             ),
-            rmm_reference=(
-                Path(args.rmm_reference).expanduser().resolve()
-                if args.rmm_reference
-                else None
-            ),
+            rmm_reference=_optional_path(args.rmm_reference),
         )
     elif args.command == "lookup":
         database = dfir_paths.resolve_autoruns_golden_db(
@@ -3757,32 +3659,16 @@ def main(argv: list[str] | None = None) -> int:
         result = filter_autoruns_inputs(
             database,
             inputs=_paths(args.input or []),
-            manifest=(
-                Path(args.manifest).expanduser().resolve()
-                if args.manifest
-                else None
-            ),
-            output=(
-                Path(args.output).expanduser().resolve()
-                if args.output
-                else None
-            ),
-            output_dir=(
-                Path(args.output_dir).expanduser().resolve()
-                if args.output_dir
-                else None
-            ),
+            manifest=_optional_path(args.manifest),
+            output=_optional_path(args.output),
+            output_dir=_optional_path(args.output_dir),
         )
     elif args.command == "publish":
         database = dfir_paths.resolve_autoruns_golden_db(
             args.db,
             REPO_ROOT,
         )
-        rmm_reference = (
-            Path(args.rmm_reference).expanduser().resolve()
-            if args.rmm_reference
-            else None
-        )
+        rmm_reference = _optional_path(args.rmm_reference)
         version = str(args.tool_version or "").strip() or DEFAULT_TOOL_VERSION
         with velociraptor_api.VeloApiClient(
             dfir_paths.resolve_velociraptor_api_client_path(

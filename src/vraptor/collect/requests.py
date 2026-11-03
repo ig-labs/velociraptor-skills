@@ -14,12 +14,13 @@ import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from vraptor.common import atomic_io
-from vraptor.common.hashing import sha256_file
+from vraptor.common.clock import now_utc
+from vraptor.common.hashing import canonical_json, sha256_file
 from vraptor.common.sequences import unique_ordered as dedupe
 from vraptor.api import VeloApiClient
 from vraptor.api import grpc
@@ -370,20 +371,12 @@ class CollectionRequest:
     flow_timeout_seconds: int | None = None
 
 
-def now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def slugify(value: str) -> str:
     return "".join(char.lower() if char.isalnum() else "-" for char in value).strip("-").replace("--", "-")
 
 
-def stable_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str)
-
-
 def short_signature(value: Any) -> str:
-    return hashlib.sha256(stable_json(value).encode("utf-8")).hexdigest()[:12]
+    return hashlib.sha256(canonical_json(value).encode("utf-8")).hexdigest()[:12]
 
 
 def normalize_collection_label(label: str) -> str:
@@ -496,8 +489,7 @@ def bounded_argument_keys(env: dict[str, str]) -> list[str]:
         normalized = key.lower()
         if (
             "regex" in normalized
-            or normalized.endswith("after")
-            or normalized.endswith("before")
+            or normalized.endswith(("after", "before"))
             or normalized.startswith("date")
         ):
             bounded.append(key)
@@ -1196,9 +1188,7 @@ def write_system_identity(
     )
 
 
-def write_json(path: Path, payload: Any) -> None:
-    rendered = json.dumps(payload, indent=2, sort_keys=False) + "\n"
-    atomic_io.write_text_atomic(path, rendered)
+write_json = atomic_io.write_json_atomic
 
 
 def collection_groups_for_artifact(
@@ -1993,10 +1983,7 @@ def build_request_from_args(args: argparse.Namespace) -> CollectionRequest:
 def flow_matches_spec(flow: FlowRecord, expected: ArtifactSpec) -> bool:
     expected_identity = collection_run_identity("", [expected])["identity"]
     return any(
-        run_identity.identities_match(
-            expected_identity,
-            collection_run_identity("", [spec])["identity"],
-        )
+        collection_run_identity("", [spec])["identity"] == expected_identity
         for spec in flow.requested_specs
         if spec.artifact == expected.artifact
     )
@@ -3029,7 +3016,6 @@ def summarize_artifact_statuses(artifact_statuses: list[dict[str, Any]]) -> dict
 def build_state_payload(
     client: ClientRecord,
     investigation_id: str,
-    hostname: str,
     request: CollectionRequest,
     artifact_statuses: list[dict[str, Any]],
 ) -> dict[str, Any]:
@@ -3621,7 +3607,7 @@ def queue_collection(
                 "total": total_artifacts,
             }
         )
-    state = build_state_payload(client, investigation_id, hostname, request, artifact_statuses)
+    state = build_state_payload(client, investigation_id, request, artifact_statuses)
     state["artifact_preflight"] = dict(preflight)
     write_state(investigation_id, hostname, state)
     raise_for_effective_argument_validation(
@@ -3745,7 +3731,6 @@ def _status_payload_unlocked(
     refreshed_state = build_state_payload(
         client,
         investigation_id,
-        hostname,
         request,
         artifact_statuses,
     )
@@ -4101,7 +4086,6 @@ def _ensure_collection_unlocked(
         state = build_state_payload(
             client,
             investigation_id,
-            hostname,
             request,
             artifact_statuses,
         )
@@ -4268,7 +4252,7 @@ def _ensure_collection_unlocked(
             )
         persist_progress(status="running", artifact=expected.label)
 
-    state = build_state_payload(client, investigation_id, hostname, request, artifact_statuses)
+    state = build_state_payload(client, investigation_id, request, artifact_statuses)
     state["queue_progress"] = {
         "status": "complete",
         "artifact": "",
@@ -4305,7 +4289,7 @@ def _ensure_collection_unlocked(
         "action": action,
         "investigation_id": investigation_id,
         **client_identity_payload(client),
-        "request_id": request_id_for_request(request),
+        "request_id": request_id,
         "state_file": state["state_file"],
         "current_state_file": state["current_state_file"],
         "target_collection_type": request.target_collection_type,
@@ -4736,7 +4720,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Queue, inspect, or export per-artifact Velociraptor host collections.",
         epilog=(
             "For exact ensure/reuse, monitoring, and artifact-scoped analysis, use: "
-            "dfir collect analyze --id ID --client-id CLIENT "
+            "vraptor collect analyze --id ID --client-id CLIENT "
             "--collection-type TYPE --question QUESTION"
         ),
     )

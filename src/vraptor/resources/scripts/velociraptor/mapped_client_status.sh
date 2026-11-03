@@ -11,7 +11,7 @@ CLIENT_FILTER=""
 usage() {
     printf '%s\n' \
         "Usage:" \
-        " ./dfir mapped status [OPTIONS]" \
+        " ./vraptor mapped status [OPTIONS]" \
         "" \
         "Options:" \
         " --workspace <path>  Velociraptor workspace containing mapped-clients/" \

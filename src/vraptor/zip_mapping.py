@@ -12,10 +12,10 @@ import zipfile
 
 import yaml
 from .common.atomic_io import write_json_atomic, write_text_atomic
+from .common.hashing import sha256_file
 
 
 def prepare_zip(source, remap, binary, hostname):
-    from .export_mapping import digest
     source, remap = Path(source).resolve(), Path(remap).resolve()
     if source == remap:
         raise ValueError('Remap must not overwrite evidence')
@@ -27,14 +27,14 @@ def prepare_zip(source, remap, binary, hostname):
             raise ValueError('ZIP password file must be owner-only, nonempty, and at most 4096 bytes')
         password_path = str(password_file)
     scope = ('LET ZIP_PASSWORDS <= read_file(filename=' + json.dumps(password_path) + ', accessor="file", length=4096)') if password_path else ''
-    identity = digest(source)
+    identity = sha256_file(source)
     metadata = remap.with_suffix('.export.json')
     if remap.exists():
         if not metadata.exists():
             raise ValueError('Existing remap has no ZIP binding')
         saved = json.loads(metadata.read_text())
         if (saved.get('source') != str(source) or saved.get('inventory_sha256') != identity
-                or saved.get('password_file', '') != password_path or saved.get('hostname') != hostname or saved.get('remap_sha256') != digest(remap)):
+                or saved.get('password_file', '') != password_path or saved.get('hostname') != hostname or saved.get('remap_sha256') != sha256_file(remap)):
             raise ValueError('ZIP binding or remap changed; saved identity preserved')
         if password_path:
             query = scope + '\nSELECT len(list=read_file(accessor="collector", filename=pathspec(DelegateAccessor="file", DelegatePath=' + json.dumps(str(source)) + ', Path="/uploads.json"), length=1)) AS ReadBytes FROM scope()'
@@ -137,7 +137,7 @@ def prepare_zip(source, remap, binary, hostname):
             rows = json.loads(result.stdout)
             if len(rows) != 1 or rows[0]['Size'] != row['size'] or rows[0]['ReadBytes'] != min(1, row['size']):
                 raise ValueError('ZIP mapped read verification failed: ' + row['target'])
-    if digest(source) != identity:
+    if sha256_file(source) != identity:
         raise ValueError('ZIP changed during preparation')
     saved = dict(version=1, evidence_type='velociraptor-kapefiles-zip', source=str(source), hostname=hostname,
                  inventory_sha256=identity, remap_sha256=hashlib.sha256(data.encode()).hexdigest(),

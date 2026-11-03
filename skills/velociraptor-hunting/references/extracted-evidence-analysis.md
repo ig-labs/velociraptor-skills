@@ -20,23 +20,28 @@ or download. Routine hunt analysis stays live and server-authoritative.
 ## Create and Analyze a Snapshot
 
 ```bash
-dfir hunt snapshot \
+vraptor hunt snapshot \
   --id IR1234 \
   --hunt-id H.1234
 
-dfir hunt analyze \
-  --snapshot /path/to/hunt-reviews/H.1234/snapshots/<snapshot>/snapshot.json \
+vraptor hunt analyze \
+  --snapshot ~/cases/IR1234/hunts/H.1234/snapshots/<utc>-<fingerprint>/snapshot.json \
   --artifact-reference /path/to/site/artifact-profiles.json
 ```
 
+Use the exact `snapshots[].snapshot` path that `hunt snapshot` returns;
+`~/cases/IR1234/hunts/H.1234/latest.json` records the newest one.
+
 Chunk output is the default. It normalizes, deduplicates, accounts for evidence,
 and returns canonical token-bounded CSV chunk paths without writing derived
-analysis files.
+analysis files. Snapshot analysis never runs AI: results report
+`status: prepared`, `ai_review_status: skipped` and `review_complete: false`,
+and `vraptor analyze --from` exits 2.
 
 Request derived output only when reusable derived products are required:
 
 ```bash
-dfir hunt analyze \
+vraptor hunt analyze \
   --snapshot /path/to/snapshot.json \
   --snapshot-output derived
 ```
@@ -58,7 +63,7 @@ CSV row across chunks.
 Selective review is explicit and incomplete by design:
 
 ```bash
-dfir hunt analyze \
+vraptor hunt analyze \
   --snapshot /path/to/snapshot.json \
   --review-mode selective \
   --max-total-analysis-tokens 120000 \
@@ -71,13 +76,16 @@ Use the saved-analysis manifest path only for evidence that was already
 extracted:
 
 ```bash
-dfir hunt analyze-saved \
+vraptor hunt analyze-saved \
   --export-manifest /path/to/exports/velociraptor-hunting-export.json \
   --download-manifest /path/to/downloads/velociraptor-hunting-download.json
 ```
 
 A saved state file or explicit hunt directory may also identify the durable
 manifests. Do not use transient latest-action fields as evidence identity.
+A relative `output_file` resolves from the manifest's folder. Export-manifest
+files must stay under that hunt's `exports/` folder and download-manifest files
+under its `downloads/` folder.
 
 ## Review Method
 
@@ -112,7 +120,8 @@ not replace the immutable source export.
 
 ## Outputs
 
-Snapshot evidence remains under:
+Here `<hunt_root>` is `<case_root>/<id>/hunts/<hunt_id>` and `<snapshot_dir>`
+is `<hunt_root>/snapshots/<utc>-<fingerprint>`. Snapshot evidence remains under:
 
 ```text
 <snapshot_dir>/chunks/<artifact>/<client-or-host>/<sha256>.csv
@@ -121,10 +130,10 @@ Snapshot evidence remains under:
 Derived products may be written under:
 
 ```text
-<snapshot_dir>/analysis/
-<hunt_root>/analysis-cache/by-chunk/
+<snapshot_dir>/analysis-v8/
+<hunt_root>/analysis-cache/by-chunk/v8/
 ```
 
-Saved-manifest compatibility review writes under `<hunt_dir>/review/`.
+Saved-manifest compatibility review writes under `<hunt_root>/review/`.
 Unknown artifacts remain reviewable as chunks but receive
 `no_artifact_profile`; do not invent generic stack fields.

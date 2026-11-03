@@ -21,7 +21,7 @@ Replace `<SERVER REFERENCE>` below with the saved name and use that server's
 API-client YAML.
 
 ```bash
-./dfir setup start --mode live-remote \
+./vraptor setup start --mode live-remote \
   --server-profile "<SERVER REFERENCE>" \
   --id ir1234 \
   --api-client /secure/lab_api_client.yaml \
@@ -81,7 +81,12 @@ Reuse valid saved readiness and attempt the requested operation. On a connection
 or readiness failure, diagnose the same server and investigation binding before
 refreshing readiness through setup. Rechecking readiness does not regenerate
 credentials. Acquiring existing remote files requires `--fetch-config`; creating
-missing files requires `--provision-api` or `--provision-client`; replacing the
+missing files requires `--provision-api` or `--provision-client`; skills pass
+`--provision-api` under the
+[API-user provisioning rule](velociraptor-operation-authorization.md#api-user-provisioning).
+Shared API setup
+first prepares the selected account (manual by default); bootstrap credentials
+are restricted to that account step and never operational readiness. Replacing the
 remote API credential requires `--regenerate-remote-api`. Do not add provisioning
 or replacement flags to recover from an unrelated transport, permission or
 analysis failure. An uncertain collection submission must be checked before

@@ -32,6 +32,10 @@ def hunt_dir(case_root: Path, investigation_id: str, hunt_id: str) -> Path:
     return hunts_dir(case_root, investigation_id) / safe_component(hunt_id, label="hunt id")
 
 
+def hunt_groups_dir(case_root: Path, investigation_id: str) -> Path:
+    return hunts_dir(case_root, investigation_id) / "groups"
+
+
 def systems_dir(case_root: Path, investigation_id: str) -> Path:
     return engagement_dir(case_root, investigation_id) / "systems"
 

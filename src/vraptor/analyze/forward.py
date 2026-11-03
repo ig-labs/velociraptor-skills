@@ -46,7 +46,6 @@ def build_saved_request_command(
         )
     command = [
         str(repo_root / "dfir"),
-        "velociraptor",
         "collect",
         "analyze",
         "--case-root",
@@ -68,10 +67,6 @@ def build_saved_request_command(
     if org_id:
         command.extend(["--org-id", org_id])
     return command
-
-
-def _sha256(path: Path) -> str:
-    return sha256_file(path)
 
 
 def validate_forward_outputs(
@@ -136,17 +131,10 @@ def validate_forward_outputs(
         raise RuntimeError("forward stdout status does not match durable checkpoint")
     if bool(checkpoint.get("evidence_persisted")) or bool(state.get("evidence_persisted")):
         raise RuntimeError("forward run unexpectedly persisted raw evidence")
-    expected_checkpoint_fingerprint = host_analysis_state.canonical_hash(
-        {
-            key: value
-            for key, value in checkpoint.items()
-            if key not in {"completed_at", "checkpoint_fingerprint"}
-        }
-    )
-    if str(checkpoint.get("checkpoint_fingerprint") or "") != expected_checkpoint_fingerprint:
+    if not host_analysis_state.request_checkpoint_valid(checkpoint):
         raise RuntimeError("request checkpoint fingerprint does not validate")
     synthesis = dict(state.get("synthesis") or {})
-    if str(synthesis.get("request_checkpoint_sha256") or "") != _sha256(
+    if str(synthesis.get("request_checkpoint_sha256") or "") != sha256_file(
         paths["request_checkpoint_file"]
     ):
         raise RuntimeError("host state does not reference the durable request checkpoint")
@@ -159,8 +147,8 @@ def validate_forward_outputs(
         if marker in durable_text:
             raise RuntimeError(f"durable forward state contains raw evidence marker {marker}")
 
-    checkpoint_hash = _sha256(paths["request_checkpoint_file"])
-    host_report_hash = _sha256(paths["host_report_file"])
+    checkpoint_hash = sha256_file(paths["request_checkpoint_file"])
+    host_report_hash = sha256_file(paths["host_report_file"])
     final_report = paths["host_report_file"].read_text(encoding="utf-8")
     if "Provisional running report" in final_report:
         raise RuntimeError("canonical host report remained provisional")
@@ -179,7 +167,7 @@ def validate_forward_outputs(
             raise RuntimeError(f"artifact report escaped or is missing for {artifact}")
         if reported_files.get(artifact) != report_path:
             raise RuntimeError(f"stdout omitted or changed artifact report for {artifact}")
-        if str(artifact_result.get("report_sha256") or "") != _sha256(report_path):
+        if str(artifact_result.get("report_sha256") or "") != sha256_file(report_path):
             raise RuntimeError(f"artifact report hash does not validate for {artifact}")
     failed_artifacts = [
         str(artifact or "")

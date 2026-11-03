@@ -131,7 +131,7 @@ PRIMARY KEY(category_regex,image_path_regex,launch_string_regex,signer_regex{fla
                         **{"Launch String":r["launch_string"],"Signer":r["signer"]}) for r in positives+decoys]
         # Eligibility remains a source-stage decision, not a GoldenDB rule veto.
         native_rows += [row(Enabled="disabled"),row(image="File not found: example.exe")]
-        stream=execute(native_rows,original=True,config=cfg,vql_file=dedup.template())
+        stream=execute(native_rows,config=cfg,vql_file=dedup.template())
         self.assertEqual(stream[-1]["SourceRows"],27)
         self.assertEqual(stream[-1]["EligibleRows"],25)
         self.assertEqual(stream[-1]["MatchedRows"],5)
@@ -169,7 +169,7 @@ PRIMARY KEY(category_regex,image_path_regex,launch_string_regex,signer_regex{fla
         self.assertFalse(index.matches({**samples[0], "launch_string":"run extra"}))
         stream = execute([row(Category=r["category"], image=r["image_path"],
             **{"Launch String":r["launch_string"],"Signer":r["signer"]}) for r in samples],
-            original=True, config=cfg, vql_file=dedup.template())
+            config=cfg, vql_file=dedup.template())
         self.assertEqual(stream[-1]["MatchedRows"], len(samples))
         # The host/inventory VQL payload must use exactly the same category expansion.
         import base64, gzip

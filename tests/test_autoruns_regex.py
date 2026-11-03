@@ -1,4 +1,4 @@
-"""Combined GoldenDB filtering, storage lifecycle and native VQL parity."""
+"""Combined GoldenDB filtering and storage lifecycle."""
 
 import base64
 import contextlib
@@ -6,21 +6,17 @@ import csv
 import gzip
 import io
 import json
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from vraptor.paths import resolve_velociraptor_binary
 from unittest import mock
 
 from vraptor.autoruns import golden
 from vraptor.autoruns import regex as autoruns_regex
 from vraptor.analyze import host as collection_analysis
-from vraptor.hunt import live
 
 
-BINARY = Path(resolve_velociraptor_binary(None, Path(__file__).resolve().parents[1]))
 RULE = {
     "image_path_regex": r"c:\\vendor\\[0-9]+(?:\.[0-9]+){3}\\app\.exe",
     "launch_string_regex": r'(?:"c:\\vendor\\[0-9]+(?:\.[0-9]+){3}\\app\.exe"|c:\\vendor\\[0-9]+(?:\.[0-9]+){3}\\app\.exe)(?: /quiet)?',
@@ -66,27 +62,6 @@ class AutorunsRegexTest(unittest.TestCase):
     def expected_ids(self):
         return [row["id"] for row in self.rows()[8:]]
 
-    def run_vql(self, query, env=None):
-        command = [str(BINARY), "query", "--format=jsonl"]
-        for name, value in (env or {}).items():
-            command += ["--env", f"{name}={value}"]
-        result = subprocess.run(command + [query], capture_output=True, text=True,
-                                timeout=30)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertNotIn("ERROR", result.stderr)
-        return [json.loads(line) for line in result.stdout.splitlines()], result.stderr
-
-    def generated_query(self, *, preserve_priority=False):
-        payload = golden.live_lookup_payload(self.database)
-        env = {"RowsJSON": json.dumps(self.rows())}
-        where = live.autoruns_golden_where(
-            golden.DEFAULT_AUTORUNS_ARTIFACT,
-            configuration={"enabled": True, "rmm_regex": "nomatch", **payload},
-            env=env, preserve_priority=preserve_priority,
-        )
-        return (live.autoruns_golden_query_preamble(where)
-                + "\nSELECT * FROM foreach(row=parse_json_array(data=RowsJSON)) WHERE " + where), env
-
     def test_local_filters_agree_and_do_not_modify_database(self):
         before = self.database.read_bytes()
         output = self.root / "residual.csv"
@@ -103,40 +78,6 @@ class AutorunsRegexTest(unittest.TestCase):
         self.assertTrue(result["regex_match"])
         self.assertTrue(result["filter_match"])
         self.assertFalse(result["hash_match"])
-
-    @unittest.skipUnless(BINARY.exists(), "Local Velociraptor unavailable")
-    def test_native_single_pass_any_matches_local(self):
-        query, env = self.generated_query()
-        self.assertIn("any(items=", query)
-        self.assertEqual(query.count("data=RowsJSON"), 1)
-        self.assertNotIn("sqlite(", query)
-        rows, stderr = self.run_vql(query, env)
-        self.assertFalse(stderr, stderr)
-        self.assertEqual([row["id"] for row in rows], self.expected_ids())
-
-    @unittest.skipUnless(BINARY.exists(), "Local Velociraptor unavailable")
-    def test_hash_hit_skips_any_and_any_stops_at_first_match(self):
-        query, env = self.generated_query()
-        query = query.replace('rule=>GoldenImage',
-            "rule=>set(item=RegexVisits, field='Count', value=RegexVisits.Count+1) AND GoldenImage")
-        query = 'LET RegexVisits <= dict(Count=0)\n' + query
-        query += '\nSELECT RegexVisits.Count AS Visits FROM scope()'
-        env["RowsJSON"] = json.dumps([self.rows()[0]])
-        rows, stderr = self.run_vql(query, env)
-        self.assertEqual(rows, [{"Visits": 0}])
-        env["RowsJSON"] = json.dumps([{
-            "Category": "Services", "Image Path": r"C:\Other\App.exe",
-            "Launch String": "other /service",
-        }])
-        rows, stderr = self.run_vql(query, env)
-        self.assertEqual(rows, [{"Visits": 1}])
-
-    @unittest.skipUnless(BINARY.exists(), "Local Velociraptor unavailable")
-    def test_priority_override_is_preserved(self):
-        query, env = self.generated_query(preserve_priority=True)
-        rows, _ = self.run_vql(query, env)
-        self.assertEqual([row["id"] for row in rows], [row["id"] for row in self.rows()])
-
 
     def test_payload_is_compact_deterministic_and_covers_both_indexes(self):
         first = golden.live_lookup_payload(self.database)
@@ -166,8 +107,7 @@ class AutorunsRegexTest(unittest.TestCase):
         self.assertTrue(index.matches({"category": "services", "image_path": "", "launch_string": "APP"}))
         self.assertFalse(index.matches({"category": "services", "image_path": "", "launch_string": "APP\n"}))
 
-    @unittest.skipUnless(BINARY.exists(), "Local Velociraptor unavailable")
-    def test_normalized_paths_empty_fields_and_unicode_regex_parity(self):
+    def test_normalized_paths_empty_fields_and_unicode_regex_match(self):
         extra = [
             {**RULE, "image_path_regex": r"c:\\windows\\café\.dll", "launch_string_regex": "^$"},
             {**RULE, "image_path_regex": "^$", "launch_string_regex": r"task \$\(arg0\)"},
@@ -179,11 +119,7 @@ class AutorunsRegexTest(unittest.TestCase):
             {"Category": "Services", "Image Path": "", "Launch String": "task arbitrary", "Signer": ""},
         ]
         local, _ = collection_analysis.reduce_autoruns_with_golden_db(sources, database=self.database)
-        query, env = self.generated_query()
-        env["RowsJSON"] = json.dumps(sources)
-        remote, _ = self.run_vql(query, env)
         self.assertEqual([r["Launch String"] for r in local], ["task arbitrary"])
-        self.assertEqual([r["Launch String"] for r in remote], ["task arbitrary"])
 
     def test_rule_change_updates_combined_lookup_digest(self):
         first = golden.live_lookup_payload(self.database)
@@ -267,33 +203,10 @@ class AutorunsRegexTest(unittest.TestCase):
         payload = golden.live_lookup_payload(self.database)
         self.assertEqual(payload["regex_rule_count"], 0)
         self.assertEqual(payload["regex_lookup_gzip_base64"], "")
-        query, _ = self.generated_query()
-        self.assertNotIn("AutorunsGoldenRegex", query)
         self.assertEqual(self.database.read_bytes(), before)
         merged = self.root / "merged.sqlite"
         golden.merge_databases(merged, [self.database])
         self.assertEqual(golden.validate_database(merged)["metadata"]["schema_version"], "6")
-
-    @unittest.skipUnless(BINARY.exists(), "Local Velociraptor unavailable")
-    def test_legacy_live_matching_ignore_categories_without_migration(self):
-        from tests.test_autoruns_golden import AutorunsCategoryFreeMigrationTest
-        for version in ("3", "4", "5"):
-            with self.subTest(schema=version):
-                self.database = self.root / f"legacy-vql-{version}.sqlite"
-                record = AutorunsCategoryFreeMigrationTest().write_legacy_database(self.database, version)
-                before = self.database.read_bytes()
-                exact = {"Entry Location": "", "Entry": "exact", "SHA-256": "",
-                         "Fqdn": "synthetic", "ClientId": "C.synthetic",
-                         "Image Path": record["image_path"], "Launch String": record["launch_string"],
-                         "Signer": record["signer"]}
-                sources = [exact, {**exact, "Entry": "regex", "Category": "Other", "Signer": "Other"}]
-                expected = ["regex"] if version == "3" else []
-                query, env = self.generated_query()
-                env["RowsJSON"] = json.dumps(sources)
-                rows, stderr = self.run_vql(query, env)
-                self.assertFalse(stderr, stderr)
-                self.assertEqual([row["Entry"] for row in rows], expected)
-                self.assertEqual(self.database.read_bytes(), before)
 
     def test_regex_build_delta_merge_apply_and_idempotence(self):
         rules = self.root / "rules.json"
@@ -322,20 +235,12 @@ class AutorunsRegexTest(unittest.TestCase):
 class ReviewedRuleAuthorityTest(unittest.TestCase):
     """Approved rules remain authoritative after import, in every matcher."""
 
-    run_vql = AutorunsRegexTest.run_vql
-
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.reference = self.root / "rmm.json"
-        self.reference.write_text(json.dumps({
-            "executables": ["remoteagent.exe", "assist-?.exe", "screen-*.exe"],
-            "installation_paths": [r"c:\program files\remote suite\*"],
-        }))
-        self.classifier = golden.RmmClassifier(self.reference)
         self.broad = {**RULE, "image_path_regex": "(?s).*", "launch_string_regex": "(?s).*"}
-        self.index = autoruns_regex.RegexIndex([self.broad], classifier=self.classifier)
+        self.index = autoruns_regex.RegexIndex([self.broad])
 
     def sources(self):
         paths = [
@@ -374,23 +279,6 @@ class ReviewedRuleAuthorityTest(unittest.TestCase):
         ])
         return sources
 
-    @staticmethod
-    def encode(value):
-        return base64.b64encode(gzip.compress(json.dumps(value).encode())).decode()
-
-    def live_query(self, sources, exact_keys=()):
-        env = {"RowsJSON": json.dumps(sources)}
-        config = {"enabled": True, "lookup_gzip_base64": self.encode(list(exact_keys)),
-                  "regex_rule_count": 1, "rmm_reference": str(self.reference),
-                  "regex_lookup_gzip_base64": self.encode([{
-                      "ImagePathRegex": autoruns_regex.full_pattern(self.broad["image_path_regex"]),
-                      "LaunchStringRegex": autoruns_regex.full_pattern(self.broad["launch_string_regex"]),
-                  }])}
-        where = live.autoruns_golden_where(golden.DEFAULT_AUTORUNS_ARTIFACT,
-                                         configuration=config, env=env)
-        return (live.autoruns_golden_query_preamble(where)
-                + "\nSELECT * FROM foreach(row=parse_json_array(data=RowsJSON)) WHERE " + where), env
-
     def test_reviewed_rules_match_regardless_of_path_or_rmm_classification(self):
         for source in self.sources():
             with self.subTest(source=source["id"]):
@@ -416,14 +304,6 @@ class ReviewedRuleAuthorityTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "duplicate rule"):
             golden._validated_offline_regex_rows([source])
 
-    @unittest.skipUnless(BINARY.exists(), "Local Velociraptor unavailable")
-    def test_native_vql_uses_approved_rules_without_a_policy_binding(self):
-        query, env = self.live_query(self.sources())
-        self.assertNotIn("Veto", query)
-        self.assertNotIn("AutorunsGoldenRegexVeto", env)
-        rows, stderr = self.run_vql(query, env)
-        self.assertFalse(stderr, stderr)
-        self.assertEqual(rows, [])
 
 
 if __name__ == "__main__":

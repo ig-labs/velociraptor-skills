@@ -9,22 +9,19 @@ import copy
 import csv
 import functools
 import gzip
-import hashlib
 import io
 import json
 import os
 import re
-import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator
 
 from vraptor.agent import diagnostics as agent_diagnostics
 from vraptor.analyze import limits as analysis_limits
-from vraptor.common import atomic_io
 from vraptor.common import token_budget
-from vraptor.common.hashing import sha256_file
+from vraptor.common.clock import now_utc
+from vraptor.common.hashing import canonical_json, sha256_file, sha256_json
 from vraptor.agent.config import ResolvedAgentExecution
 from vraptor.agent.config import resolve_agent_execution
 from vraptor.agent.profiles import PROFILE_NAMES
@@ -35,7 +32,6 @@ from vraptor.agent.profiles import normalize_response_depth
 from vraptor.autoruns import pipeline as autoruns
 from vraptor.autoruns import ai_review as autoruns_ai_review
 from vraptor.autoruns import golden as autoruns_golden
-from vraptor.autoruns import regex as autoruns_regex
 from vraptor.autoruns import reporting as autoruns_reporting
 from vraptor.artifacts import policy as artifact_policy
 from vraptor.artifacts import profiles as artifact_profiles
@@ -46,14 +42,12 @@ from vraptor.hunt import operations as hunting
 from vraptor.artifacts import persistence as persistence_policy
 from vraptor.logging import operations as operation_log
 from vraptor.analyze import source as review_source
-from vraptor.api import InventoryNotFoundError
 from vraptor.api import build_vql_request
 from vraptor.api import org_id_candidates
 
 
 ANALYSIS_VERSION = 3
 FILTER_SCHEMA_VERSION = 2
-AUTORUNS_RESIDUAL_WORKFLOW_VERSION = 3
 AUTORUNS_STREAMING_WORKFLOW_VERSION = 2
 GENERIC_STACK_STREAMING_WORKFLOW_VERSION = 2
 AUTORUNS_REVIEW_QUEUE_SCHEMA_VERSION = 2
@@ -99,9 +93,6 @@ AUTORUNS_REVIEW_QUEUE_FIELDS = (
     "DrilldownReason",
     "HijackRiskReviewed",
     "VariantRiskReviewed",
-    "LolbinBehaviorReviewed",
-    "UnverifiedSignerReviewed",
-    "PromoteToGolden",
     "FindingsJson",
     "FiltersJson",
     "NormalizationCandidatesJson",
@@ -141,8 +132,6 @@ MIXED_COVERAGE = 0.30
 REPETITIVE_PATTERN_ROWS = 3
 MIXED_PATTERN_ROWS = 5
 FILTER_REFERENCE_ENV_VAR = "VELO_HUNT_FILTER_PATHS"
-AUTORUNS_GOLDEN_TOOL_ENV_VAR = "VELO_AUTORUNS_GOLDEN_TOOL"
-AUTORUNS_GOLDEN_VERSION_ENV_VAR = "VELO_AUTORUNS_GOLDEN_VERSION"
 LOLBIN_REFERENCE_PATH = (
     resource_root() / "windows-lolbins.json"
 )
@@ -235,22 +224,7 @@ NORMALIZATION_KINDS = {
 }
 
 
-def now_utc() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def stable_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        default=str,
-    )
-
-
-def sha256_value(value: Any) -> str:
-    return hashlib.sha256(stable_json(value).encode("utf-8")).hexdigest()
+stable_json = canonical_json
 
 
 def accounting_id_for(
@@ -260,7 +234,7 @@ def accounting_id_for(
     stack_id: str,
     values: list[Any],
 ) -> str:
-    return "accounting-" + sha256_value(
+    return "accounting-" + sha256_json(
         {
             "artifact": artifact,
             "scope": scope,
@@ -282,24 +256,18 @@ def unique_dicts(values: Iterable[dict[str, Any]], *, key: str) -> list[dict[str
     return output
 
 
-def analysis_paths(
-    hunt_root: Path,
-    *,
-    memory_filename: str = "analysis-hunt.md",
-) -> dict[str, Path]:
+def analysis_paths(hunt_root: Path) -> dict[str, Path]:
     root = hunt_root / "analysis"
     return {
         "root": root,
         "state": root / flow_analysis_coordinator.STATE_FILENAME,
         "filters": root / "filters.json",
-        "analysis_memory": hunt_root / memory_filename,
+        "analysis_memory": hunt_root / "analysis-hunt.md",
         "review_items_manifest": root / REVIEW_ITEMS_MANIFEST_FILENAME,
-        "summary": hunt_root / memory_filename,
         "autoruns_potential_golden": (
             root / AUTORUNS_POTENTIAL_GOLDEN_FILENAME
         ),
         "autoruns_review": root / "autoruns_review.csv",
-        "autoruns_ai_review": root / "autoruns_ai_review",
     }
 
 
@@ -401,7 +369,7 @@ def autoruns_use_case(
                 ],
             },
             "reference": str(LOLBIN_REFERENCE_PATH),
-            "reference_hash": sha256_value(
+            "reference_hash": sha256_json(
                 load_json_object(LOLBIN_REFERENCE_PATH)
             ),
         }
@@ -480,304 +448,6 @@ def autoruns_use_case(
     }
 
 
-def configured_autoruns_golden(
-    *,
-    tool: str = "",
-    version: str = "",
-    database: Path | None = None,
-    rmm_reference: Path | None = None,
-    environ: dict[str, str] | None = None,
-    disabled: bool = False,
-) -> dict[str, Any]:
-    env = environ if environ is not None else os.environ
-    selected_tool = str(
-        ""
-        if disabled
-        else tool or env.get(AUTORUNS_GOLDEN_TOOL_ENV_VAR) or ""
-    ).strip()
-    selected_version = str(
-        ""
-        if disabled
-        else version or env.get(AUTORUNS_GOLDEN_VERSION_ENV_VAR) or ""
-    ).strip()
-    classifier = autoruns_golden.RmmClassifier(rmm_reference)
-    result = {
-        "enabled": bool(selected_tool),
-        "tool": selected_tool,
-        "version": selected_version,
-        "lolbin_reference_hash": sha256_value(
-            load_json_object(LOLBIN_REFERENCE_PATH)
-        ),
-        "rmm_reference": str(classifier.path),
-        "rmm_reference_hash": classifier.reference_hash,
-        "rmm_regex": classifier.regex(),
-    }
-    if result["enabled"] and database is not None:
-        resolved_database = database.expanduser().resolve()
-        lookup = autoruns_golden.live_lookup_payload(
-            resolved_database,
-            rmm_reference=rmm_reference,
-        )
-        result.update(
-            {
-                "database": str(resolved_database),
-                "database_sha256": lookup["sha256"],
-                "identity_count": lookup["identity_count"],
-                "record_count": lookup["record_count"],
-                "lookup_key_count": lookup["lookup_key_count"],
-                "lookup_payload_sha256": lookup[
-                    "lookup_payload_sha256"
-                ],
-                "lookup_uncompressed_bytes": lookup[
-                    "lookup_uncompressed_bytes"
-                ],
-                "lookup_compressed_bytes": lookup[
-                    "lookup_compressed_bytes"
-                ],
-                "lookup_base64_bytes": lookup["lookup_base64_bytes"],
-                "lookup_gzip_base64": lookup["lookup_gzip_base64"],
-                "regex_only": bool(lookup.get("regex_only")),
-                "regex_rule_count": lookup.get("regex_rule_count", 0),
-                "regex_lookup_gzip_base64": lookup.get("regex_lookup_gzip_base64", ""),
-                "lookup_transport": lookup["lookup_transport"],
-            }
-        )
-    return result
-
-
-def autoruns_golden_general_metadata(
-    configuration: dict[str, Any],
-) -> dict[str, Any]:
-    metadata = {
-        key: configuration[key]
-        for key in (
-            "enabled",
-            "tool",
-            "version",
-            "inventory_hash",
-            "database_sha256",
-            "identity_count",
-            "record_count",
-            "lookup_key_count",
-            "regex_rule_count",
-            "lookup_payload_sha256",
-            "lookup_transport",
-            "inventory_sync",
-        )
-        if key in configuration
-    }
-    if metadata.get("enabled"):
-        metadata["residual_workflow_version"] = (
-            AUTORUNS_RESIDUAL_WORKFLOW_VERSION
-        )
-    return metadata
-
-
-def resolve_autoruns_golden_inventory(
-    api: Any,
-    configuration: dict[str, Any],
-    *,
-    sync_missing_or_stale: bool = False,
-    rmm_reference: Path | None = None,
-) -> dict[str, Any]:
-    resolved = dict(configuration)
-    if not resolved.get("enabled"):
-        return resolved
-    database_hash = str(resolved.get("database_sha256") or "").strip()
-    database_path = str(resolved.get("database") or "").strip()
-    if (
-        not database_hash
-        or not database_path
-        or not resolved.get("lookup_gzip_base64")
-    ):
-        raise RuntimeError(
-            "Configured Autoruns GoldenDB requires the shared local SQLite "
-            "database so its compact lookup index can be sent to server VQL."
-        )
-    version = str(resolved.get("version") or "")
-    version_hash = re.search(r"-([0-9a-fA-F]{8})$", version)
-    if (
-        version_hash is not None
-        and not database_hash.casefold().startswith(
-            version_hash.group(1).casefold()
-        )
-    ):
-        raise RuntimeError(
-            "Configured Autoruns GoldenDB version does not match the shared "
-            "local SQLite database."
-        )
-    try:
-        rows = api.query(
-            """
-            SELECT inventory_get(
-                tool=ToolName,
-                version=ToolVersion,
-                probe=TRUE) AS Inventory
-            FROM scope()
-            """,
-            {
-                "ToolName": str(resolved["tool"]),
-                "ToolVersion": str(resolved.get("version") or ""),
-            },
-            max_wait=30,
-            max_row=5,
-        )
-    except InventoryNotFoundError:
-        # A missing pinned version is expected on first use or after an update.
-        # Keep publication and hash verification in the existing sync path.
-        rows = []
-    inventory = (rows[0] if rows else {}).get("Inventory")
-    inventory_hash = ""
-    sync_reason = ""
-    if not isinstance(inventory, dict):
-        sync_reason = "missing"
-    else:
-        definition = inventory.get("Definition")
-        definition = definition if isinstance(definition, dict) else {}
-        inventory_hash = str(
-            definition.get("hash")
-            or definition.get("Hash")
-            or inventory.get(
-                f"Tool_{resolved['tool']}_HASH",
-                "",
-            )
-            or ""
-        ).strip()
-        if not inventory_hash:
-            sync_reason = "missing_hash"
-        elif inventory_hash.casefold() != database_hash.casefold():
-            sync_reason = "stale"
-
-    if sync_reason:
-        if not sync_missing_or_stale:
-            if sync_reason == "missing":
-                raise RuntimeError(
-                    "Configured Autoruns GoldenDB inventory tool was not "
-                    "found. Publish the current database before running live "
-                    "analysis."
-                )
-            if sync_reason == "missing_hash":
-                raise RuntimeError(
-                    "Configured Autoruns GoldenDB inventory definition lacks "
-                    "a hash. Republish the current database before running "
-                    "live analysis."
-                )
-            raise RuntimeError(
-                "Published Autoruns GoldenDB inventory hash does not match "
-                "the shared local SQLite database. Push the current database "
-                "before running live analysis."
-            )
-        publication = autoruns_golden.publish_database(
-            api,
-            Path(database_path),
-            tool_name=str(resolved["tool"]),
-            tool_version=version,
-            rmm_reference=rmm_reference,
-        )
-        inventory_hash = str(
-            publication.get("database_sha256") or ""
-        ).strip()
-        if inventory_hash.casefold() != database_hash.casefold():
-            raise RuntimeError(
-                "Autoruns GoldenDB publication verification did not match "
-                "the shared local SQLite database."
-            )
-        resolved["inventory_sync"] = {
-            "status": "updated",
-            "reason": sync_reason,
-            "tool": str(resolved["tool"]),
-            "version": version,
-            "database_sha256": database_hash,
-        }
-    else:
-        resolved["inventory_sync"] = {
-            "status": "current",
-            "reason": "",
-            "tool": str(resolved["tool"]),
-            "version": version,
-            "database_sha256": database_hash,
-        }
-    resolved["inventory_hash"] = inventory_hash
-    return resolved
-
-
-def autoruns_golden_where(
-    artifact: str,
-    *,
-    configuration: dict[str, Any],
-    env: dict[str, str],
-    preserve_priority: bool = False,
-) -> str:
-    if (
-        artifact not in AUTORUNS_ARTIFACTS
-        or not configuration.get("enabled")
-    ):
-        return ""
-    lookup_payload = str(
-        configuration.get("lookup_gzip_base64") or ""
-    )
-    if not lookup_payload:
-        raise RuntimeError(
-            "Autoruns GoldenDB server lookup index was not configured."
-        )
-    env["AutorunsGoldenLookupGzipBase64"] = lookup_payload
-    hash_key = autoruns.trusted_key_vql()
-    lookup = f"get(item=AutorunsGoldenKeys, field={hash_key})"
-    if configuration.get("regex_only"):
-        lookup = "FALSE"
-    if configuration.get("regex_rule_count"):
-        regex_payload = str(configuration.get("regex_lookup_gzip_base64") or "")
-        if not regex_payload:
-            raise RuntimeError("Autoruns GoldenDB regex lookup index was not configured.")
-        env["AutorunsGoldenRegexGzipBase64"] = regex_payload
-        regex_match = (
-            "AutorunsGoldenRegexMatch("
-            f"GoldenImage={autoruns.user_path_vql('`Image Path`')}, "
-            f"GoldenLaunch={autoruns.user_path_vql('`Launch String`')})"
-        )
-        if configuration.get("regex_only"):
-            category = autoruns.ascii_lower_vql('if(condition=Category, then=Category, else="")')
-            regex_match = (f"AutorunsGoldenRegexOnlyMatch(GoldenCategory={category}, "
-                f"GoldenImage={autoruns.user_path_vql('`Image Path`')}, "
-                f"GoldenLaunch={autoruns.user_path_vql('`Launch String`')}, "
-                f"GoldenSigner={autoruns.ascii_lower_vql('Signer')})")
-        # if() is lazy: exact hits never walk the regex rules.
-        lookup = f"if(condition={lookup}, then=TRUE, else={regex_match})"
-    if not preserve_priority:
-        return f"(NOT ({lookup}))"
-    lolbin_regex = bind_value(
-        env,
-        "AutorunsGoldenLolbinRegex",
-        lolbin_image_path_regex(),
-    )
-    rmm_regex = bind_value(
-        env,
-        "AutorunsGoldenRmmRegex",
-        str(configuration["rmm_regex"]),
-    )
-    verified_regex = bind_value(
-        env,
-        "AutorunsGoldenVerifiedRegex",
-        r"(?i)verified",
-    )
-    priority = " OR ".join(
-        [
-            f"(lowcase(string=`Image Path`) =~ {lolbin_regex})",
-            (
-                f"(NOT (string=Signer =~ {verified_regex}) AND "
-                "(`Image Path` OR `Launch String`))"
-            ),
-            (
-                f"(string=`Image Path` =~ {rmm_regex} OR "
-                f"string=`Launch String` =~ {rmm_regex})"
-            ),
-            "(string=`Image Path` =~ '''(?i)^\\s*file not found:''')",
-            "(string=`Launch String` =~ '''(?i)^\\s*file not found:''')",
-        ]
-    )
-    return f"(NOT ({lookup}) OR ({priority}))"
-
-
 def autoruns_non_promotable_reasons(
     *,
     logical_dimensions: list[str],
@@ -852,22 +522,6 @@ def autoruns_priority_review_reasons(
     return reasons
 
 
-def pending_autoruns_priority_review_reasons(
-    pending: dict[str, Any],
-) -> list[str]:
-    review_match = dict(pending.get("review_match") or {})
-    return autoruns_priority_review_reasons(
-        logical_dimensions=[
-            str(value)
-            for value in review_match.get("logical_dimensions") or []
-        ],
-        values=[
-            str(value)
-            for value in review_match.get("values") or []
-        ],
-    )
-
-
 def configured_filter_paths(
     explicit: Iterable[str | Path] | None,
     *,
@@ -898,7 +552,7 @@ def filter_identity(record: dict[str, Any]) -> str:
         "scope": dict(record.get("scope") or {}),
         "conditions": filter_conditions(record),
     }
-    return f"filter-{sha256_value(basis)[:16]}"
+    return f"filter-{sha256_json(basis)[:16]}"
 
 
 def filter_conditions(record: dict[str, Any]) -> list[dict[str, str]]:
@@ -1085,7 +739,7 @@ def unprofiled_runtime_profile(artifact: str) -> dict[str, Any]:
             "stacks": {},
             "default_stack": "",
         },
-        "_profile_hash": sha256_value({"artifact": artifact, "fallback": True}),
+        "_profile_hash": sha256_json({"artifact": artifact, "fallback": True}),
     }
 
 
@@ -1294,24 +948,6 @@ def combine_where(*expressions: str) -> str:
 
 def autoruns_golden_query_preamble(where: str) -> str:
     statements: list[str] = []
-    if "AutorunsGoldenKeys" in where:
-        statements.append(
-            "LET AutorunsGoldenKeys <= memoize("
-            'key="GoldenKey", period=1000000, query={ '
-            "SELECT _value AS GoldenKey "
-            "FROM foreach(row=parse_json_array("
-            "data=gunzip(string=base64decode("
-            "string=AutorunsGoldenLookupGzipBase64)))) "
-            "})"
-        )
-    if "AutorunsGoldenRegexOnlyMatch" in where:
-        statements.append(autoruns_regex.vql_regex_only_preamble(source=(
-            "parse_json_array(data=gunzip(string=base64decode(string=AutorunsGoldenRegexGzipBase64)))")))
-    if "AutorunsGoldenRegexMatch" in where:
-        statements.append(autoruns_regex.vql_preamble(source=(
-            "SELECT * FROM foreach(row=parse_json_array("
-            "data=gunzip(string=base64decode(string=AutorunsGoldenRegexGzipBase64))))"
-        )))
     if "AutorunsSelectedHashes" in where:
         statements.append(
             "LET AutorunsSelectedHashes <= memoize("
@@ -1467,23 +1103,6 @@ def count_vql(
         f"FROM {source_vql(source)}"
         f"{clause}\n"
         "GROUP BY TRUE"
-    )
-
-
-def autoruns_accounting_vql(
-    where: str, *, source: review_source.ReviewSource | None = None,
-) -> str:
-    """Independent accounting baseline for synthetic parity tests/benchmarks."""
-    return (
-        source_query_preamble(source)
-        + autoruns_golden_query_preamble(where)
-        + "LET AutorunsAccountingRows = SELECT *, "
-        + f"if(condition={where or 'TRUE'}, then=1, else=0) AS Residual\n"
-        + f"FROM {source_vql(source)}\n"
-        + "SELECT count() AS SourceRows, sum(item=Residual) AS ResidualRows, "
-        + "sum(item=if(condition=Residual AND (`Image Path` OR `Launch String`), "
-        + "then=1, else=0)) AS PopulatedRows\n"
-        + "FROM AutorunsAccountingRows GROUP BY TRUE"
     )
 
 
@@ -1743,116 +1362,6 @@ def autoruns_residual_stack_vql(
     )
 
 
-def autoruns_accounted_stack_vql(
-    where: str, *, source: review_source.ReviewSource | None = None,
-) -> str:
-    """One source pass; retain residual groups and two accounting buckets only.
-
-    Matching stays before grouping: trusted identities never create individual
-    bins. The materialized *aggregates* allow the summary to precede the stream
-    without retaining source rows or evaluating GoldenDB a second time.
-    """
-    identity = 'serialize(item=dict(ImagePath=ImagePath, LaunchString=LaunchString, Signer=Signer), format="json")'
-    return (
-        source_query_preamble(source)
-        + autoruns_golden_query_preamble(where)
-        + "LET AutorunsScopedRows = SELECT *, "
-        + f"if(condition={where or 'TRUE'}, then=TRUE, else=FALSE) AS Residual\n"
-        + f"FROM {source_vql(source)}\n"
-        + "LET AutorunsBucketRows = SELECT *, if(condition=Residual, "
-        + 'then=if(condition=`Image Path` OR `Launch String`, then="group", else="blank"), '
-        + 'else="matched") AS Kind FROM AutorunsScopedRows\n'
-        + "LET AutorunsReducedRows = SELECT Kind, Category, "
-        + f'if(condition=Kind = "group", then={autoruns.user_path_vql("`Image Path`")}, else="") AS ImagePath, '
-        + f'if(condition=Kind = "group", then={autoruns.user_path_vql("`Launch String`")}, else="") AS LaunchString, '
-        + f'if(condition=Kind = "group", then={autoruns.ascii_lower_vql("Signer")}, else="") AS Signer '
-        + "FROM AutorunsBucketRows\n"
-        + "LET AutorunsCountedGroups <= SELECT Kind, ImagePath, LaunchString, Signer, "
-        + "min(item=Category) AS ExampleCategory, count() AS Total "
-        + "FROM AutorunsReducedRows GROUP BY Kind, ImagePath, LaunchString, Signer\n"
-        + "LET AutorunsSummary <= SELECT sum(item=Total) AS SourceRows, "
-        + 'sum(item=if(condition=Kind = "matched", then=Total, else=0)) AS MatchedRows, '
-        + 'sum(item=if(condition=Kind != "matched", then=Total, else=0)) AS ResidualRows, '
-        + 'sum(item=if(condition=Kind = "group", then=Total, else=0)) AS PopulatedRows, '
-        + 'sum(item=if(condition=Kind = "group", then=1, else=0)) AS GroupCount '
-        + "FROM AutorunsCountedGroups GROUP BY TRUE\n"
-        + "SELECT * FROM chain(\n"
-        + 'a={ SELECT "summary" AS _AutorunsStream, '
-        + ", ".join(
-            f"if(condition=AutorunsSummary, then=AutorunsSummary[0].{key}, else=0) AS {key}"
-            for key in ("SourceRows", "MatchedRows", "ResidualRows", "PopulatedRows", "GroupCount")
-        )
-        + " FROM scope() },\n"
-        + 'b={ SELECT "group" AS _AutorunsStream, ImagePath, LaunchString, Signer, ExampleCategory, Total, '
-        + f"format(format='%020d|%v', args=[Total, {identity}]) AS SortKey "
-        + 'FROM AutorunsCountedGroups WHERE Kind = "group" ORDER BY SortKey DESC },\n'
-        + 'c={ SELECT "complete" AS _AutorunsStream FROM scope() })'
-    )
-
-
-class AutorunsAccountedStack:
-    """Consume a summary, then validate every streamed group and terminal marker."""
-
-    def __init__(self, rows: Iterable[dict[str, Any]]):
-        self._rows = iter(rows)
-        self.complete = False
-        summary = next(self._rows, None)
-        if not isinstance(summary, dict) or summary.get("_AutorunsStream") != "summary":
-            raise RuntimeError("Autoruns accounted stack omitted its summary.")
-        self.counts: dict[str, int] = {}
-        for key in ("SourceRows", "MatchedRows", "ResidualRows", "PopulatedRows", "GroupCount"):
-            value = summary.get(key)
-            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
-                raise RuntimeError(f"Autoruns accounted stack returned invalid {key}.")
-            self.counts[key] = value
-        c = self.counts
-        if (c["MatchedRows"] + c["ResidualRows"] != c["SourceRows"]
-                or not c["GroupCount"] <= c["PopulatedRows"] <= c["ResidualRows"]
-                or bool(c["GroupCount"]) != bool(c["PopulatedRows"])):
-            raise RuntimeError("Autoruns accounted stack returned inconsistent scope counts.")
-
-    def __iter__(self) -> Iterator[dict[str, Any]]:
-        represented = groups = 0
-        previous_sort = None
-        seen: set[tuple[str, str, str]] = set()
-        for row in self._rows:
-            if not isinstance(row, dict):
-                raise RuntimeError("Autoruns accounted stack returned a malformed row.")
-            kind = row.get("_AutorunsStream")
-            if kind == "complete":
-                sentinel = object()
-                if next(self._rows, sentinel) is not sentinel:
-                    raise RuntimeError("Autoruns accounted stack returned rows after completion.")
-                if (represented != self.counts["PopulatedRows"]
-                        or groups != self.counts["GroupCount"]):
-                    raise RuntimeError("Autoruns accounted stack accounting mismatch.")
-                self.complete = True
-                return
-            if kind != "group":
-                raise RuntimeError("Autoruns accounted stack returned an unexpected record.")
-            total = row.get("Total")
-            if not isinstance(total, int) or isinstance(total, bool) or total <= 0:
-                raise RuntimeError("Autoruns accounted stack returned an invalid group total.")
-            if any(not isinstance(row.get(key), str)
-                   for key in ("ImagePath", "LaunchString", "Signer", "SortKey")):
-                raise RuntimeError("Autoruns accounted stack returned an invalid identity or sort key.")
-            identity = autoruns_residual_identity(row)
-            if identity in seen:
-                raise RuntimeError("Autoruns accounted stack returned a duplicate identity.")
-            seen.add(identity)
-            sort_key = row["SortKey"]
-            if previous_sort is not None and sort_key > previous_sort:
-                raise RuntimeError("Autoruns accounted stack returned groups out of order.")
-            previous_sort = sort_key
-            represented += total
-            groups += 1
-            if represented > self.counts["PopulatedRows"] or groups > self.counts["GroupCount"]:
-                raise RuntimeError("Autoruns accounted stack accounting mismatch.")
-            yield {key: str(row.get(key) or "") for key in
-                   ("ImagePath", "LaunchString", "Signer", "ExampleCategory")} | {"Total": total}
-        raise RuntimeError("Autoruns accounted stack omitted its completion marker.")
-
-
 def autoruns_residual_identity(
     record: dict[str, Any],
 ) -> tuple[str, str, str]:
@@ -1951,7 +1460,7 @@ def review_queue_set_id(
         ),
         key=lambda item: str(item.get("review_id") or ""),
     )
-    return sha256_value(ordered)
+    return sha256_json(ordered)
 
 
 def review_queue_dimensions(
@@ -2128,14 +1637,6 @@ def decisions_from_autoruns_review_queue(path: Path) -> list[dict[str, Any]]:
             "variant_risk_reviewed": parse_csv_bool(
                 row.get("VariantRiskReviewed"),
                 field="VariantRiskReviewed",
-            ),
-            "lolbin_behavior_reviewed": parse_csv_bool(
-                row.get("LolbinBehaviorReviewed"),
-                field="LolbinBehaviorReviewed",
-            ),
-            "unverified_signer_reviewed": parse_csv_bool(
-                row.get("UnverifiedSignerReviewed"),
-                field="UnverifiedSignerReviewed",
             ),
             "promote_to_golden": parse_csv_bool(
                 row.get("PromoteToGolden"),
@@ -2350,7 +1851,7 @@ def signature_reduction(
 ) -> dict[str, Any]:
     normalized = [
         {
-            "signature": sha256_value(
+            "signature": sha256_json(
                 [
                     str(group.get(f"Pivot{index}") or "")
                     for index in range(1, dimension_count + 1)
@@ -2701,8 +2202,8 @@ def evidence_review_id(
     env: dict[str, str],
     rows: list[dict[str, Any]],
 ) -> tuple[str, str]:
-    evidence_hash = sha256_value(rows)
-    review_id = "review-" + sha256_value(
+    evidence_hash = sha256_json(rows)
+    review_id = "review-" + sha256_json(
         {
             "hunt_id": hunt_id,
             "artifact": artifact,
@@ -2748,7 +2249,7 @@ def review_item(
         "exhaustive": exhaustive,
         "evidence_hash": evidence_hash,
         "query": {
-            "query_hash": sha256_value({"vql": vql, "env": env}),
+            "query_hash": sha256_json({"vql": vql, "env": env}),
             **query_meta,
         },
         "rows": rows,
@@ -2996,7 +2497,7 @@ def compact_completed_scope_pages(artifact_state: dict[str, Any]) -> None:
     seen_scopes: set[str] = set()
     unique_scopes: list[dict[str, Any]] = []
     for scope in artifact_state.get("reviewed_scopes") or []:
-        scope_id = sha256_value(scope)
+        scope_id = sha256_json(scope)
         if scope_id in seen_scopes:
             continue
         seen_scopes.add(scope_id)
@@ -3008,68 +2509,6 @@ def compact_completed_scope_pages(artifact_state: dict[str, Any]) -> None:
             for item in artifact_state.get("reviewed_signatures", [])
             if str(item.get("id") or "") not in compacted_ids
         ]
-
-
-def autoruns_promotion_record(
-    *,
-    pending: dict[str, Any],
-    decision_context: dict[str, Any] | None = None,
-) -> dict[str, str]:
-    review_match = dict(pending.get("review_match") or {})
-    dimensions = [
-        str(value)
-        for value in review_match.get("logical_dimensions") or []
-    ]
-    values = [
-        str(value)
-        for value in review_match.get("values") or []
-    ]
-    mapped = {
-        name: value
-        for name, value in zip(dimensions, values, strict=False)
-    }
-    image_path = (
-        mapped["NormalizedImagePath"]
-        if "NormalizedImagePath" in mapped
-        else mapped.get("ImagePath")
-    )
-    launch_string = (
-        mapped["NormalizedLaunchString"]
-        if "NormalizedLaunchString" in mapped
-        else mapped.get("LaunchString")
-    )
-    if image_path is None or launch_string is None or "Signer" not in mapped:
-        raise RuntimeError(
-            "Autoruns GoldenDB promotion requires logical ImagePath, "
-            "LaunchString, and Signer dimensions."
-        )
-    return autoruns_golden.normalized_record(
-        {
-            "Category": dict(review_match.get("scope") or {}).get(
-                "Category",
-                "",
-            ),
-            "ImagePath": image_path,
-            "LaunchString": launch_string,
-            "Signer": mapped["Signer"],
-            "EntryLocation": mapped.get("EntryLocation", ""),
-            "Entry": mapped.get("Entry", ""),
-            "Description": str(
-                (decision_context or {}).get("Description")
-                or (decision_context or {}).get("description")
-                or ""
-            ),
-            "Company": str(
-                (decision_context or {}).get("Company")
-                or (decision_context or {}).get("company")
-                or ""
-            ),
-        }
-    )
-
-
-def write_text_atomic(path: Path, text: str) -> None:
-    atomic_io.write_text_atomic(path, text, newline="")
 
 
 def pending_reviews_by_id(
@@ -3090,16 +2529,7 @@ def apply_decisions(
     *,
     profiles: dict[str, dict[str, Any]],
     source: str,
-    golden_db_path: Path | None = None,
-    promote_reviewed: bool = False,
-    rmm_reference: Path | None = None,
-    golden_baseline_databases: Iterable[Path] | None = None,
 ) -> None:
-    if promote_reviewed and golden_db_path is None:
-        raise RuntimeError(
-            "Automatic reviewed promotion requires a local GoldenDB path."
-        )
-    golden_candidates: list[dict[str, str]] = []
     pending_by_id: dict[str, tuple[str, dict[str, Any]]] = {}
     for artifact, artifact_state in state.get("artifacts", {}).items():
         for pending in artifact_state.get("pending_reviews", []):
@@ -3222,7 +2652,7 @@ def apply_decisions(
                     "kind, and a concrete reason."
                 )
             candidate = {
-                "id": "normalization-" + sha256_value(
+                "id": "normalization-" + sha256_json(
                     {
                         "artifact": artifact,
                         "use_case": pending_use_case,
@@ -3263,7 +2693,7 @@ def apply_decisions(
                     "Drill-down requests require a concrete reason and a "
                     "deterministic signature-backed review."
                 )
-            drilldown_id = "drilldown-" + sha256_value(
+            drilldown_id = "drilldown-" + sha256_json(
                 {
                     "artifact": artifact,
                     "scope": review_match.get("scope") or {},
@@ -3553,7 +2983,7 @@ def apply_decisions(
                     pending.get("artifact_total") or pending.get("scope_row_count") or 0
                 )
                 artifact_state["completed_at_total"] = accounted_rows
-                accounting_id = "accounting-" + sha256_value(
+                accounting_id = "accounting-" + sha256_json(
                     {
                         "artifact": artifact,
                         "review_id": review_id,
@@ -3577,7 +3007,7 @@ def apply_decisions(
                 scope = dict(pending.get("scope") or {})
                 if scope:
                     artifact_state.setdefault("reviewed_scopes", []).append(scope)
-                    accounting_id = "accounting-" + sha256_value(
+                    accounting_id = "accounting-" + sha256_json(
                         {
                             "artifact": artifact,
                             "scope": scope,
@@ -3603,7 +3033,7 @@ def apply_decisions(
                     artifact_state.setdefault("reviewed_matches", []).append(
                         review_match
                     )
-                    accounting_id = "accounting-" + sha256_value(
+                    accounting_id = "accounting-" + sha256_json(
                         {
                             "artifact": artifact,
                             "review_match": review_match,
@@ -3630,121 +3060,16 @@ def apply_decisions(
                 artifact_state.get("reviewed_signatures") or [],
                 key="id",
             )
-            explicit_promotion = bool(
+            if (
                 decision.get("promote_to_golden")
-            )
-            promotion_requested = (
-                explicit_promotion or promote_reviewed
-            )
-            if promotion_requested and artifact in AUTORUNS_ARTIFACTS:
-                if golden_db_path is None:
-                    raise RuntimeError(
-                        f"Review {review_id} requested GoldenDB promotion "
-                        "without --autoruns-golden-db."
-                    )
-                blocked = sorted(
-                    set(pending.get("non_promotable_reasons") or [])
+                and artifact in AUTORUNS_ARTIFACTS
+            ):
+                raise RuntimeError(
+                    f"Review {review_id} requested GoldenDB promotion, which "
+                    "is not supported in live hunt analysis; use vraptor "
+                    "autoruns regex-build and regex-import."
                 )
-                priority_reasons = sorted(
-                    set(
-                        pending.get("priority_review_reasons")
-                        or pending_autoruns_priority_review_reasons(
-                            pending
-                        )
-                    )
-                )
-                missing_priority_reviews: list[str] = []
-                if (
-                    "lolbin-image" in priority_reasons
-                    and not bool(
-                        decision.get("lolbin_behavior_reviewed")
-                    )
-                ):
-                    missing_priority_reviews.append(
-                        "lolbin_behavior_reviewed"
-                    )
-                if (
-                    "unverified-signer" in priority_reasons
-                    and not bool(
-                        decision.get("unverified_signer_reviewed")
-                    )
-                ):
-                    missing_priority_reviews.append(
-                        "unverified_signer_reviewed"
-                    )
-                promotion_eligible = (
-                    pending.get("kind") == "normalized_stack"
-                    and not raw_drilldown
-                    and disposition in {"benign", "expected"}
-                    and not blocked
-                    and not missing_priority_reviews
-                )
-                if not promotion_eligible:
-                    reason = (
-                        ",".join(blocked)
-                        or ",".join(
-                            f"requires-{value}"
-                            for value in missing_priority_reviews
-                        )
-                        or "requires-complete-benign-or-expected-"
-                        "normalized-stack"
-                    )
-                    if explicit_promotion:
-                        raise RuntimeError(
-                            f"Review {review_id} is not eligible for "
-                            f"GoldenDB promotion: {reason}."
-                        )
-                    state.setdefault(
-                        "golden_promotion_skips",
-                        [],
-                    ).append(
-                        {
-                            "review_id": review_id,
-                            "artifact": artifact,
-                            "reason": reason,
-                            "recorded_at": now_utc(),
-                        }
-                    )
-                else:
-                    decision_context = (
-                        decision.get("golden_context") or {}
-                    )
-                    if not isinstance(decision_context, dict):
-                        raise RuntimeError(
-                            f"Review {review_id} golden_context must be "
-                            "an object."
-                        )
-                    record = autoruns_promotion_record(
-                        pending=pending,
-                        decision_context=decision_context,
-                    )
-                    golden_candidates.append(record)
-                    state.setdefault("golden_promotions", []).append(
-                        {
-                            "review_id": review_id,
-                            "artifact": artifact,
-                            "hash_key": record["hash_key"],
-                            "category": record["category"],
-                            "database": str(golden_db_path),
-                            "recorded_at": now_utc(),
-                        }
-                    )
         artifact_state.setdefault("completed_review_ids", []).append(review_id)
-    if golden_candidates and golden_db_path is not None:
-        autoruns_golden.promote_records(
-            golden_db_path,
-            golden_candidates,
-            rmm_reference=rmm_reference,
-            baseline_databases=golden_baseline_databases,
-        )
-    state["golden_promotions"] = unique_dicts(
-        state.get("golden_promotions") or [],
-        key="review_id",
-    )
-    state["golden_promotion_skips"] = unique_dicts(
-        state.get("golden_promotion_skips") or [],
-        key="review_id",
-    )
     for artifact_state in state.get("artifacts", {}).values():
         compact_completed_scope_pages(artifact_state)
     decided_ids = {
@@ -3832,7 +3157,7 @@ def append_query_ledger(
     env: dict[str, str],
     row_count: int,
 ) -> str:
-    query_hash = sha256_value({"vql": vql, "env": env})
+    query_hash = sha256_json({"vql": vql, "env": env})
     state["query_ledger"].append(
         {
             "at": now_utc(),
@@ -3849,12 +3174,8 @@ def append_query_ledger(
 def autoruns_analysis_mode_id(
     *,
     use_case: str,
-    golden_enabled: bool,
 ) -> str:
-    selected = str(use_case or "").strip()
-    if selected:
-        return selected
-    return "general-golden-residual" if golden_enabled else "general"
+    return str(use_case or "").strip() or "general"
 
 
 def update_autoruns_mode_coverage(
@@ -3863,14 +3184,10 @@ def update_autoruns_mode_coverage(
     artifact: str,
     artifact_state: dict[str, Any],
     use_case: str,
-    golden_enabled: bool,
 ) -> dict[str, Any]:
     if artifact not in AUTORUNS_ARTIFACTS:
         return {}
-    mode_id = autoruns_analysis_mode_id(
-        use_case=use_case,
-        golden_enabled=golden_enabled,
-    )
+    mode_id = autoruns_analysis_mode_id(use_case=use_case)
     source_rows = int(artifact_state.get("current_total") or 0)
     scope_rows = int(
         artifact_state.get("analysis_scope_total")
@@ -3906,7 +3223,6 @@ def update_autoruns_mode_coverage(
         if target_coverage == "unknown"
         else "incomplete"
     )
-    golden = dict(artifact_state.get("autoruns_golden") or {})
     record = {
         "mode": mode_id,
         "source_rows": source_rows,
@@ -3924,23 +3240,6 @@ def update_autoruns_mode_coverage(
     }
     if result_review_coverage == "complete":
         record["completed_at"] = now_utc()
-    if golden_enabled and not use_case:
-        record["golden_db"] = {
-            key: golden.get(key)
-            for key in (
-                "tool",
-                "version",
-                "inventory_hash",
-                "identity_count",
-                "record_count",
-                "strict_subtraction",
-                "source_rows",
-                "matched_rows",
-                "residual_rows",
-                "warnings",
-            )
-            if key in golden
-        }
     state.setdefault("autoruns_mode_coverage", {}).setdefault(
         artifact,
         {},
@@ -3954,7 +3253,6 @@ def analysis_input_hash(
     filters: list[dict[str, Any]],
     known_bad: list[dict[str, Any]],
     use_case: dict[str, Any] | None = None,
-    autoruns_golden_configuration: dict[str, Any] | None = None,
     source_review_mode: str = "",
     stack_field_preferences: list[str] | None = None,
     stack_field_guidance: str = "",
@@ -3976,21 +3274,7 @@ def analysis_input_hash(
         "pattern",
         "enabled",
     )
-    golden_input_keys = (
-        "enabled",
-        "tool",
-        "version",
-        "inventory_hash",
-        "database_sha256",
-        "lookup_payload_sha256",
-        "residual_workflow_version",
-    )
-    golden_input = {
-        key: (autoruns_golden_configuration or {}).get(key)
-        for key in golden_input_keys
-        if key in (autoruns_golden_configuration or {})
-    }
-    return sha256_value(
+    return sha256_json(
         {
             "profile_hash": profile_hash,
             "autoruns_canonicalization_version": autoruns.CANONICALIZATION_VERSION,
@@ -4009,13 +3293,14 @@ def analysis_input_hash(
                 key=lambda item: stable_json(item),
             ),
             "use_case": use_case or {},
-            "autoruns_golden": golden_input,
+            # Retired live GoldenDB input; empty keeps existing watermarks valid.
+            "autoruns_golden": {},
             "source_review_mode": source_review_mode,
             **({"stack_max_total_rows": stack_max_total_rows}
                if stack_max_total_rows is not None else {}),
             "stack_field_preferences": list(stack_field_preferences or []),
             "stack_field_guidance_sha256": (
-                sha256_value(stack_field_guidance)
+                sha256_json(stack_field_guidance)
                 if stack_field_guidance
                 else ""
             ),
@@ -4291,7 +3576,7 @@ def review_autoruns_suspicious_context_streaming(
             "autoruns_drilldown_validated" if not missing else "autoruns_drilldown_failed",
             level="error" if missing else "info", stage="autoruns_drilldown",
             error_code="autoruns_missing_identity" if missing else "none",
-            query_sha256=sha256_value({"vql": query, "env": env}),
+            query_sha256=sha256_json({"vql": query, "env": env}),
             purpose="autoruns-suspicious-drilldown",
             batch=batch_number,
             selected_identities=len(stats), matched_identities=len(stats) - len(missing),
@@ -4300,7 +3585,7 @@ def review_autoruns_suspicious_context_streaming(
         for identity in missing[:10]:
             operation_log.emit(
                 "autoruns_missing_identity", level="debug", stage="autoruns_drilldown",
-                identity_reference=sha256_value(identity),
+                identity_reference=sha256_json(identity),
                 omitted_identities=max(0, len(missing) - 10),
             )
         if missing:
@@ -4323,7 +3608,7 @@ def review_autoruns_suspicious_context_streaming(
             if len(reasons) == 1 and "" not in reasons:
                 contextual_exclusions.append(
                     {
-                        "identity_sha256": sha256_value(identity),
+                        "identity_sha256": sha256_json(identity),
                         "reason": next(iter(reasons)),
                         "row_count": int(item["row_count"]),
                     }
@@ -4356,7 +3641,7 @@ def review_autoruns_suspicious_context_streaming(
             ]
             all_items.append(
                 {
-                    "identity_sha256": sha256_value(identity),
+                    "identity_sha256": sha256_json(identity),
                     "ImagePath": suspicious["ImagePath"],
                     "LaunchString": suspicious["LaunchString"],
                     "Signer": suspicious["Signer"],
@@ -4408,8 +3693,8 @@ def sync_autoruns_finding(
 ) -> None:
     """Replace the deterministic aggregate finding for one Autoruns mode."""
 
-    mode = str(use_case or "general-golden-residual")
-    finding_id = "autoruns:" + sha256_value(
+    mode = str(use_case)
+    finding_id = "autoruns:" + sha256_json(
         {"artifact": artifact, "mode": mode}
     )[:16]
     state["findings"] = [
@@ -4489,16 +3774,11 @@ def analyze_autoruns_streaming_workflow(
     analysis_scope_where: str,
     analysis_scope_env: dict[str, str],
     scope_rows: int,
-    rmm_classifier: autoruns_golden.RmmClassifier,
-    golden_configuration: dict[str, Any],
     ai_review_enabled: bool,
     max_review_tokens: int,
     token_encoding: str,
     analyst_execution: ResolvedAgentExecution | None = None,
     source: review_source.ReviewSource | None = None,
-    populated_rows: int | None = None,
-    accounted_stack: AutorunsAccountedStack | None = None,
-    initial_source_acquisition_seconds: float = 0.0,
 ) -> list[dict[str, Any]]:
     """Run live Autoruns stacking and review without sectional data files."""
 
@@ -4511,33 +3791,29 @@ def analyze_autoruns_streaming_workflow(
         analysis_scope_where,
         "(`Image Path` OR `Launch String`)",
     )
-    if populated_rows is None:
-        stack_count_query = count_vql(populated_where, source=source)
-        stack_source_rows = exact_count(
-            api,
-            stack_count_query,
-            analysis_scope_env,
-            purpose="count-populated-autoruns-rows",
-        )
-        append_query_ledger(
-            state,
-            artifact=artifact,
-            purpose=f"{use_case or 'autoruns-general'}-stream-source-count",
-            vql=stack_count_query,
-            env=analysis_scope_env,
-            row_count=stack_source_rows,
-        )
-    else:
-        stack_source_rows = populated_rows
-    query_builder = autoruns_accounted_stack_vql if accounted_stack is not None else autoruns_residual_stack_vql
-    query = query_builder(
+    stack_count_query = count_vql(populated_where, source=source)
+    stack_source_rows = exact_count(
+        api,
+        stack_count_query,
+        analysis_scope_env,
+        purpose="count-populated-autoruns-rows",
+    )
+    append_query_ledger(
+        state,
+        artifact=artifact,
+        purpose=f"{use_case}-stream-source-count",
+        vql=stack_count_query,
+        env=analysis_scope_env,
+        row_count=stack_source_rows,
+    )
+    query = autoruns_residual_stack_vql(
         analysis_scope_where,
         source=source,
     )
-    query_hash = sha256_value({"vql": query, "env": analysis_scope_env})
+    query_hash = sha256_json({"vql": query, "env": analysis_scope_env})
     workflow = {
         "version": AUTORUNS_STREAMING_WORKFLOW_VERSION,
-        "mode": use_case or "general-golden-residual",
+        "mode": use_case,
         "stage": "awaiting_ai_classification",
         "stack": {
             "query_hash": query_hash,
@@ -4549,63 +3825,34 @@ def analyze_autoruns_streaming_workflow(
         "classification": {},
         "suspicious_context": {},
     }
-    if use_case:
-        retained_general_candidate = candidate_output.get(
-            "retained_previous"
+    retained_general_candidate = candidate_output.get(
+        "retained_previous"
+    )
+    candidate_output = {
+        "status": "not_applicable",
+        "action": "not_applicable",
+        "current_run": False,
+        "reason": "focused_autoruns_review",
+    }
+    if retained_general_candidate:
+        candidate_output["retained_general_candidate"] = (
+            retained_general_candidate
         )
-        candidate_output = {
-            "status": "not_applicable",
-            "action": "not_applicable",
-            "current_run": False,
-            "reason": "focused_autoruns_review",
-        }
-        if retained_general_candidate:
-            candidate_output["retained_general_candidate"] = (
-                retained_general_candidate
-            )
     workflow["candidate_output"] = candidate_output
-    if use_case:
-        artifact_state.setdefault("autoruns_focused_workflows", {})[
-            use_case
-        ] = workflow
-    else:
-        artifact_state["autoruns_residual_workflow"] = workflow
-    artifact_state["mode"] = f"{use_case or 'autoruns-general'}-streaming"
+    artifact_state.setdefault("autoruns_focused_workflows", {})[
+        use_case
+    ] = workflow
+    artifact_state["mode"] = f"{use_case}-streaming"
     artifact_state["remaining_total"] = scope_rows
     artifact_state["status"] = "awaiting_ai_classification"
     if not ai_review_enabled:
-        if accounted_stack is not None:
-            for _ in accounted_stack:
-                pass
-        if not use_case:
-            candidate_output["status"] = "not_produced"
-            candidate_output["reason"] = "ai_review_disabled"
         return []
 
-    def scripted_exclusion_reason(row: dict[str, str]) -> str:
-        if use_case:
-            return ""
-        reasons = rmm_classifier.reasons(
-            image_path=row.get("ImagePath"),
-            launch_string=row.get("LaunchString"),
-        )
-        return (
-            "deferred-to-autoruns-rmm:" + ",".join(sorted(set(reasons)))
-            if reasons
-            else ""
-        )
-
-    prompt_builder: Callable[..., str] | None = None
-    if use_case:
-        prompt_builder = lambda **kwargs: autoruns_ai_review._focused_stack_prompt(
-            **kwargs,
-            use_case=use_case,
-        )
     operation_log.emit("autoruns_review_started", stage="autoruns_ai_review",
                        rows=stack_source_rows)
     try:
         ai_result = autoruns_ai_review.classify_streaming_rows(
-            accounted_stack if accounted_stack is not None else iter_autoruns_stack_rows(
+            iter_autoruns_stack_rows(
                 api,
                 query=query,
                 query_environment=analysis_scope_env,
@@ -4613,20 +3860,18 @@ def analyze_autoruns_streaming_workflow(
             workdir=paths["root"],
             maximum_evidence_tokens=max_review_tokens,
             token_encoding=token_encoding,
-            exclusion_reason=scripted_exclusion_reason,
-            review_mode=use_case or "general-residual",
-            prompt_builder=prompt_builder,
+            review_mode=use_case,
+            prompt_builder=lambda **kwargs: autoruns_ai_review._focused_stack_prompt(
+                **kwargs,
+                use_case=use_case,
+            ),
             execution=analyst_execution,
-            initial_source_acquisition_seconds=initial_source_acquisition_seconds,
         )
     except Exception as exc:
         operation_log.emit("autoruns_review_failed", level="error",
                            stage="autoruns_ai_review", error_code="autoruns_classification_failed",
                            error_class=type(exc).__name__)
         workflow["stage"] = "ai_classification_failed"
-        if not use_case:
-            candidate_output["status"] = "failed"
-            candidate_output["reason"] = "ai_classification_failed"
         workflow["ai_review"] = {
             "model": analyst_execution.model,
             "error": str(exc),
@@ -4636,12 +3881,6 @@ def analyze_autoruns_streaming_workflow(
         return []
     manifest = dict(ai_result["manifest"])
     represented_rows = int(manifest["represented_row_count"])
-    if accounted_stack is not None and (
-        not accounted_stack.complete
-        or represented_rows != stack_source_rows
-        or int(manifest["reviewed_group_count"]) != accounted_stack.counts["GroupCount"]
-    ):
-        raise RuntimeError("Autoruns streaming stack accounting mismatch or incomplete review.")
     workflow["stack"]["expected_rows"] = stack_source_rows
     workflow["stack"]["additional_rows"] = max(0, represented_rows - stack_source_rows)
     if represented_rows > stack_source_rows:
@@ -4669,36 +3908,10 @@ def analyze_autoruns_streaming_workflow(
         )
     suspicious_rows = list(ai_result["suspicious_rows"])
     potential_rows = list(ai_result["potential_golden_rows"])
-    if use_case and potential_rows:
+    if potential_rows:
         raise RuntimeError(
             "Focused Autoruns review returned potential-GoldenDB rows."
         )
-    overlap = {
-        autoruns_residual_identity(row) for row in suspicious_rows
-    }.intersection(
-        autoruns_residual_identity(row) for row in potential_rows
-    )
-    if overlap:
-        raise RuntimeError(
-            "Autoruns AI classification placed one identity in both outputs."
-        )
-    for row in potential_rows:
-        reasons = list(
-            rmm_classifier.reasons(
-                image_path=row.get("ImagePath"),
-                launch_string=row.get("LaunchString"),
-            )
-        )
-        if autoruns_golden.is_missing_file(
-            image_path=row.get("ImagePath"),
-            launch_string=row.get("LaunchString"),
-        ):
-            reasons.append("missing-file")
-        if reasons:
-            raise RuntimeError(
-                "Autoruns potential-GoldenDB classification contains a "
-                "non-promotable identity."
-            )
     operation_log.emit("autoruns_review_completed", stage="autoruns_ai_review",
                        group_count=int(manifest["reviewed_group_count"]),
                        selected_identities=len(suspicious_rows),
@@ -4713,63 +3926,10 @@ def analyze_autoruns_streaming_workflow(
         source=source,
     )
     operation_log.emit("autoruns_publication_started", stage="autoruns_publication")
-    potential_reference: dict[str, Any] = {}
-    if not use_case:
-        metadata = {
-            "SchemaVersion": AUTORUNS_STREAMING_WORKFLOW_VERSION,
-            "CanonicalizationVersion": autoruns.CANONICALIZATION_VERSION,
-            "EngagementId": str(state.get("investigation_id") or ""),
-            "HuntId": hunt_id,
-            "Artifact": artifact,
-            "SourceStackSHA256": manifest["source_stack_sha256"],
-            "SourceQuerySHA256": query_hash,
-            "GoldenDBSHA256": str(
-                golden_configuration.get("database_sha256") or ""
-            ),
-            "GoldenDBVersion": str(
-                golden_configuration.get("version") or ""
-            ),
-            "SourceGroupCount": manifest["reviewed_group_count"],
-            "ReviewedGroupCount": manifest["reviewed_group_count"],
-            "ReviewComplete": "true",
-        }
-        potential_path = paths["autoruns_potential_golden"]
-        write_text_atomic(
-            potential_path,
-            render_csv_with_metadata(
-                metadata=metadata,
-                fieldnames=AUTORUNS_POTENTIAL_GOLDEN_FIELDS,
-                rows=potential_rows,
-            ),
-        )
-        potential_reference = {
-            "path": f"analysis/{potential_path.name}",
-            "sha256": sha256_file(potential_path),
-            "row_count": len(potential_rows),
-            "reviewed_group_count": int(manifest["reviewed_group_count"]),
-            "published_at": now_utc(),
-            "source_stack_sha256": manifest["source_stack_sha256"],
-            "source_query_sha256": query_hash,
-            "golden_db_sha256": str(
-                golden_configuration.get("database_sha256") or ""
-            ),
-            "golden_db_version": str(
-                golden_configuration.get("version") or ""
-            ),
-        }
-        workflow["candidate_output"] = {
-            "status": "complete",
-            "action": (
-                "published" if potential_rows else "published_empty"
-            ),
-            "current_run": True,
-            "reason": "complete_streamed_review",
-            "reference": copy.deepcopy(potential_reference),
-        }
     append_query_ledger(
         state,
         artifact=artifact,
-        purpose=f"{use_case or 'autoruns-general'}-stream-stack",
+        purpose=f"{use_case}-stream-stack",
         vql=query,
         env=analysis_scope_env,
         row_count=int(manifest["reviewed_group_count"]),
@@ -4786,7 +3946,7 @@ def analyze_autoruns_streaming_workflow(
         "potential_golden_count": len(potential_rows),
         "reviewed_group_count": int(manifest["reviewed_group_count"]),
         "review_complete": True,
-        "potential_golden": potential_reference,
+        "potential_golden": {},
     }
     workflow["ai_review"] = manifest
     workflow["suspicious_context"] = context
@@ -4864,7 +4024,7 @@ def analyze_generic_streaming_stack_workflow(
         )
         discovery_metadata = {
             "sample_row_count": len(sample),
-            "sample_query_hash": sha256_value(
+            "sample_query_hash": sha256_json(
                 {"vql": discovery_query, "env": discovery_env}
             ),
             "observed_statistics_hash": "",
@@ -4877,7 +4037,7 @@ def analyze_generic_streaming_stack_workflow(
             "rejected_recommendations": [],
             "requested_field_preferences": list(stack_field_preferences),
             "field_guidance_hash": (
-                sha256_value(stack_field_guidance)
+                sha256_json(stack_field_guidance)
                 if stack_field_guidance
                 else ""
             ),
@@ -4947,7 +4107,7 @@ def analyze_generic_streaming_stack_workflow(
         signature_dimensions = [
             quote_vql_field_identifier(field) for field in logical_dimensions
         ]
-        runtime_hash = sha256_value(
+        runtime_hash = sha256_json(
             {"scope": scope_aliases, "signatures": logical_dimensions}
         )[:12]
         scope_id = "runtime-discovered-scope" if scope_aliases else "global"
@@ -5105,7 +4265,7 @@ def analyze_generic_streaming_stack_workflow(
                 artifact=artifact,
                 purpose=(
                     f"streaming-stack:{signature_id}:"
-                    f"{sha256_value(scope)[:8]}"
+                    f"{sha256_json(scope)[:8]}"
                 ),
                 vql=group_query,
                 env=branch_env,
@@ -5134,7 +4294,7 @@ def analyze_generic_streaming_stack_workflow(
     )
     aggregate_env = dict(remaining_env)
     if dynamic:
-        discovery_metadata["generated_aggregate_query_hash"] = sha256_value(
+        discovery_metadata["generated_aggregate_query_hash"] = sha256_json(
             {"vql": aggregate_query, "env": aggregate_env}
         )
 
@@ -5634,7 +4794,6 @@ def analyze_artifact(
     reusable_filters: list[dict[str, Any]],
     indicators: list[str],
     use_case: str,
-    autoruns_golden_configuration: dict[str, Any],
     rmm_classifier: autoruns_golden.RmmClassifier,
     direct_row_limit: int,
     sample_rows: int,
@@ -5677,19 +4836,8 @@ def analyze_artifact(
         env=use_case_hash_env,
         rmm_classifier=rmm_classifier,
     )
-    golden_scope_where = (
-        ""
-        if selected_use_case
-        else autoruns_golden_where(
-            artifact,
-            configuration=autoruns_golden_configuration,
-            env=use_case_hash_env,
-            preserve_priority=False,
-        )
-    )
     analysis_scope_where = combine_where(
         str((selected_use_case or {}).get("where") or ""),
-        golden_scope_where,
     )
     review_strategy = source_review_strategy(source=source, profile=profile)
     if stack_max_total_rows is not None and (
@@ -5699,38 +4847,16 @@ def analyze_artifact(
             "--stack-max-total-rows requires generic hunt stacking; "
             "use --profile autoruns for the Autoruns workflow."
         )
-    accounting = None
-    accounted_stack = None
-    initial_source_acquisition_seconds = 0.0
-    if (artifact in AUTORUNS_ARTIFACTS and not selected_use_case
-            and autoruns_golden_configuration.get("enabled") and review_strategy["stacking"]):
-        total_query = autoruns_accounted_stack_vql(analysis_scope_where, source=source)
-        acquisition_started = time.monotonic()
-        accounted_stack = AutorunsAccountedStack(iter_query_rows(
-            api, vql=total_query, env=use_case_hash_env,
-            purpose="autoruns-accounted-stack", strict_rows=True,
-        ))
-        initial_source_acquisition_seconds = time.monotonic() - acquisition_started
-        accounting = accounted_stack.counts
-        total = accounting["SourceRows"]
-        operation_log.emit("autoruns_accounting_completed", stage="autoruns_accounting",
-                           source_rows=total, matched_rows=accounting["MatchedRows"],
-                           residual_rows=accounting["ResidualRows"], populated_rows=accounting["PopulatedRows"],
-                           group_count=accounting["GroupCount"],
-                           duration_ms=initial_source_acquisition_seconds * 1000)
-        append_query_ledger(state, artifact=artifact, purpose="autoruns-accounted-stack",
-                            vql=total_query, env=use_case_hash_env, row_count=total)
-    else:
-        total_query = count_vql("", source=source)
-        total = exact_count(api, total_query, total_env, purpose="count-source-rows")
-        append_query_ledger(
-            state,
-            artifact=artifact,
-            purpose="exact-total",
-            vql=total_query,
-            env=total_env,
-            row_count=total,
-        )
+    total_query = count_vql("", source=source)
+    total = exact_count(api, total_query, total_env, purpose="count-source-rows")
+    append_query_ledger(
+        state,
+        artifact=artifact,
+        purpose="exact-total",
+        vql=total_query,
+        env=total_env,
+        row_count=total,
+    )
     if not artifact_state.get("baseline_total"):
         artifact_state["baseline_total"] = total
     current_input_hash = analysis_input_hash(
@@ -5738,13 +4864,6 @@ def analyze_artifact(
         filters=all_filters,
         known_bad=known_bad,
         use_case=selected_use_case,
-        autoruns_golden_configuration=(
-            autoruns_golden_general_metadata(
-                autoruns_golden_configuration
-            )
-            if artifact in AUTORUNS_ARTIFACTS and not selected_use_case
-            else {}
-        ),
         source_review_mode=(
             str(review_strategy.get("mode") or "")
             if source is not None and source.source_type == "flow"
@@ -5781,16 +4900,12 @@ def analyze_artifact(
         if selected_use_case
         else {}
     )
-    artifact_state["autoruns_golden"] = (
-        autoruns_golden_general_metadata(
-            autoruns_golden_configuration
-        )
-        if artifact in AUTORUNS_ARTIFACTS and not selected_use_case
-        else {}
-    )
+    # Retired live GoldenDB state; clearing it keeps legacy hunt state from
+    # reporting stale reductions.
+    artifact_state["autoruns_golden"] = {}
     artifact_state["source_review_strategy"] = review_strategy
-    analysis_total = accounting["ResidualRows"] if accounting is not None else total
-    if analysis_scope_where and accounting is None:
+    analysis_total = total
+    if analysis_scope_where:
         use_case_count_query = count_vql(
             analysis_scope_where,
             source=source,
@@ -5799,82 +4914,17 @@ def analyze_artifact(
             api,
             use_case_count_query,
             use_case_hash_env,
-            purpose="count-use-case-rows" if selected_use_case else "count-golden-residual-rows",
+            purpose="count-use-case-rows",
         )
         append_query_ledger(
             state,
             artifact=artifact,
-            purpose=(
-                f"use-case-count:{selected_use_case['id']}"
-                if selected_use_case
-                else "autoruns-golden-residual-count"
-            ),
+            purpose=f"use-case-count:{selected_use_case['id']}",
             vql=use_case_count_query,
             env=use_case_hash_env,
             row_count=analysis_total,
         )
     artifact_state["analysis_scope_total"] = analysis_total
-    if (
-        artifact in AUTORUNS_ARTIFACTS
-        and not selected_use_case
-        and autoruns_golden_configuration.get("enabled")
-    ):
-        matched_rows = max(0, total - analysis_total)
-        warnings: list[str] = []
-        if (
-            int(autoruns_golden_configuration.get("identity_count") or 0) > 0
-            and matched_rows == 0
-        ):
-            warnings.append("non_empty_golden_db_produced_zero_matches")
-        artifact_state["autoruns_golden"].update(
-            {
-                "strict_subtraction": True,
-                "source_rows": total,
-                "matched_rows": matched_rows,
-                "residual_rows": analysis_total,
-                "warnings": warnings,
-            }
-        )
-
-    if (
-        artifact in AUTORUNS_ARTIFACTS
-        and not selected_use_case
-        and autoruns_golden_configuration.get("enabled")
-        and not review_strategy["stacking"]
-    ):
-        golden_residual_rows = analysis_total
-        populated_where = combine_where(
-            analysis_scope_where,
-            "(`Image Path` OR `Launch String`)",
-        )
-        populated_count_query = count_vql(populated_where, source=source)
-        analysis_total = exact_count(
-            api,
-            populated_count_query,
-            use_case_hash_env,
-            purpose="count-populated-autoruns-rows",
-        )
-        append_query_ledger(
-            state,
-            artifact=artifact,
-            purpose="autoruns-direct-context-count",
-            vql=populated_count_query,
-            env=use_case_hash_env,
-            row_count=analysis_total,
-        )
-        analysis_scope_where = populated_where
-        artifact_state["analysis_scope_total"] = analysis_total
-        artifact_state["source_review_strategy"].update(
-            {
-                "golden_residual_rows": golden_residual_rows,
-                "review_rows": analysis_total,
-                "blank_path_rows_dropped": max(
-                    0,
-                    golden_residual_rows - analysis_total,
-                ),
-            }
-        )
-        artifact_state.pop("autoruns_residual_workflow", None)
 
     if (
         artifact in AUTORUNS_ARTIFACTS
@@ -5895,43 +4945,11 @@ def analyze_artifact(
             analysis_scope_where=analysis_scope_where,
             analysis_scope_env=use_case_hash_env,
             scope_rows=analysis_total,
-            rmm_classifier=rmm_classifier,
-            golden_configuration={},
             ai_review_enabled=autoruns_ai_review_enabled,
             max_review_tokens=max_review_tokens,
             token_encoding=token_encoding,
             analyst_execution=analyst_execution,
             source=source,
-        )
-
-    if (
-        artifact in AUTORUNS_ARTIFACTS
-        and not selected_use_case
-        and autoruns_golden_configuration.get("enabled")
-        and review_strategy["stacking"]
-    ):
-        return analyze_autoruns_streaming_workflow(
-            api,
-            paths=paths,
-            hunt_id=hunt_id,
-            artifact=artifact,
-            use_case="",
-            profile=profile,
-            artifact_state=artifact_state,
-            state=state,
-            analysis_scope_where=analysis_scope_where,
-            analysis_scope_env=use_case_hash_env,
-            scope_rows=analysis_total,
-            rmm_classifier=rmm_classifier,
-            golden_configuration=autoruns_golden_configuration,
-            ai_review_enabled=autoruns_ai_review_enabled,
-            max_review_tokens=max_review_tokens,
-            token_encoding=token_encoding,
-            analyst_execution=analyst_execution,
-            source=source,
-            populated_rows=accounting["PopulatedRows"] if accounting is not None else None,
-            accounted_stack=accounted_stack,
-            initial_source_acquisition_seconds=initial_source_acquisition_seconds,
         )
 
     pending_drilldowns = [
@@ -6620,7 +5638,7 @@ def analyze_artifact(
             "rejected_recommendations": [],
             "requested_field_preferences": list(stack_field_preferences),
             "field_guidance_hash": (
-                sha256_value(stack_field_guidance)
+                sha256_json(stack_field_guidance)
                 if stack_field_guidance
                 else ""
             ),
@@ -6852,7 +5870,7 @@ def analyze_artifact(
             record_budget_stop(
                 artifact_state,
                 meta,
-                purpose=f"scope:{sha256_value(scope)[:8]}",
+                purpose=f"scope:{sha256_json(scope)[:8]}",
             )
             if not query_emits_review(meta):
                 break
@@ -6907,7 +5925,7 @@ def analyze_artifact(
             record_budget_stop(
                 artifact_state,
                 meta,
-                purpose=f"scope-sample:{sha256_value(scope)[:8]}",
+                purpose=f"scope-sample:{sha256_json(scope)[:8]}",
             )
             if not query_emits_review(meta):
                 break
@@ -6969,7 +5987,7 @@ def analyze_artifact(
         append_query_ledger(
             state,
             artifact=artifact,
-            purpose=f"signature:{signature_id}:{sha256_value(scope)[:8]}",
+            purpose=f"signature:{signature_id}:{sha256_json(scope)[:8]}",
             vql=signature_query,
             env=branch_env,
             row_count=len(signature_groups),
@@ -7070,7 +6088,7 @@ def analyze_artifact(
                 artifact=artifact,
                 purpose=(
                     f"family-signature:{family_signature_id}:"
-                    f"{sha256_value(scope)[:8]}"
+                    f"{sha256_json(scope)[:8]}"
                 ),
                 vql=family_query,
                 env=branch_env,
@@ -7124,7 +6142,7 @@ def analyze_artifact(
                     artifact=artifact,
                     purpose=(
                         f"normalized-variants:{family_signature_id}:"
-                        f"{sha256_value(scope)[:8]}"
+                        f"{sha256_json(scope)[:8]}"
                     ),
                     vql=variant_pair_query,
                     env=branch_env,
@@ -7210,7 +6228,7 @@ def analyze_artifact(
                             "max_item_tokens": max_review_tokens,
                         },
                         purpose=(
-                            f"normalized-stack:{sha256_value(scope)[:8]}:"
+                            f"normalized-stack:{sha256_json(scope)[:8]}:"
                             f"{family_index}"
                         ),
                     )
@@ -7313,19 +6331,6 @@ def analyze_artifact(
                             priority_review_reasons
                         ),
                     }
-                    public["decision_template"][
-                        "promote_to_golden"
-                    ] = False
-                    public["decision_template"]["golden_context"] = {
-                        "Description": "",
-                        "Company": "",
-                    }
-                    public["decision_template"][
-                        "lolbin_behavior_reviewed"
-                    ] = False
-                    public["decision_template"][
-                        "unverified_signer_reviewed"
-                    ] = False
                     stored["non_promotable_reasons"] = (
                         non_promotable_reasons
                     )
@@ -7357,7 +6362,7 @@ def analyze_artifact(
                 stack_group_budget -= 1
                 token_budget_remaining -= aggregate_tokens
             if page_review_ids:
-                page_id = "scope-page-" + sha256_value(
+                page_id = "scope-page-" + sha256_json(
                     {
                         "artifact": artifact,
                         "scope": scope,
@@ -7388,7 +6393,7 @@ def analyze_artifact(
                 record_budget_stop(
                     artifact_state,
                     family_meta,
-                    purpose=f"normalized-stack:{sha256_value(scope)[:8]}",
+                    purpose=f"normalized-stack:{sha256_json(scope)[:8]}",
                 )
                 token_budget_remaining = 0
             continue
@@ -7431,7 +6436,7 @@ def analyze_artifact(
                 artifact_state,
                 meta,
                 purpose=(
-                    f"exact-signature:{sha256_value(scope)[:8]}:"
+                    f"exact-signature:{sha256_json(scope)[:8]}:"
                     f"{signature_index}"
                 ),
             )
@@ -8487,12 +7492,7 @@ def write_outputs(
     *,
     reusable_filters: list[dict[str, Any]],
     use_case: str = "",
-    ai_review_enabled: bool = False,
-    max_review_tokens: int = (
-        analysis_limits.DEFAULT_MAXIMUM_EVIDENCE_TOKENS_PER_ITEM
-    ),
-    token_encoding: str | None = None,
-) -> list[dict[str, Any]]:
+) -> None:
     paths["root"].mkdir(parents=True, exist_ok=True)
     selected_output_paths = analysis_output_paths(
         paths,
@@ -8527,7 +7527,6 @@ def write_outputs(
     # Focused review queues use the canonical metadata-only review-items.json
     # manifest; live analysis does not create editable queue CSVs or review dirs.
     persisted_state = copy.deepcopy(state)
-    review_files: list[dict[str, Any]] = []
     write_canonical_specialized_state(paths["state"], persisted_state)
     persisted_output_state = output_state_for_use_case(
         persisted_state,
@@ -8569,7 +7568,6 @@ def write_outputs(
         )
     else:
         selected_output_paths["filters"].unlink(missing_ok=True)
-    return review_files
 
 
 def write_suspicious_use_case_outputs(
@@ -8598,7 +7596,7 @@ def write_suspicious_use_case_outputs(
         hosts = unique_dicts(
             [
                 {
-                    "id": sha256_value(
+                    "id": sha256_json(
                         {
                             "Fqdn": str(row.get("Fqdn") or ""),
                             "ClientId": str(row.get("ClientId") or ""),
@@ -8616,7 +7614,7 @@ def write_suspicious_use_case_outputs(
             host.pop("id", None)
         grouped.setdefault(output_name, []).append(
             {
-                "id": "suspicious-" + sha256_value(
+                "id": "suspicious-" + sha256_json(
                     {
                         "artifact": item.get("artifact"),
                         "scope": item.get("scope"),
@@ -8818,12 +7816,6 @@ def analyze_live_hunt(
     decisions_path: Path | None = None,
     indicators: list[str] | None = None,
     use_case: str = "",
-    autoruns_golden_tool: str = "",
-    autoruns_golden_version: str = "",
-    autoruns_golden_disabled: bool = False,
-    autoruns_golden_sync: bool = True,
-    autoruns_golden_db: Path | None = None,
-    autoruns_golden_promote_reviewed: bool = False,
     autoruns_rmm_reference: Path | None = None,
     direct_row_limit: int = DEFAULT_DIRECT_ROW_LIMIT,
     sample_rows: int = DEFAULT_SAMPLE_ROWS,
@@ -8940,30 +7932,6 @@ def analyze_live_hunt(
     rmm_classifier = autoruns_golden.RmmClassifier(
         autoruns_rmm_reference
     )
-    autoruns_golden_configuration = configured_autoruns_golden(
-        tool=autoruns_golden_tool,
-        version=autoruns_golden_version,
-        database=autoruns_golden_db,
-        rmm_reference=autoruns_rmm_reference,
-        disabled=autoruns_golden_disabled,
-    )
-    if (
-        autoruns_golden_configuration.get("enabled")
-        and not str(use_case or "").strip()
-        and any(
-            str(spec.artifact) in AUTORUNS_ARTIFACTS
-            for spec in request.expected_specs
-        )
-    ):
-        publish_progress("golden_db", force=True)
-        autoruns_golden_configuration = (
-            resolve_autoruns_golden_inventory(
-                api,
-                autoruns_golden_configuration,
-                sync_missing_or_stale=autoruns_golden_sync,
-                rmm_reference=autoruns_rmm_reference,
-            )
-        )
     reusable_filters, filter_paths = load_reusable_filters(
         configured_filter_paths(filter_references),
         profiles=profiles,
@@ -8985,9 +7953,6 @@ def analyze_live_hunt(
             decisions,
             profiles=profiles,
             source=str(decisions_path),
-            golden_db_path=autoruns_golden_db,
-            promote_reviewed=autoruns_golden_promote_reviewed,
-            rmm_reference=autoruns_rmm_reference,
         )
     state["hunt_state"] = hunt_state
     state["host_execution"] = host_execution_statistics(hunt_row)
@@ -9034,9 +7999,6 @@ def analyze_live_hunt(
             reusable_filters=reusable_filters,
             indicators=list(indicators or []),
             use_case=use_case,
-            autoruns_golden_configuration=(
-                autoruns_golden_configuration
-            ),
             rmm_classifier=rmm_classifier,
             direct_row_limit=direct_row_limit,
             sample_rows=sample_rows,
@@ -9153,10 +8115,6 @@ def analyze_live_hunt(
             artifact=artifact,
             artifact_state=artifact_state,
             use_case=use_case,
-            golden_enabled=bool(
-                autoruns_golden_configuration.get("enabled")
-                and not str(use_case or "").strip()
-            ),
         )
         if coverage_record:
             selected_autoruns_mode_coverage[artifact] = coverage_record
@@ -9256,14 +8214,11 @@ def analyze_live_hunt(
         state.pop("result_role", None)
     state["updated_at"] = now_utc()
     publish_progress("publishing", force=True)
-    review_files = write_outputs(
+    write_outputs(
         paths,
         state,
         reusable_filters=reusable_filters,
         use_case=use_case,
-        ai_review_enabled=autoruns_ai_review_enabled,
-        max_review_tokens=max_review_tokens,
-        token_encoding=token_encoding,
     )
     suspicious_outputs = write_suspicious_use_case_outputs(
         paths,
@@ -9295,7 +8250,7 @@ def analyze_live_hunt(
             "lane": use_case or "specialized_stack",
             "artifact_diagnostics": [
                 {
-                    "artifact_sha256": sha256_value(str(artifact)),
+                    "artifact_sha256": sha256_json(str(artifact)),
                     "status": artifact_state.get("status"),
                     "current_total": int(artifact_state.get("current_total") or 0),
                     "remaining_total": int(artifact_state.get("remaining_total") or 0),
@@ -9445,19 +8400,6 @@ def analyze_live_hunt(
         "autoruns_mode_coverage": selected_autoruns_mode_coverage,
         "direct_row_limit": direct_row_limit,
         "use_case": use_case,
-        "autoruns_golden": {
-            **autoruns_golden_general_metadata(
-                autoruns_golden_configuration
-            )
-        },
-        "autoruns_golden_db": (
-            str(autoruns_golden_db)
-            if autoruns_golden_db
-            else ""
-        ),
-        "golden_promotion_count": len(
-            state.get("golden_promotions") or []
-        ),
         "autoruns_residual_workflow": {
             artifact: compact_autoruns_workflow(
                 dict(
@@ -9594,7 +8536,7 @@ def analyze_live_hunt(
             include_review_rows=include_review_rows,
         ),
         "review_items_file": review_items_manifest,
-        "review_files": review_files,
+        "review_files": [],
         "state_file": str(paths["state"]),
         "filters_file": (
             str(selected_output_paths["filters"])

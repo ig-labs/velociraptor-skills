@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from collections.abc import Iterable, Mapping
 from typing import Any
+
+from vraptor.common.hashing import canonical_json
 
 
 REFERENCE_PROTOCOL = "source-row-v1"
@@ -35,16 +36,6 @@ def normalize_response_references(text: str, available: Iterable[str]) -> tuple[
     return token.sub(replace, text), repairs
 
 
-def _canonical_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        default=str,
-    )
-
-
 def evidence_source_id(
     *,
     scope_type: str,
@@ -66,7 +57,7 @@ def evidence_source_id(
         "artifact": str(artifact),
         "source": str(source),
     }
-    digest = hashlib.sha256(_canonical_json(identity).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(canonical_json(identity, ensure_ascii=False).encode("utf-8")).hexdigest()
     return f"evidence-source-v1-{digest[:32]}"
 
 

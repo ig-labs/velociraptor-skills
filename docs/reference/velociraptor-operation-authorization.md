@@ -16,16 +16,43 @@ pause for additional approval before:
 
 Normal setup connects with existing native configuration. `--fetch-config`
 authorizes acquisition of existing remote API/endpoint configurations over SSH.
-Remote creation requires the requested provisioning operation and its explicit
-`--provision-api` or `--provision-client` flag; each helper first confirms the
-target file is absent. Connection, permission and copy failures do not authorize
-generation. `--regenerate-remote-api` explicitly replaces the selected remote API
-credential and is never an automatic authentication-recovery step. An existing
-user instruction to create or replace those configurations is sufficient
-authorization; do not request duplicate approval.
+API-user creation follows [API-user provisioning](#api-user-provisioning).
 
 Keep ordinary evidence server-side and avoid unnecessary exports, but do not ask for a
 second approval after selecting an explicit export action.
+
+## API-user provisioning
+
+This is the one rule for `--provision-api`; skills link here instead of
+restating it.
+
+- A setup request with an explicit API user configured through the CLI,
+  environment/dotenv or saved settings authorizes `--provision-api` for that
+  user. Include the flag automatically, even when API YAML is already cached,
+  and do not ask for separate approval. It covers creating that account when
+  absent and generating its missing API YAML.
+- On generic installs (no bootstrap connection), setup skips the manual account
+  step when the existing API YAML, kept without `--force` or
+  `--regenerate-remote-api`, already authenticates as that user with the
+  selected roles, and says so. Interactive setup offers to run the step anyway;
+  pass `--api-account-setup` when the operator asks to run it.
+- A cached YAML identity, the OS login or an application fallback alone does
+  not authorize creation.
+- Honor explicit no-provision, read-only and fetch-only requests.
+- Local dead-disk setup never uses `--provision-api`; it uses the managed local
+  server's own API YAML or the supplied YAML of an existing shared server.
+- Endpoint generation (`--provision-client`) and replacing an existing remote
+  API credential (`--regenerate-remote-api`) still need an explicit operator
+  request. `--regenerate-remote-api` is never an automatic
+  authentication-recovery step.
+- The CLI never provisions without the flag; this is a skill-level rule.
+
+Shared API setup first checks or manually prepares the live account, leaving
+existing accounts unchanged; file helpers separately confirm YAML absence. A
+bootstrap identity is restricted to account provisioning and never becomes the
+operational identity. Connection, permission and copy failures do not authorize
+generation. An existing user instruction to create or replace API or endpoint
+configurations is sufficient authorization; do not request duplicate approval.
 
 ## Collection intent and completion
 
@@ -42,7 +69,7 @@ an investigation. Keep low-level `collect ensure` semantics collection-only.
 
 At session start before analysis, inspect shared/repository environment sources
 and effective analyst configuration. Reuse successful initialization/doctor checks
-already performed in that session. Repeat `dfir ai doctor` only after relevant
+already performed in that session. Repeat `vraptor ai doctor` only after relevant
 configuration/provider changes or failures, not before every collection. Reuse
 valid `engagement.json`; rerun setup only when readiness is missing, invalid, or
 affected by connection, credential, or mapping changes/failures. Automatic

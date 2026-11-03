@@ -9,7 +9,7 @@ a checklist to execute before every run.
 | Request or state | Action |
 | --- | --- |
 | Investigate a question/artifact without a hunt ID | Prefer known or read-only discovered existing hunts whose evidence fits the case and requested scope. Review them first; identify a concrete evidence/freshness gap before considering authorized collection. |
-| Analyze current results for an exact hunt | Run `vraptor analyze --hunt H.ID` with the saved case/connection context and `--synthesis none`. The CLI inventories artifacts and flow status. |
+| Analyze current results for an exact hunt | Run `vraptor analyze --hunt H.ID` with the saved case/connection context. Full synthesis is the default; add `--synthesis none` only for requested preliminary-only analysis. The CLI inventories artifacts and flow status. |
 | Explain or review an already completed analysis | Read the report and use `analysis-results`; verify its scope, acquisition time and coverage. Do not acquire again unless current evidence is requested. |
 | Refresh all currently exposed results | Repeat the full analysis command. This includes rows exposed by open flows. |
 | Incrementally update a successful streaming analysis | Add `--update` only when newly completed flows are the intended scope. It requires a successful full checkpoint and does not refresh every open flow. DetectRaptor EVTX, generic stacks and specialized Autoruns do not support this incremental route. |

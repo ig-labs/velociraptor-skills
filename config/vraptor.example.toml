@@ -9,7 +9,8 @@ binary = "~/velociraptor/velociraptor"
 # config_root = "~/.config/velociraptor"
 
 [connection_defaults]
-api_user = "vraptor"
+# Set the intended identity before fetching or provisioning API credentials.
+# api_user = "vraptor_alice"
 api_role_profile = "provisioning-admin"
 # Optional shared SSH acquisition settings; named connections override these.
 # ssh_user = "operator"

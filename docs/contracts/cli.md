@@ -1,17 +1,19 @@
 # CLI and existing-state contract
 
-`dfir` and `vraptor` are equivalent entrypoints. They expose `query`, `clients`, `artifacts`, `collect`, `analyze`, `hunt`,
-`export`, `ai`, and `tools prep`. `agent` remains a compatible alias
-for `ai`. The advanced `setup`, `config`,
-`mapped`, `autoruns` and `logs` groups retain their existing lower-level commands.
+Use `vraptor`; `dfir` remains a legacy alias of the same entry point, kept for
+compatibility. The CLI exposes `query`, `clients`, `artifacts`, `collect`, `analyze`,
+`summarize`, `analysis-results`, `hunt`, `export`, `reports`, `ai`, and
+`tools prep`. `agent` remains a compatible alias for `ai`. The advanced
+`setup`, `config`, `mapped`, `autoruns` and `logs` groups retain their existing
+lower-level commands.
 `setup` also provides shared configuration and three managed startup journeys.
 `--server` aliases `--server-profile`; `--profile` remains an analysis profile.
 `--client`, `--hunt`, `--request` and query `--file` alias the existing ID/file flags.
 
 Replace `<SERVER REFERENCE>` in examples with a saved connection name. Multiple
 servers can be configured in the same installation; each command selects one
-reference. `vraptor config` lists saved names in `connections`. See
-[multiple-server configuration](../../CONFIG.md#multiple-server-connections).
+reference. `vraptor config` lists saved names in `connections`. See the
+[server-profile and engagement context](../reference/velociraptor-engagement-context.md).
 
 ```sh
 vraptor ai config --view defaults
@@ -64,19 +66,53 @@ Analysis supports run-only `--execution-profile`, `--ai-config-file`, `--model`,
 reserves output space, and honors smaller declared deployment limits. Advanced
 `--model-context-tokens TOKENS|max` and `--model-max-output-tokens TOKENS|max`
 can override those ceilings; `max` requires a recognized model reference.
-Input has a 100000-token floor when available input capacity permits it, otherwise
-a 10-token floor. Overrides outrank environment and saved settings, are validated
+Input must be at least 100000 tokens and output at least 32000; limits that cannot
+hold both are rejected. Overrides outrank environment and saved settings, are validated
 before API access, and never change persisted configuration. Omitting them keeps
 the existing defaults. `analyze --help` lists this shared option group.
 
 Machine output is JSON with `--json` (analysis) or the retained `--format json`.
 Progress and deprecation messages go to stderr. Analysis exits 0 for completed
 work, 1 for runtime/transport failure, and 2 for incomplete review, including
-`--skip-ai` host or hunt preparation (`review_complete=false`; host status is `planned`). Argparse
-also uses 2 for invalid arguments. Inspect the result status, not the exit code
-alone. Legacy routes retain their existing exit/status behavior.
+`--skip-ai` host or hunt preparation and `--from` snapshot replay, which never
+runs AI (`review_complete=false`; host status is `planned`, hunt and snapshot
+status `prepared`). Argparse also uses 2 for invalid arguments. Inspect the
+result status, not the exit code alone. Legacy routes keep their exit codes;
+legacy `hunt analyze --snapshot` still exits 0 and reports `status: prepared`.
 
-Use `dfir setup init --id ir1234` once to create/reuse a standalone workspace.
+Operational commands own one logger from dispatch to termination. Nested legacy
+routes reuse it; `summarize` and `ai test` use the same accounting as analysis.
+Case-bound operations use case logs; other operations use
+`${XDG_STATE_HOME:-~/.local/state}/vraptor/logs`. Explicit `--log-file` overrides
+the destination. Help and log inspection do not write logs.
+`setup init` uses the user-level destination to preserve workspace initialization
+semantics; an explicit `--log-file` still overrides it.
+
+Final structured analysis, saved-synthesis and AI-management results include
+`token_usage`: command-scoped known counters, attempts/retries, provider/model
+groups, usage completeness, log completeness and persistence state. A concise
+command token summary also goes to stderr; stdout remains one structured result.
+`--no-log-file` disables persistence while retaining in-memory accounting and
+returned counters. Cached input is included in input, never added twice.
+
+`vraptor logs usage --id CASE --case-root PATH [--json] [--ledger-only]` reports
+read-only retained totals and the latest operation separately. It works without
+server credentials or a usable connection configuration. Exit 2 means coverage
+gaps or inconsistent records; it does not mean zero usage. See the
+[logging contract](../reference/velociraptor-logging.md#usage-reporting).
+Use `--global` instead of `--id` to inspect the user-level ledger. Operation
+summaries include zero-call runs; incomplete operation lifecycles and unavailable
+provider telemetry remain explicit coverage gaps.
+
+Report-producing commands accept `--report-*` overrides for the shared
+`[reporting]` policy. These affect presentation without changing analysis-cache
+identity. `vraptor reports render --checkpoint PATH [--output-dir PATH]` renders
+retained host/hunt results offline and preserves original checkpoints and hashed
+artifact reports. See [reporting policy](../reference/reporting-policy.md) for
+priority ordering, configuration precedence, pagination and unavailable legacy
+examples. Caller-written assessments remain separate publications.
+
+Use `vraptor setup init --id ir1234` once to create/reuse a standalone workspace.
 `--case-root` selects its parent; `--investigation-dir` accepts an exact folder
 ending in the ID. Existing `AGENTS.md` and investigation data are preserved.
 New guidance comes from the packaged
@@ -129,8 +165,18 @@ vraptor setup stop --id local01 --stop-server
 `setup init` remains offline. Startup prompts only on a terminal and accepts
 equivalent noninteractive inputs. Existing API YAML connects directly without
 remote acquisition. `--fetch-config` enables copying missing configurations over
-SSH using an explicit/configured `--server-ip`; `--provision-api` and
-`--provision-client` separately permit generation of missing remote files.
+SSH using an explicit/configured `--server-ip`; `--provision-api` prepares the selected account before acquiring credentials,
+even with cached YAML. Without explicit remote bootstrap configuration, it prompts
+for manual administrator account setup, unless the cached YAML is kept (no
+`--force` or `--regenerate-remote-api`) and already authenticates as the
+selected user with the selected roles: setup then skips the
+step (a terminal asks whether to run it anyway), and `--api-account-setup` runs
+it. `--api-account-ready` acknowledges the manual step without bypassing
+selected-user verification. `--bootstrap-api-config` and
+`--bootstrap-api-user` select a remote provisioning-only connection. The credential
+stays on the SSH host and cannot be the operational identity. Generation never
+sets roles; existing accounts are unchanged. `--provision-client` separately
+permits generation of missing endpoint YAML.
 `--regenerate-remote-api` explicitly replaces the selected remote API YAML.
 `--force` refreshes the local copy when acquisition is enabled.
 
@@ -241,8 +287,10 @@ Setup lifecycle/configuration commands emit JSON; runtime failures return 1 and
 argument errors return 2.
 
 `dfir case` and the `dfir-case` executable have been removed. Installed
-entrypoints use the flat commands above. The checkout `./dfir velociraptor`
-launcher strips the old namespace and enters the same Python settings resolver. `collect analyze` may ensure
+entrypoints use the flat commands above. Hunt engine commands such as `check`,
+`ensure`, `stop` and `review-results` run only as `hunt native <command>`; the
+bare `hunt <command>` form prints `Use: vraptor hunt native <command>` and exits 1.
+For compatibility, the checkout `./dfir` launcher strips the retired `velociraptor` namespace and enters the same Python settings resolver. `collect analyze` may ensure
 missing collections; `analyze` only selects existing evidence. Neither publishes
 case-management events.
 
@@ -272,8 +320,9 @@ There is no `workspace.json`, new case-level `vraptor` directory, or run hierarc
 ## Optional synthesis and saved candidates
 
 Host/collection and live-hunt analysis accept `--synthesis none|full` (standalone
-default: `none`). Use `full` explicitly for harness synthesis. Caller-led workflows own the
-final review. `analysis-results` retrieves bounded saved candidates without model
+default: `full`). Use `--synthesis none` explicitly for preliminary candidates and
+caller-owned final review. `--skip-ai` disables both analysis and synthesis model
+calls. `analysis-results` retrieves bounded saved candidates without model
 calls; `summarize` reviews a saved host request or streaming-hunt checkpoint only.
 See [analysis synthesis](../reference/analysis-synthesis.md) for source selectors,
 cache invalidation, persistence and coverage semantics.

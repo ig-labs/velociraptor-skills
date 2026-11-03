@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import re
+import math
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Mapping
 
 from vraptor.agent.config import ResolvedAgentExecution
@@ -27,7 +29,8 @@ from vraptor.agent.runtime import ProgressCallback
 from vraptor.agent.runtime import ProviderCapabilities
 from vraptor.agent.runtime import ProviderResponse
 from vraptor.agent.runtime import TimeoutPolicy
-from vraptor.agent.runtime import now_utc
+from vraptor.agent.runtime import validate_prompt_cache_prefix
+from vraptor.common.clock import now_utc
 
 
 def _get(value: object, name: str, default: Any = None) -> Any:
@@ -36,28 +39,86 @@ def _get(value: object, name: str, default: Any = None) -> Any:
     return getattr(value, name, default)
 
 
-def _integer(value: object) -> int:
-    return int(value) if isinstance(value, (int, float)) else 0
+def _token_count(value: object) -> int | None:
+    if (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+        and value >= 0
+    ):
+        return int(value)
+    return None
+
+
+def _raw_usage(value: object) -> dict[str, Any] | None:
+    """Copy reported usage counters without synthesizing absent SDK fields.
+
+    Only bounded numeric/null trees are retained: no text, headers, response
+    payloads, or provider error bodies. Unknown numeric detail fields survive.
+    """
+    remaining = 128
+
+    def counters(item: object, depth: int = 0) -> dict[str, Any] | None:
+        nonlocal remaining
+        if depth > 6:
+            return None
+        dump = getattr(item, "model_dump", None)
+        if callable(dump):
+            item = dump(mode="json", exclude_unset=True)
+        elif not isinstance(item, Mapping):
+            item = getattr(item, "__dict__", None)
+        if not isinstance(item, Mapping):
+            return None
+        output: dict[str, Any] = {}
+        for key, entry in item.items():
+            if remaining <= 0:
+                break
+            if not isinstance(key, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,79}", key):
+                continue
+            remaining -= 1
+            if entry is None or (isinstance(entry, int) and not isinstance(entry, bool) and entry >= 0):
+                output[key] = entry
+            elif isinstance(entry, Mapping) or callable(getattr(entry, "model_dump", None)) or hasattr(entry, "__dict__"):
+                nested = counters(entry, depth + 1)
+                if nested is not None:
+                    output[key] = nested
+        return output
+
+    return counters(value) if value is not None else None
 
 
 def _usage(value: object) -> AgentUsage:
-    if value is None:
-        return AgentUsage()
-    input_tokens = _integer(
-        _get(value, "input_tokens", _get(value, "prompt_tokens", 0))
+    dump = getattr(value, "model_dump", None)
+    if callable(dump):
+        value = dump(mode="json", exclude_unset=True)
+    input_tokens = _token_count(
+        _get(value, "input_tokens", _get(value, "prompt_tokens"))
     )
-    output_tokens = _integer(
-        _get(value, "output_tokens", _get(value, "completion_tokens", 0))
+    output_tokens = _token_count(
+        _get(value, "output_tokens", _get(value, "completion_tokens"))
     )
-    total_tokens = _integer(_get(value, "total_tokens", 0))
-    details = _get(value, "input_tokens_details", {})
-    cached = _integer(_get(details, "cached_tokens", 0))
+    total_tokens = _token_count(_get(value, "total_tokens"))
+    details = _get(value, "input_tokens_details", _get(value, "prompt_tokens_details", {}))
+    cached = _token_count(_get(details, "cached_tokens"))
     # Anthropic reports uncached input separately from cache reads/writes.
-    cache_read = _integer(_get(value, "cache_read_input_tokens", 0))
-    cache_creation = _integer(_get(value, "cache_creation_input_tokens", 0))
-    input_tokens += cache_read + cache_creation
-    cached += cache_read
-    return AgentUsage(input_tokens, output_tokens, total_tokens, cached)
+    cache_read = _token_count(_get(value, "cache_read_input_tokens"))
+    cache_creation = _token_count(_get(value, "cache_creation_input_tokens"))
+    known = (input_tokens, output_tokens, total_tokens, cached, cache_read, cache_creation)
+    availability = (
+        "reported"
+        if input_tokens is not None and output_tokens is not None
+        else "partial"
+        if any(count is not None for count in known)
+        else "unavailable"
+    )
+    return AgentUsage(
+        (input_tokens or 0) + (cache_read or 0) + (cache_creation or 0),
+        output_tokens or 0,
+        total_tokens or 0,
+        (cached or 0) + (cache_read or 0),
+        raw_usage=_raw_usage(value),
+        availability=availability,
+    )
 
 
 def _response_text(response: object) -> str:
@@ -90,7 +151,13 @@ def _header(error: BaseException, name: str) -> str:
         return ""
 
 
-def _normalized_exception(error: BaseException, provider: str) -> AgentProviderException:
+def _normalized_exception(
+    error: BaseException,
+    provider: str,
+    *,
+    usage: AgentUsage | None = None,
+    request_id: str = "",
+) -> AgentProviderException:
     name = error.__class__.__name__.lower()
     status = getattr(error, "status_code", None)
     if not isinstance(status, int):
@@ -99,6 +166,7 @@ def _normalized_exception(error: BaseException, provider: str) -> AgentProviderE
         getattr(error, "request_id", "")
         or _header(error, "x-request-id")
         or _header(error, "request-id")
+        or request_id
     )
     retry_after: float | None = None
     retry_after_source = ""
@@ -158,6 +226,7 @@ def _normalized_exception(error: BaseException, provider: str) -> AgentProviderE
             retry_after_source=retry_after_source,
             provider_error_code=provider_error_code,
             provider_error_param=provider_error_param,
+            usage=usage if usage is not None and usage.status != "unavailable" else _usage(_get(body, "usage")),
         )
     )
 
@@ -280,7 +349,6 @@ class OpenAIResponsesAdapter(_BaseAdapter):
         return ProviderCapabilities(
             structured_output=True,
             json_mode=True,
-            tool_calling=True,
             reasoning_configuration=True,
             request_output_token_limit=True,
         )
@@ -325,6 +393,18 @@ class OpenAIResponsesAdapter(_BaseAdapter):
             ],
             "store": False,
         }
+        prefix = validate_prompt_cache_prefix(request, self.configuration.protocol)
+        if prefix is not None:
+            options["input"][0]["content"] = [
+                {
+                    "type": "input_text",
+                    "text": request.prompt[:prefix],
+                    "prompt_cache_breakpoint": {"mode": "explicit"},
+                },
+                {"type": "input_text", "text": request.prompt[prefix:]},
+            ]
+            # extra_body supports installed SDK versions predating this option.
+            options["extra_body"] = {"prompt_cache_options": {"mode": "explicit"}}
         if self.configuration.reasoning_effort:
             options["reasoning"] = {"effort": self.configuration.reasoning_effort}
         if request.max_output_tokens is not None:
@@ -354,9 +434,24 @@ class OpenAIResponsesAdapter(_BaseAdapter):
         client = self.client
         options = self._request_options(request)
         started = time.monotonic()
+        observed_usage = AgentUsage()
+        observed_request_id = ""
+        observed_finish_reason = ""
+
+        def retain_observed(error: AgentError) -> AgentProviderException:
+            return AgentProviderException(replace(
+                error,
+                request_id=observed_request_id or error.request_id,
+                usage=observed_usage if observed_usage.raw_usage is not None else error.usage,
+                finish_reason=error.finish_reason or observed_finish_reason,
+            ))
+
         try:
             if not request.stream:
                 response = await client.responses.create(**options)
+                observed_usage = _usage(_get(response, "usage"))
+                observed_request_id = str(_get(response, "_request_id", "") or _get(response, "id", ""))
+                observed_finish_reason = str(_get(response, "status", ""))
                 if time.monotonic() - started > self.timeout_policy.total_seconds:
                     raise TimeoutError("provider request exceeded total operation timeout")
                 terminal_error = _response_terminal_exception(
@@ -367,7 +462,7 @@ class OpenAIResponsesAdapter(_BaseAdapter):
                 request_id = str(_get(response, "_request_id", "") or _get(response, "id", ""))
                 usage = _usage(_get(response, "usage"))
                 self._emit(progress_callback, request, "request_accepted", attempt, request_id=request_id)
-                self._emit(progress_callback, request, "usage_updated", attempt, request_id=request_id, **usage.as_dict())
+                self._emit(progress_callback, request, "usage_updated", attempt, request_id=request_id, usage_status=usage.status, **usage.as_dict())
                 return ProviderResponse(
                     output=_response_text(response),
                     request_id=request_id,
@@ -381,25 +476,30 @@ class OpenAIResponsesAdapter(_BaseAdapter):
             request_id = ""
             try:
                 async for event in stream:
+                    event_type = str(_get(event, "type", _get(event, "event", "")))
+                    if event_type in {"response.completed", "response.failed", "response.incomplete"}:
+                        final = _get(event, "response")
+                        observed_usage = _usage(_get(final, "usage"))
+                        observed_request_id = str(_get(final, "_request_id", "") or _get(final, "id", request_id))
+                        observed_finish_reason = str(_get(final, "status", ""))
+                        self._emit(
+                            progress_callback, request, "usage_updated", attempt,
+                            request_id=observed_request_id, usage_status=observed_usage.status,
+                            **observed_usage.as_dict(),
+                        )
                     if time.monotonic() - started > self.timeout_policy.total_seconds:
                         raise TimeoutError("provider stream exceeded total operation timeout")
                     if cancellation is not None:
                         cancellation.raise_if_cancelled()
-                    event_type = str(_get(event, "type", _get(event, "event", "")))
                     if event_type == "response.created":
                         response = _get(event, "response")
                         request_id = str(_get(response, "id", ""))
+                        observed_request_id = request_id
                         self._emit(progress_callback, request, "request_accepted", attempt, request_id=request_id)
                     elif event_type == "response.output_text.delta":
                         delta = str(_get(event, "delta", ""))
                         text_parts.append(delta)
                         self._emit(progress_callback, request, "output_progress", attempt, request_id=request_id, characters=len(delta))
-                    elif event_type in {
-                        "response.completed",
-                        "response.failed",
-                        "response.incomplete",
-                    }:
-                        final = _get(event, "response")
             finally:
                 close = getattr(stream, "close", None)
                 if callable(close):
@@ -412,37 +512,44 @@ class OpenAIResponsesAdapter(_BaseAdapter):
                     final = getter()
                     if inspect.isawaitable(final):
                         final = await final
+                observed_usage = _usage(_get(final, "usage"))
+                observed_request_id = str(
+                    _get(final, "_request_id", "") or _get(final, "id", request_id)
+                )
+                observed_finish_reason = str(_get(final, "status", ""))
+                self._emit(
+                    progress_callback, request, "usage_updated", attempt,
+                    request_id=observed_request_id, usage_status=observed_usage.status,
+                    **observed_usage.as_dict(),
+                )
             terminal_error = _response_terminal_exception(
                 final, self.configuration.provider
             )
             if terminal_error is not None:
                 raise terminal_error
             output = "".join(text_parts) or _response_text(final)
-            usage = _usage(_get(final, "usage"))
-            final_request_id = str(
-                _get(final, "_request_id", "") or _get(final, "id", request_id)
-            )
-            self._emit(
-                progress_callback,
-                request,
-                "usage_updated",
-                attempt,
-                request_id=final_request_id,
-                **usage.as_dict(),
-            )
             return ProviderResponse(
                 output=output,
-                request_id=final_request_id,
-                usage=usage,
+                request_id=observed_request_id,
+                usage=observed_usage,
                 finish_reason=str(_get(final, "status", "")),
                 protocol="responses",
             )
-        except AgentCancelled:
+        except AgentCancelled as exc:
+            if exc.usage is None:
+                exc.usage = observed_usage
+            exc.request_id = exc.request_id or observed_request_id
             raise
-        except AgentProviderException:
+        except asyncio.CancelledError as exc:
+            # The deadline/cancellation wrapper carries these counters into its
+            # terminal result while preserving the caller's cancellation cause.
+            exc.usage = observed_usage
+            exc.request_id = observed_request_id
             raise
+        except AgentProviderException as exc:
+            raise retain_observed(exc.error) from exc
         except Exception as exc:
-            raise _normalized_exception(exc, self.configuration.provider) from exc
+            raise retain_observed(_normalized_exception(exc, self.configuration.provider).error) from exc
 
 
 _CODEX_ANALYST_INSTRUCTIONS = (
@@ -455,12 +562,12 @@ _CODEX_ANALYST_INSTRUCTIONS = (
 
 def _codex_usage(value: object) -> AgentUsage:
     total = _get(value, "total", {})
-    return AgentUsage(
-        input_tokens=_integer(_get(total, "inputTokens", 0)),
-        output_tokens=_integer(_get(total, "outputTokens", 0)),
-        total_tokens=_integer(_get(total, "totalTokens", 0)),
-        cached_input_tokens=_integer(_get(total, "cachedInputTokens", 0)),
-    )
+    return replace(_usage({
+        "input_tokens": _get(total, "inputTokens"),
+        "output_tokens": _get(total, "outputTokens"),
+        "total_tokens": _get(total, "totalTokens"),
+        "input_tokens_details": {"cached_tokens": _get(total, "cachedInputTokens")},
+    }), raw_usage=_raw_usage(value))
 
 
 def _codex_turn_error(
@@ -520,9 +627,7 @@ class CodexAppServerAdapter(_BaseAdapter):
         return ProviderCapabilities(
             structured_output=True,
             json_mode=True,
-            remote_cancellation=True,
             reasoning_configuration=True,
-            tool_calling=False,
         )
 
     async def _client(self) -> Any:
@@ -664,7 +769,7 @@ class CodexAppServerAdapter(_BaseAdapter):
                     pending_task.cancel()
                 if cancellation_wait in done:
                     await self._interrupt(client, thread_id, turn_id)
-                    raise AgentCancelled("agent request was cancelled")
+                    raise AgentCancelled("agent request was cancelled", request_id=turn_id, usage=usage)
                 message = event_wait.result()
                 method = str(message.get("method", ""))
                 params = message.get("params", {})
@@ -681,6 +786,8 @@ class CodexAppServerAdapter(_BaseAdapter):
                             "Codex app-server connection failed",
                             retryable=True,
                             request_id=turn_id,
+                            usage=replace(usage, availability="partial")
+                            if usage.status != "unavailable" else usage,
                         )
                     )
                 if method == "client/request/rejected":
@@ -706,7 +813,14 @@ class CodexAppServerAdapter(_BaseAdapter):
                             )
                     continue
                 if method == "thread/tokenUsage/updated":
-                    usage = _codex_usage(_get(params, "tokenUsage", {}))
+                    snapshot = _codex_usage(_get(params, "tokenUsage", {}))
+                    if snapshot.status != "unavailable":
+                        usage = snapshot
+                        self._emit(
+                            progress_callback, request, "usage_updated", attempt,
+                            request_id=turn_id, usage_status="partial",
+                            **usage.as_dict(),
+                        )
                     continue
                 if method != "turn/completed":
                     continue
@@ -726,7 +840,7 @@ class CodexAppServerAdapter(_BaseAdapter):
                 if status == "failed":
                     raise _codex_turn_error(completed_turn, turn_id, usage)
                 if status == "interrupted":
-                    raise AgentCancelled("agent request was interrupted")
+                    raise AgentCancelled("agent request was interrupted", request_id=turn_id, usage=usage)
                 if status != "completed":
                     raise AgentProviderException(
                         AgentError(
@@ -757,6 +871,7 @@ class CodexAppServerAdapter(_BaseAdapter):
                     "usage_updated",
                     attempt,
                     request_id=turn_id,
+                    usage_status=usage.status,
                     **usage.as_dict(),
                 )
                 return ProviderResponse(
@@ -788,6 +903,8 @@ class CodexAppServerAdapter(_BaseAdapter):
                     retryable=True,
                     request_id=turn_id,
                     provider_error_code=str(exc.code),
+                    usage=replace(usage, availability="partial")
+                    if usage.status != "unavailable" else usage,
                 )
             ) from exc
         finally:

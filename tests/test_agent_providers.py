@@ -12,6 +12,8 @@ from vraptor.agent.providers import AzureOpenAIResponsesAdapter
 from vraptor.agent.providers import CodexAppServerAdapter
 from vraptor.agent.providers import OpenAIResponsesAdapter
 from vraptor.agent.providers import _normalized_exception
+from vraptor.agent.providers import _usage
+from vraptor.agent.providers import _codex_usage
 from vraptor.agent.providers import adapter_for
 from vraptor.agent.codex_app_server import CodexAppServerError
 from vraptor.agent.runtime import AgentCancelled
@@ -131,6 +133,90 @@ class FakeCodexClient:
 
 
 class ProviderAdapterTests(unittest.IsolatedAsyncioTestCase):
+    def test_usage_distinguishes_explicit_zero_missing_and_partial_counters(self):
+        cases = (
+            (None, "unavailable", 0),
+            ({}, "unavailable", 0),
+            ({"input_tokens": None, "output_tokens": None}, "unavailable", 0),
+            ({"input_tokens": 0, "output_tokens": 0}, "reported", 0),
+            ({"input_tokens": 4}, "partial", 4),
+            ({"total_tokens": 7}, "partial", 7),
+            ({"prompt_tokens": 4, "completion_tokens": 2}, "reported", 6),
+            ({"input_tokens": True, "output_tokens": float("nan")}, "unavailable", 0),
+            ({"input_tokens": -1, "output_tokens": float("inf")}, "unavailable", 0),
+        )
+        for raw, expected_status, expected_total in cases:
+            with self.subTest(raw=raw):
+                usage = _usage(raw)
+                self.assertEqual(usage.status, expected_status)
+                self.assertEqual(usage.as_dict()["total_tokens"], expected_total)
+        self.assertEqual(_codex_usage({}).status, "unavailable")
+        self.assertEqual(
+            _codex_usage({"total": {"inputTokens": 0, "outputTokens": 0}}).status,
+            "reported",
+        )
+
+    async def test_codex_usage_snapshots_replace_totals_and_survive_terminal_failure(self):
+        for terminal in ("completed", "failed", "interrupted", "connection"):
+            with self.subTest(terminal=terminal):
+                events = [
+                    {
+                        "method": "thread/tokenUsage/updated",
+                        "params": {"turnId": "turn-1", "tokenUsage": {"total": {
+                            "inputTokens": 4, "outputTokens": output,
+                            "totalTokens": 4 + output,
+                        }}},
+                    }
+                    for output in (1, 2, 2)
+                ]
+                events.append({
+                    "method": "client/connection/closed" if terminal == "connection" else "turn/completed",
+                    "params": {"turn": {"id": "turn-1", "status": terminal}},
+                })
+                client = FakeCodexClient(events)
+                config = provider_execution(
+                    "openai", "gpt", "codex_app_server", auth_mode="codex_managed"
+                )
+                adapter = CodexAppServerAdapter(config, TIMEOUTS, client)
+                progress = []
+                try:
+                    if terminal == "completed":
+                        result = await adapter.execute(request(), progress_callback=progress.append)
+                        self.assertEqual(result.usage.total_tokens, 6)
+                        self.assertEqual(result.usage.status, "reported")
+                    elif terminal == "interrupted":
+                        with self.assertRaises(AgentCancelled):
+                            await adapter.execute(request(), progress_callback=progress.append)
+                    else:
+                        with self.assertRaises(AgentProviderException) as raised:
+                            await adapter.execute(request(), progress_callback=progress.append)
+                        self.assertEqual(raised.exception.error.usage.total_tokens, 6)
+                        if terminal == "connection":
+                            self.assertEqual(raised.exception.error.usage.status, "partial")
+                    snapshots = [event for event in progress if event.type == "usage_updated"]
+                    self.assertEqual([event.metadata["total_tokens"] for event in snapshots[:3]], [5, 6, 6])
+                    self.assertTrue(all(event.metadata["usage_status"] == "partial" for event in snapshots[:3]))
+                finally:
+                    await adapter.close()
+
+    async def test_openai_stream_close_failure_preserves_received_usage(self):
+        class BrokenCloseStream(FakeResponseStream):
+            async def close(self):
+                raise ConnectionError("stream connection closed")
+
+        final = SimpleNamespace(
+            id="resp-close", status="completed", output_text="done",
+            usage=SimpleNamespace(input_tokens=4, output_tokens=2, total_tokens=6),
+        )
+        stream = BrokenCloseStream([SimpleNamespace(type="response.completed", response=final)])
+        config = provider_execution("openai", "gpt", "responses", api_key="secret")
+        adapter = OpenAIResponsesAdapter(config, TIMEOUTS, SimpleNamespace(responses=FakeResponses(stream)))
+        with self.assertRaises(AgentProviderException) as raised:
+            await adapter.execute(request())
+        self.assertEqual(raised.exception.error.usage.total_tokens, 6)
+        self.assertEqual(raised.exception.error.usage.status, "reported")
+        self.assertEqual(raised.exception.error.request_id, "resp-close")
+
     async def test_codex_app_server_returns_ephemeral_text_only_turn(self):
         events = [
             {
@@ -378,40 +464,47 @@ class ProviderAdapterTests(unittest.IsolatedAsyncioTestCase):
             usage=SimpleNamespace(input_tokens=4, output_tokens=2, total_tokens=6),
             output_text="ignored",
         )
-        stream = FakeResponseStream(
-            [
-                SimpleNamespace(type="response.created", response=SimpleNamespace(id="resp-1")),
-                SimpleNamespace(type="response.output_text.delta", delta="hel"),
-                SimpleNamespace(type="response.output_text.delta", delta="lo"),
-                SimpleNamespace(type="response.completed", response=final),
-            ]
-        )
-        client = SimpleNamespace(responses=FakeResponses(stream))
-        config = provider_execution("openai", "gpt", "responses", api_key="secret")
-        result = await OpenAIResponsesAdapter(config, TIMEOUTS, client).execute(
-            request(max_output_tokens=123)
-        )
-        self.assertEqual(result.output, "hello")
-        self.assertEqual(result.request_id, "resp-1")
-        self.assertEqual(result.usage.total_tokens, 6)
-        self.assertEqual(result.finish_reason, "completed")
-        self.assertTrue(stream.closed)
-        options = client.responses.calls[0]
-        self.assertFalse(options["store"])
-        self.assertEqual(
-            options["input"],
-            [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "input_text", "text": "evidence"},
+        for getter_fallback in (False, True):
+            with self.subTest(getter_fallback=getter_fallback):
+                stream = FakeResponseStream(
+                    [
+                        SimpleNamespace(type="response.created", response=SimpleNamespace(id="resp-1")),
+                        SimpleNamespace(type="response.output_text.delta", delta="hel"),
+                        SimpleNamespace(type="response.output_text.delta", delta="lo"),
+                    ]
+                )
+                if not getter_fallback:
+                    stream.append(SimpleNamespace(type="response.completed", response=final))
+                stream.get_final_response = mock.AsyncMock(return_value=final)
+                events = []
+                client = SimpleNamespace(responses=FakeResponses(stream))
+                config = provider_execution("openai", "gpt", "responses", api_key="secret")
+                result = await OpenAIResponsesAdapter(config, TIMEOUTS, client).execute(
+                    request(max_output_tokens=123), progress_callback=events.append
+                )
+                self.assertEqual(result.output, "hello")
+                self.assertEqual(result.request_id, "resp-1")
+                self.assertEqual(result.usage.total_tokens, 6)
+                self.assertEqual(result.finish_reason, "completed")
+                self.assertTrue(stream.closed)
+                self.assertEqual(sum(event.type == "usage_updated" for event in events), 1)
+                self.assertEqual(stream.get_final_response.await_count, int(getter_fallback))
+                options = client.responses.calls[0]
+                self.assertFalse(options["store"])
+                self.assertEqual(
+                    options["input"],
+                    [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": "evidence"},
+                            ],
+                        }
                     ],
-                }
-            ],
-        )
-        self.assertNotIn("instructions", options)
-        self.assertNotIn("tools", options)
-        self.assertEqual(options["max_output_tokens"], 123)
+                )
+                self.assertNotIn("instructions", options)
+                self.assertNotIn("tools", options)
+                self.assertEqual(options["max_output_tokens"], 123)
 
     async def test_openai_failed_stream_preserves_safe_retryable_error(self):
         final = SimpleNamespace(

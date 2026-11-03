@@ -12,6 +12,7 @@ from unittest import mock
 from vraptor.autoruns import pipeline as autoruns
 from vraptor.hunt import live
 from vraptor.logging import operations as operation_log
+from tests.autoruns_vql_oracles import autoruns_accounting_vql
 
 BINARY = Path(resolve_velociraptor_binary(None, Path(__file__).resolve().parents[1]))
 
@@ -39,41 +40,13 @@ class AutorunsDiagnosticsTest(unittest.TestCase):
         self.assertEqual(api.query_batches.call_count, 1)
 
     @unittest.skipUnless(BINARY.exists(), 'Local Velociraptor binary unavailable')
-    def test_combined_golden_counts_match_three_original_scans(self):
-        rows = [{'Image Path': r'c:\app.exe', 'Launch String': '', 'Signer': '', 'Category': 'Logon'},
-                {'Image Path': r'c:\app.exe', 'Launch String': '', 'Signer': '', 'Category': 'Services'},
-                {'Image Path': r'c:\unknown.exe', 'Launch String': '', 'Signer': '', 'Category': 'Services'},
-                {'Image Path': '', 'Launch String': '', 'Signer': '', 'Category': 'Logon'}]
-        key = autoruns.trusted_key(image_path=r'c:\app.exe', launch_string='', signer='')
-        encoded = base64.b64encode(gzip.compress(json.dumps([key]).encode())).decode()
-        env = {}
-        where = live.autoruns_golden_where('Windows.Sysinternals.Autoruns',
-                configuration={'enabled': True, 'lookup_gzip_base64': encoded}, env=env)
-        prefix = 'LET TestRows = SELECT * FROM foreach(row=parse_json_array(data=Rows))\n'
-        with mock.patch.object(live, 'source_vql', return_value='TestRows'):
-            queries = [live.count_vql(''), live.count_vql(where),
-                       live.count_vql(live.combine_where(where, '(`Image Path` OR `Launch String`)')),
-                       live.autoruns_accounting_vql(where)]
-        results = []
-        for query in queries:
-            result = subprocess.run([str(BINARY), 'query', '--format=jsonl',
-                '--env', 'Rows=' + json.dumps(rows), '--env',
-                'AutorunsGoldenLookupGzipBase64=' + encoded, prefix + query],
-                capture_output=True, text=True, check=True, timeout=20)
-            results.append(json.loads(result.stdout))
-        # The two app.exe rows share the trusted identity across categories;
-        # unknown.exe and the blank identity remain in the general residual.
-        self.assertEqual([item['RowCount'] for item in results[:3]], [4, 2, 1])
-        self.assertEqual(results[3], {'SourceRows': 4, 'ResidualRows': 2, 'PopulatedRows': 1})
-
-    @unittest.skipUnless(BINARY.exists(), 'Local Velociraptor binary unavailable')
     def test_accounting_vql_executes_one_source_scan(self):
         rows = [{'Image Path': 'a', 'Launch String': '', 'Keep': False},
                 {'Image Path': 'b', 'Launch String': '', 'Keep': True},
                 {'Image Path': '', 'Launch String': '', 'Keep': True},
                 {'Image Path': '', 'Launch String': 'cmd /c x', 'Keep': True}]
         with mock.patch.object(live, 'source_vql', return_value='TestRows'):
-            query = live.autoruns_accounting_vql('Keep')
+            query = autoruns_accounting_vql('Keep')
         prefix = ('LET TestRows = SELECT * FROM foreach(row=parse_json_array(data=Rows))\n')
         result = subprocess.run([str(BINARY), 'query', '--format=jsonl',
                                  '--env', 'Rows=' + json.dumps(rows), prefix + query],

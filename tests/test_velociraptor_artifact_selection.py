@@ -602,6 +602,39 @@ class ExportArtifactInventoryRegressionTest(unittest.TestCase):
             },
         )
 
+    def test_analysis_fields_prefer_explicit_configuration_with_legacy_fallback(self):
+        self.assertEqual(
+            self.module.artifact_profiles.analysis_fields(
+                {
+                    "review": {
+                        "analysis_fields": ["Path", "Hash"],
+                        "sample_fields": ["Legacy"],
+                    }
+                }
+            ),
+            ["Path", "Hash"],
+        )
+        self.assertEqual(
+            self.module.artifact_profiles.analysis_fields(
+                {"review": {"sample_fields": ["Legacy", "Legacy"]}}
+            ),
+            ["Legacy"],
+        )
+
+        profiles = self.module.artifact_policy.load_artifact_policy().profiles
+        self.assertIn(
+            "EntryPath",
+            self.module.artifact_profiles.analysis_fields(
+                profiles["Windows.Detection.Amcache"]
+            ),
+        )
+        self.assertIn(
+            "Binary",
+            self.module.artifact_profiles.analysis_fields(
+                profiles["Windows.Forensics.Prefetch"]
+            ),
+        )
+
     def test_explicit_site_reference_overrides_environment_and_can_add_custom_artifact(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

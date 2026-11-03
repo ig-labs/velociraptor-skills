@@ -2,14 +2,35 @@
 import contextlib
 import io
 import json
+import re
+import shlex
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
 from vraptor.hunt import command as hunt_workflow
+from vraptor.hunt import live as live_hunt_analysis
 from vraptor.analyze import command as collection_analysis_cli
 from vraptor.api import VeloApiClient
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+DOC_GLOBS = ('README.md', 'docs/**/*.md', 'docs/**/*.md',
+             'skills/*/SKILL.md', 'skills/*/references/*.md')
+
+
+def documented_hunt_analyze_arguments():
+    paths = sorted({path for pattern in DOC_GLOBS for path in REPO_ROOT.glob(pattern)})
+    for path in paths:
+        text = path.read_text(encoding='utf-8')
+        # Line-anchored fences consume every block pair, so a ```json or ```text
+        # block cannot shift the pairing and hide the bash blocks after it.
+        for block in re.findall(r'^[ \t]*```[^\n]*\n(.*?)^[ \t]*```', text, re.S | re.M):
+            for line in re.sub(r'\\\n\s*', ' ', block).splitlines():
+                match = re.match(r'\s*(?:\./)?vraptor hunt analyze(\s.*)?$', line)
+                if match:
+                    yield path.relative_to(REPO_ROOT).as_posix(), match.group(1) or ''
 
 
 class QueryTimeoutTest(unittest.TestCase):
@@ -30,6 +51,18 @@ class QueryTimeoutTest(unittest.TestCase):
             with self.subTest(args=args), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit):
                     hunt_workflow.parse_args(['analyze', '--id', 'IR1'] + args)
+
+    def test_documented_hunt_analyze_examples_parse_and_route_autoruns_through_profile(self):
+        examples = list(documented_hunt_analyze_arguments())
+        self.assertTrue(examples)
+        for source, arguments in examples:
+            with self.subTest(source=source, arguments=arguments):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    args = hunt_workflow.parse_args(['analyze', *shlex.split(arguments)])
+                # command_analyze rejects these after opening the API otherwise.
+                if (set(args.artifact or ()) & live_hunt_analysis.AUTORUNS_ARTIFACTS
+                        and not args.use_case):
+                    self.assertEqual(args.profile, 'autoruns')
 
     def test_ceiling_reaches_server_and_grpc_for_all_query_entrypoints(self):
         for cap, explicit, expected in ((0, 0, 0), (1800, 0, 1800),

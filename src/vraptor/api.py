@@ -162,6 +162,29 @@ def is_org_not_found_error(exc: Exception) -> bool:
     return "org not found" in detail_text.lower()
 
 
+def is_resource_exhausted_error(exc: Exception, *, match_text: bool = False) -> bool:
+    """Classify gRPC RESOURCE_EXHAUSTED; match_text also accepts message text."""
+    code_method = getattr(exc, "code", None)
+    if callable(code_method):
+        try:
+            code = code_method()
+            # Test loaders and some gRPC wrappers may expose an equivalent
+            # StatusCode enum from another module instance. Compare the stable
+            # symbolic name as well as enum identity.
+            if (
+                code == grpc.StatusCode.RESOURCE_EXHAUSTED
+                or str(getattr(code, "name", "")) == "RESOURCE_EXHAUSTED"
+                or str(code).rsplit(".", 1)[-1] == "RESOURCE_EXHAUSTED"
+            ):
+                return True
+        except Exception:
+            pass
+    if not match_text:
+        return False
+    text = str(exc).lower()
+    return "resource exhausted" in text or "received message larger than max" in text
+
+
 def describe_query(vql: str, query_name: str) -> str:
     """Return a safe purpose label without retaining or rendering VQL text."""
     selected = str(query_name or "").strip()

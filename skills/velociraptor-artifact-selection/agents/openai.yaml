@@ -1,0 +1,4 @@
+interface:
+  display_name: "Velociraptor Artifact Selection"
+  short_description: "Choose artifacts, scenarios and field policy"
+  default_prompt: "Use $velociraptor-artifact-selection to inventory the live artifact_definitions() catalog, shortlist artifacts or detection scenarios, and resolve or validate artifact field, stack and site-overlay policy. Inventory is read-only; recovery commands for unavailable artifacts keep their supersession provenance and never add --force-run to the collection command."

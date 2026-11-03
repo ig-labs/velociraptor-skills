@@ -22,7 +22,7 @@ Resolve the collection against the connected server without finding, queueing,
 or persisting any flows:
 
 ```bash
-./dfir collect plan \
+./vraptor collect plan \
   --id IR1234 \
   --client-id C.0123456789abcdef \
   --bundle ir-standard-live
@@ -31,7 +31,7 @@ or persisting any flows:
 Run the same exact capability-aware request with safe reuse:
 
 ```bash
-./dfir collection ensure \
+./vraptor collect ensure \
   --id IR1234 \
   --client-id C.0123456789abcdef \
   --bundle ir-standard-live

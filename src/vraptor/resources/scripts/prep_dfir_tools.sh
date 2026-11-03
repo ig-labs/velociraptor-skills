@@ -9,7 +9,7 @@
 #   - The Sleuth Kit / TSK  (https://github.com/sleuthkit/sleuthkit)
 #
 # Usage:
-#   ./dfir tools prep [OPTIONS]
+#   ./vraptor tools prep [OPTIONS]
 #
 # Options:
 #   -d <dir>   Override tool staging directory; Velociraptor appends /velociraptor/velociraptor
@@ -27,10 +27,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${AI_SKILLS_REPO_ROOT:-$PWD}"
 ENV_HELPER="${SCRIPT_DIR}/load_repo_env.sh"
 VENV_DIR="${REPO_ROOT}/.venv"
+# Only a checkout's own requirements are installed; standalone installs already
+# have vraptor, so there is no packaged fallback to resolve from a public index.
 REQUIREMENTS_FILE="${REPO_ROOT}/requirements.txt"
-if [[ ! -f "$REQUIREMENTS_FILE" ]]; then
-    REQUIREMENTS_FILE="${SCRIPT_DIR}/requirements.txt"
-fi
 VENV_PYTHON="${VENV_DIR}/bin/python"
 VENV_LOG2TIMELINE="${VENV_DIR}/bin/log2timeline"
 VELOCIRAPTOR_INIT_SECONDS=10
@@ -51,7 +50,7 @@ if [ -f "$ENV_HELPER" ]; then
     load_repo_env "$REPO_ROOT"
 fi
 
-VELOCIRAPTOR_API_USER="${VELO_LOCAL_API_USER:-codex}"
+VELOCIRAPTOR_API_USER="${VELO_LOCAL_API_USER:-vraptor}"
 VELOCIRAPTOR_LOCAL_PORTS="${VELO_LOCAL_PORTS:-8000 8001 8889}"
 TOOLS_DATA_ROOT="${AI_SKILLS_TOOLS_DATA_ROOT:-${REPO_ROOT}}"
 DOWNLOAD_DIR="${TOOLS_DATA_ROOT}/tools"
@@ -161,7 +160,7 @@ github_release_download_url() {
 usage() {
     printf '%s\n' \
         "Usage:" \
-        " ./dfir tools prep [OPTIONS]" \
+        " ./vraptor tools prep [OPTIONS]" \
         "" \
         "Options:" \
         " -d <dir>   Override tool staging directory; Velociraptor appends /velociraptor/velociraptor" \

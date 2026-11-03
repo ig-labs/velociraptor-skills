@@ -8,9 +8,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_SCRIPT = (
-    REPO_ROOT / "src/vraptor/resources/scripts/prep_dfir_tools.sh"
-)
+SCRIPT_RELATIVE = Path("src/vraptor/resources/scripts/prep_dfir_tools.sh")
+SOURCE_SCRIPT = REPO_ROOT / SCRIPT_RELATIVE
 BASH = shutil.which("bash") or "/bin/bash"
 DIRNAME = shutil.which("dirname")
 MKDIR = shutil.which("mkdir")
@@ -22,9 +21,7 @@ class PrepDfirToolsShellTest(unittest.TestCase):
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
         repo_root = Path(temp_dir.name) / "ai-skills"
-        script_path = (
-            repo_root / "src/vraptor/resources/scripts/prep_dfir_tools.sh"
-        )
+        script_path = repo_root / SCRIPT_RELATIVE
         script_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(SOURCE_SCRIPT, script_path)
         return repo_root, script_path
@@ -87,8 +84,9 @@ class PrepDfirToolsShellTest(unittest.TestCase):
         env = dict(os.environ)
         for key in ("VELO_BIN", "AI_SKILLS_TOOLS_DATA_ROOT", "VELO_LOCAL_VERSION_TAG"):
             env.pop(key, None)
-        env["AI_SKILLS_REPO_ROOT"] = str(script_path.parents[4])
-        env["HOME"] = str(script_path.parents[5] / "home")
+        repo_root = script_path.parents[len(SCRIPT_RELATIVE.parts) - 1]
+        env["AI_SKILLS_REPO_ROOT"] = str(repo_root)
+        env["HOME"] = str(repo_root.parent / "home")
         if env_overrides:
             env.update(env_overrides)
         return subprocess.run(
@@ -107,7 +105,7 @@ class PrepDfirToolsShellTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertEqual(result.stderr, "")
         self.assertIn("Usage:", result.stdout)
-        self.assertIn("./dfir tools prep [OPTIONS]", result.stdout)
+        self.assertIn("./vraptor tools prep [OPTIONS]", result.stdout)
         self.assertIn("Prepare a specific component: venv | plaso | velociraptor | volatility | tsk | all", result.stdout)
         self.assertIn("--init-velociraptor-workspace", result.stdout)
 
@@ -167,6 +165,53 @@ class PrepDfirToolsShellTest(unittest.TestCase):
             "-m pip install --upgrade pip setuptools wheel",
         )
         self.assertFalse(python3_stub_log.exists())
+
+    def test_venv_installs_only_checkout_requirements_from_the_checkout(self):
+        repo_root, script_path = self.make_temp_repo()
+        fake_bin = self.make_fake_bin(repo_root)
+        self.write_stub_python3(fake_bin)
+        os.symlink(shutil.which("grep"), fake_bin / "grep")
+        log = repo_root / "venv-python.log"
+        venv_python = repo_root / ".venv/bin/python"
+        venv_python.parent.mkdir(parents=True)
+        venv_python.write_text('#!/bin/sh\nprintf "%s|%s\\n" "$PWD" "$*" >> "$VENV_PYTHON_LOG"\n')
+        venv_python.chmod(0o755)
+        # A requirements file beside the packaged script is never a fallback:
+        # resolving it from a public index would install an unclaimed name.
+        (script_path.parent / "requirements.txt").write_text("vraptor[ai]==0.1.0\n")
+        env = {
+            "PATH": str(fake_bin),
+            "VENV_PYTHON_LOG": str(log),
+            "PYTHON3_STUB_LOG": str(repo_root / "python3-stub.log"),
+        }
+
+        result = self.run_script(script_path, "-t", "venv", env_overrides=env)
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            [line.split("|", 1)[1] for line in log.read_text(encoding="utf-8").splitlines()],
+            ["-m pip install --upgrade pip setuptools wheel"],
+        )
+
+        # A checkout's requirements install from the checkout so relative
+        # editable paths resolve.
+        requirements = repo_root / "requirements.txt"
+        requirements.write_text("-e ./packages/vraptor\n")
+        log.unlink()
+        work_dir = repo_root / "elsewhere"
+        work_dir.mkdir()
+        result = subprocess.run(
+            [BASH, str(script_path), "-t", "venv"], text=True, capture_output=True,
+            check=False, cwd=work_dir,
+            env={**os.environ, **env, "AI_SKILLS_REPO_ROOT": str(repo_root),
+                 "HOME": str(repo_root.parent / "home")},
+        )
+
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(
+            f"{repo_root}|-m pip install -r {requirements}",
+            log.read_text(encoding="utf-8").splitlines(),
+        )
 
     def write_stub_curl(self, fake_bin):
         curl = fake_bin / "curl"

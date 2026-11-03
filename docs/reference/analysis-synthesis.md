@@ -1,9 +1,12 @@
 # Preliminary analysis and optional synthesis
 
 Host, collection and live hunt analysis accept `--synthesis none|full`.
-The CLI default is `none` for host, collection and live hunt analysis. Calling
-analysts review the returned candidates. Use `--synthesis full` explicitly when
-the harness should write the final assessment.
+The CLI default is `full` for host, collection and live hunt analysis. The harness
+performs final review and writes its analysis report unless `--synthesis none`
+explicitly disables synthesis. In `none` mode, calling analysts review the returned
+preliminary candidates; artifact/chunk analysis still uses AI. `--skip-ai` disables
+all model work, including synthesis, regardless of this setting. Full synthesis does
+not create the caller-owned `assessment-host.md` or `assessment-hunt.md`.
 The switch affects only this invocation; it does not change saved AI settings.
 
 | Mode | Model work | Result |
@@ -15,6 +18,8 @@ The switch affects only this invocation; it does not change saved AI settings.
 Snapshot and saved-export preparation remain preparation-only workflows. Selecting
 `full` on those paths does not introduce model review. Use live source analysis or
 a retained accepted analysis checkpoint for AI synthesis.
+
+For full analysis, omit the switch. To request preliminary candidates explicitly:
 
 ```sh
 vraptor analyze --id IR1234 --client C.EXAMPLE --flow F.EXAMPLE --synthesis none
@@ -71,7 +76,8 @@ This command validates saved candidates and their integrity, runs only scope
 synthesis, and writes `synthesis-summary.md` beside the checkpoint. It does not
 query Velociraptor, recollect, rerun chunks, advance hunt cursors or replace the
 original analysis report. The summary and its input fingerprint are cached in
-the existing checkpoint. An identical repeat uses zero model calls. The cache
+the existing checkpoint. An identical repeat uses zero model calls and refreshes
+`synthesis-summary.md` using the current reporting settings. The cache
 depends on accepted evidence, question, analysis policy, model/route, reasoning,
 limits and contract version. A changed review setting reruns only synthesis.
 `--force-synthesis` bypasses this summary cache. Old hunt checkpoints lacking
@@ -81,20 +87,39 @@ Padding variants such as `S1-R01` are repaired locally only when they uniquely
 identify the existing `S0001-R1`. Duplicate disposition references are collapsed.
 Unknown sources, ambiguous identities and references belonging to a different
 candidate remain validation failures, with bounded received/allowed diagnostics.
+Synthesis prompts distinguish evidence from context references and list the
+context references visible after projection. `DISPOSITION` references must
+belong to that exact candidate. Downgraded candidates need no duplicate `CONTEXT`
+record: Python produces their context from the validated disposition. Correction
+attempts receive the rejected record type, reference and allowed alternatives;
+exhausted validation still leaves the final assessment failed and candidates intact.
+Supported dispositions must map to an existing output finding and select only
+candidate references also present under that finding's `EVIDENCE` records. Missing
+finding IDs and mismatched evidence produce separate correction defects. Saved
+synthesis writes latest-run metadata and bounded attempts to
+`synthesis-diagnostics.json`, including failed, interrupted and cached invocations;
+the original artifact analysis diagnostics remain unchanged.
 
 ## Validation
 
-Synthetic call-count checks cover one or multiple artifacts and direct or chunked
-analysis. For C chunks across A chunked artifacts, preliminary host analysis uses
-C calls; full analysis uses C + A + 1, excluding correction/transport retries.
-Single-chunk artifacts need no artifact synthesis. Saved-summary cache hits use
-zero calls. These are call-count guarantees, not live latency measurements.
+For generic host analysis with C chunks across A chunked artifacts, preliminary
+analysis uses C calls; full analysis uses C + A + 1, excluding correction/transport
+retries. Single-chunk artifacts need no artifact synthesis. Specialized routes
+can have additional classification passes; hunt scope synthesis can reuse a
+single accepted artifact without another call. Saved-summary cache hits use zero
+calls. These counts describe the tested paths, not live latency or usage estimates.
 
 ```sh
 .venv/bin/python -m pytest -q tests/test_synthesis_modes.py tests/test_flow_analysis.py tests/test_host_final_review.py tests/test_collection_analysis_runtime.py
 ```
 
 ## Caller assessment files
+
+| File | Owner and purpose |
+| --- | --- |
+| `analysis-host.md` / `analysis-hunt.md` | Harness-generated analysis, with review and coverage status. |
+| `synthesis-summary.md` | Harness review of saved accepted candidates, created by `summarize`. |
+| `assessment-host.md` / `assessment-hunt.md` | Caller-reviewed conclusions and cross-artifact correlation. |
 
 After caller review, write `systems/<host>/assessment-host.md` for a host or
 `hunts/<hunt-id>/assessment-hunt.md` for a hunt under the case directory. These
@@ -109,3 +134,24 @@ next actions. Mark partial coverage explicitly. Recheck source fingerprints
 before reusing an assessment; later harness runs do not update it automatically.
 Update the caller assessment after reviewing new evidence. Avoid `final` in the
 filename because a completed review can retain unresolved leads.
+
+To start a fresh assessment from processed evidence:
+
+1. Select the exact request/hunt checkpoint and inspect its review and coverage
+   status. Use `analysis-results` for bounded candidate retrieval as needed.
+2. Review the linked artifact results, correlate claims and references, and
+   retain uncertainty and unresolved leads. Do not recollect or reset analysis
+   merely to write an assessment.
+3. Write the assessment with the provenance above. When a fresh revision is
+   requested and an assessment already exists, preserve it as a dated revision
+   before replacing the current file.
+
+An assessment can retain partial coverage; it must not imply that missing evidence
+was reviewed. `summarize` and `reports render` do not perform this caller workflow.
+
+Use the shared [reporting policy](reporting-policy.md) for finding priority,
+display budgets and omission counts. Priority is distinct from confidence. When
+reducing detail, higher-priority findings displace lower-priority detailed entries;
+retain the displaced entries in the findings index and preserve source references.
+`reports render` can rebuild a derived report from a retained checkpoint without
+another analysis call. It does not update caller assessments automatically.

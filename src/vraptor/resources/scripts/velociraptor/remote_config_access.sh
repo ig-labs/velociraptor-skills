@@ -78,7 +78,7 @@ build_remote_config_steps() {
     config"
     if [ "${REMOTE_CONFIG_KIND:-api}" = api ]; then
         generation+=" api_client --name $(shell_quote "$API_USER") \\
-    --role $(shell_quote "$API_ROLES") $output"
+    $output"
     else
         generation+=" client > $output"
     fi

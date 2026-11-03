@@ -1,45 +1,48 @@
 ---
 name: velociraptor-host-analysis
-description: Perform fast, evidence-backed analysis of one Velociraptor endpoint through exact-flow reuse and the configurable artifact-scoped analyst pool. Use for host analysis by client ID, hostname, collection scope, or explicit artifact on Windows, Linux, or macOS.
+description: Perform evidence-backed investigation of one Velociraptor endpoint on Windows, Linux, or macOS by client ID, hostname, collection scope, or explicit artifact, through exact-flow reuse and the configurable artifact-scoped analyst pool. Not for cross-host questions; use velociraptor-hunting.
 ---
 
 # Velociraptor Host Analysis
 
-**Required server prerequisite:** follow the shared
-[DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md)
-for every new local server and connected live/remote server. If the live catalog
-contains no `DetectRaptor.` artifacts, run `Server.Import.Extras` with the
-DetectRaptor CSV row and verify installation before proceeding. Reuse a successful
-session check; a failed import blocks the workflow. Explicit read-only/no-import
-instructions and offline-only work retain their scope.
+**Server prerequisite:** complete the [DetectRaptor bootstrap](../../docs/reference/detectraptor-bootstrap.md) for each new local or connected live/remote server before server work; a failed import blocks the workflow.
 
-The standalone `vraptor` CLI uses the same case paths and configuration. Use
-`vraptor analyze --flow F.ID --client C.ID --id ID` or
-`vraptor analyze --hunt H.ID --id ID` for existing evidence only. Collection,
-client retries and GoldenDB uploads remain explicit. Legacy `dfir`
-routes retain their behavior. See the [shared CLI contract](../../docs/contracts/cli.md).
+Analyze one endpoint. Use `velociraptor-hunting` for cross-host questions and
+`velociraptor-artifact-selection` when the required artifact is unknown. For
+existing evidence only, `vraptor analyze --flow F.ID --client C.ID --id ID`
+never collects; see the [shared CLI contract](../../docs/contracts/cli.md).
 
-When acting as the calling analyst, pass `--synthesis none`, retrieve bounded
-candidates with `vraptor analysis-results`, then perform the final evidence review
-and cross-artifact correlation here. Use `--synthesis full` when the user requests
-a standalone harness report. Follow the shared [synthesis contract](../../docs/reference/analysis-synthesis.md)
-for saved-summary reuse, pagination, partial coverage and preliminary labels.
+The CLI defaults to `--synthesis full`; use it for normal analysis. Only add
+`--synthesis none` when preliminary-only analysis or caller-only final review is
+requested. In that mode, retrieve bounded candidates with
+`vraptor analysis-results` and perform the final evidence review and
+cross-artifact correlation here. Use `--skip-ai` when only deterministic
+preparation is requested; it takes precedence and prevents all model calls, and
+a prepared result is not an AI assessment. Save caller-reviewed host conclusions
+as `assessment-host.md` and hunt conclusions as `assessment-hunt.md`. Before
+using these modes, read the shared
+[synthesis contract](../../docs/reference/analysis-synthesis.md)
+(saved-summary reuse, pagination, partial coverage, preliminary labels, and the
+[caller assessment files](../../docs/reference/analysis-synthesis.md#caller-assessment-files)
+provenance and freshness rules) or the
+[no-AI preparation contract](../../docs/reference/analysis-skip-ai.md)
+(outputs, limitations and review status).
 
-The CLI defaults to `--synthesis none`; request `--synthesis full` explicitly
-for harness synthesis. Save caller-reviewed host conclusions as
-`assessment-host.md` and hunt conclusions as `assessment-hunt.md`, following
-the provenance and freshness requirements in the shared
-[synthesis contract](../../docs/reference/analysis-synthesis.md#caller-assessment-files).
+Read only what the task needs, before the step it governs:
 
-Use `--skip-ai` on the analysis command when only deterministic preparation is
-requested. Follow the shared [no-AI preparation contract](../../docs/reference/analysis-skip-ai.md)
-for outputs, limitations and review status. A prepared result is not an AI assessment.
-
-Analyze one endpoint. Use `velociraptor-hunting` for cross-host questions and `velociraptor-artifact-selection` when the required artifact is unknown.
-Read [operating-contract.md](references/operating-contract.md), the shared [authorization policy](../../docs/reference/velociraptor-operation-authorization.md),
-[analysis reduction contract](../../docs/reference/analysis-reduction-contract.md), and
-[finding enrichment workflow](../../docs/reference/indicator-enrichment-workflow.md), and
-[server-profile/engagement context](../../docs/reference/velociraptor-engagement-context.md).
+- [operating-contract.md](references/operating-contract.md) before a
+  `--force-run` decision, resume, reset or forward validation, or when worker,
+  flow-ranking or saved-state boundaries matter.
+- The shared [authorization policy](../../docs/reference/velociraptor-operation-authorization.md)
+  before `--force-run`, retries, cancellation or any action beyond normal
+  collection, reuse, monitoring and explicit export.
+- The [analysis reduction contract](../../docs/reference/analysis-reduction-contract.md)
+  before scoping a question, judging coverage or handing results to another
+  workflow.
+- The [finding enrichment workflow](../../docs/reference/indicator-enrichment-workflow.md)
+  for each material finding (workflow step 12).
+- The [server-profile/engagement context](../../docs/reference/velociraptor-engagement-context.md)
+  when choosing `--server-profile`, case paths or readiness.
 
 ## Non-negotiable rules
 
@@ -52,9 +55,11 @@ Read [operating-contract.md](references/operating-contract.md), the shared [auth
 7. Do not manually spawn artifact or chunk agents; the CLI owns the globally bounded pool.
 8. Require validated line-oriented analyst results; models select source references
    and field names, while Python hydrates exact evidence values.
-9. Require validated final AI dispositions before publishing findings, even for one artifact/chunk.
+9. Publish supported findings only after final review: caller review with
+   `--synthesis none`, or validated harness dispositions with `--synthesis full`,
+   including one artifact/chunk.
 10. Export only on explicit request or evidential need, never to rescue analysis.
-11. Use skill contracts and documented `dfir --help`; do not inspect Python
+11. Use skill contracts and documented `vraptor --help`; do not inspect Python
     implementation to discover investigation workflow or CLI semantics.
 12. Never manually construct readiness manifests or poll a saved request without
     every required flow ID.
@@ -87,7 +92,7 @@ already validated matching analysis checkpoint may be reused.
 5. Run the canonical command once:
 
    ```bash
-   dfir collect analyze \
+   vraptor collect analyze \
      --investigation-id IR1234 \
      --server-profile lab7 \
      --client-id C.1234abcd \
@@ -132,33 +137,10 @@ already validated matching analysis checkpoint may be reused.
 
 ## Server-capability recovery
 
-When collection preflight reports unavailable artifacts:
+- When collection preflight reports unavailable artifacts (`artifact_preflight.missing_artifacts` in the request `state.json`), do not add `--force-run`, retry the failed request, or inspect implementation code; follow [server-capability recovery](../velociraptor-artifact-selection/SKILL.md#server-capability-recovery).
+- Preserve the same question, keep the disposable inventory cache out of `evidence/`, cap the replacement report at `complete_with_failures`, and report a skill-documentation gap when the skills and documented CLI do not define the required operation.
 
-1. Do not add `--force-run`, retry the failed request, or inspect implementation code.
-2. Read `artifact_preflight.requested_artifacts`, `available_artifacts`, and
-   `missing_artifacts` from the request `state.json`. Confirm its `checked_at`,
-   `api_client_path`, `api_client_sha256`, and `org_id` provenance. Available
-   artifacts are the requested names present on that server, not the complete
-   server catalog.
-3. Use `velociraptor-artifact-selection` to refresh one disposable live-inventory
-   cache when the saved
-   preflight is absent, a live artifact request fails, or it predates an API config, org, or
-   artifact-import change. Do not write per-question inventory directories under
-   `evidence/`; Velociraptor remains authoritative.
-4. Compare the requested membership in
-   `../velociraptor-collection/references/collection-types.md` with the live inventory.
-5. For a broad `all` question, start one new request containing the full supported
-   intersection as repeated `--artifact` values. Use a named type only when its full
-   membership preserves the intended scope. Preserve the same question.
-6. Add `--supersedes-request-id FAILED_ID`, repeat `--unavailable-artifact` for the
-   exact missing set, and repeat `--artifact` for the exact available set. Runtime
-   validation rejects stale or incomplete partitions and any failed request that
-   already owns a flow.
-7. The replacement report retains the failed request ID and unavailable artifacts,
-   is capped at `complete_with_failures`, and must not claim complete baseline
-   coverage.
-8. If the skills and documented CLI do not define the required operation, report a
-   skill-documentation gap instead of reverse-engineering Python.
+## Analyst pool and settings
 
 The manager polls all request artifacts, fans each newly terminal flow into analysis once, and continues polling unfinished flows. The default reconciliation interval is 30 seconds; completion events may wake it earlier.
 The runtime sends a fitting artifact to one analyst. Oversized artifacts split into contiguous chunks and run as artifact lanes in the same host-scoped async scheduler, sharing one runner/client, one flat global concurrency limit, one production-credit bound, and one in-flight token-weight bound. With `AI_SKILLS_ANALYST_AGENT_TRANSPORT=codex_app_server`, those requests are ephemeral turns on one shared Codex daemon connection, not separate Codex processes.
@@ -167,32 +149,13 @@ receive one synthesis pass and every host run receives final AI review, includin
 one artifact with one chunk. With `--synthesis none`, the caller reviews the
 validated candidates. See [final-review.md](references/final-review.md).
 
-Actual execution uses the shared `AI_SKILLS_ANALYST_AGENT_*` settings and optional
-TOML execution profiles. Use `vraptor ai config` or offline `vraptor ai doctor`
-to inspect the effective model, endpoint and provenance before analysis. Setup is
-documented in repository `docs/model-execution.md`; model selection is independent
-of artifact profiles. Analysis limits resolve once per host operation and tighten
-to an explicit model context. Claude managed login ignores inherited API/token
-credentials in its subprocess; they may remain set for direct API profiles.
-Claude uses shared budgets when model limits are
-omitted.
-Setup saves per-profile input/output budgets and fills shared `[analysis_defaults]`.
-Claude aliases `haiku`, `sonnet`, `opus`, and `fable` have dated default-model budget
-references in setup and run-only overrides. Haiku is capped at 200000 context /
-64000 output; its defaults are 120000 input / 64000 output. The other three default
-to 872000 input / 128000 output within 1000000 context. Setup and run-only overrides
-require at least 100000 input and 32000 output; smaller configured caps remain
-binding and are rejected if they cannot fit both minimums. For remapped aliases,
-use the exact model ID or smaller deployment caps;
-these references do not verify the native client's current alias resolution.
-Optional analysis flags `--execution-profile`, `--ai-config-file`, `--model`,
-`--reasoning-effort`, `--max-input-tokens TOKENS|max` and
-`--max-output-tokens TOKENS|max` override environment and saved settings for this
-run only. See `docs/model-execution.md` under **Analysis model overrides** for
-deployment ceilings, standard-price maxima and the input/output minimums.
-Artifact profiles use
-`analysis_routes`; code owns the route-to-task mapping and accepts only
-`high-volume`, `reasoning`, and `synthesis`.
+**AI analyst settings:** inspect with `vraptor ai config` and `vraptor ai doctor`; run-only overrides include `--model`, `--reasoning-effort`, `--execution-profile`, `--ai-config-file`, `--max-input-tokens` and `--max-output-tokens` ([full list](../../docs/model-execution.md#analysis-model-overrides)). Setup: [AI analyst configuration](../velociraptor-engagement-setup/references/configuration.md#ai-analyst-configuration). Budgets and execution: [model execution](../../docs/model-execution.md).
+
+Inspect the effective model, endpoint and provenance before analysis. Model
+selection is independent of artifact profiles, and analysis limits resolve once
+per host operation. Artifact profiles use `analysis_routes`; code owns the
+route-to-task mapping and accepts only `high-volume`, `reasoning`, and
+`synthesis`.
 
 For diagnosis, `--debug` writes schema-2 bounded, value-free `analysis/host-analysis-validation-debug.json`. It covers every collection type and explicit artifact run; records provider/model/protocol selection and provenance, request-option presence, timing, usage, retries, safe HTTP status/error metadata, validation failures, and synthesis status; and excludes prompts, model output, raw provider payloads, stderr, runtime files, raw rows, and evidence values.
 
@@ -290,9 +253,21 @@ this inspection without model calls. Follow the shared
 [prompt export contract](../../docs/reference/chunk-prompt-debug.md).
 Queued/running
 status is in-memory only. A failed component does not block sibling artifacts and
-remains terminal until explicitly selected for reanalysis. Use repeatable
-`--reset-artifact NAME --request-id REQUEST_ID` or
-`--reset-analysis --request-id REQUEST_ID`; neither option recollects evidence.
+remains terminal until explicitly selected for reanalysis. Use
+`--retry-failed --request-id REQUEST_ID` to resume it with accepted chunks reused,
+or repeatable `--reset-artifact NAME --request-id REQUEST_ID` or
+`--reset-analysis --request-id REQUEST_ID` to discard accepted work; none of these
+recollects evidence. A chunk whose correction attempts all fail validation is
+recorded, then gets one AI repair call in the same run (at most 4 per run;
+`--chunk-repair-limit 0` disables). A repaired chunk is published but labelled
+`accepted after AI repair ... verify these rows in Velociraptor`; report that
+label with any finding from those rows. A chunk that still fails is named in the summary
+(for example `chunk 71/71 rows 6901-7000 ... failed after 3 attempts`) and recorded
+value-free in the request's `analysis/failed-chunks.json`. After the operator reviews
+those rows, `--waive-failed-chunk KEY --waive-reason TEXT` publishes the accepted
+chunks with the gap named; never waive a chunk without that review. See
+[chunk repair](../../docs/reference/analysis-recovery.md#repair-a-chunk-after-its-correction-attempts) and
+[failed-chunk review](../../docs/reference/analysis-recovery.md#review-chunks-that-fail-every-attempt).
 
 The response includes structured `analysis_result` for automation and a bounded Markdown `chat_summary` with status, assessment, findings, finding-linked context, limitations, and next action; chat/GUI callers surface it without another model call.
 
@@ -310,7 +285,11 @@ See [report-contract.md](references/report-contract.md).
 ## Failure behavior
 - Stop if the configured read-only analyst runner is unavailable.
 - Mark failed collection or analysis tasks as coverage failures.
-- Retry an objectively unusable output once, then stop retrying that task.
+- Use the configured validation-correction budget (two extra attempts by default),
+  separately from transport retries. When it is exhausted, the runtime makes one
+  bounded AI repair call; do not add further attempts by hand. Follow
+  the shared [recovery contract](../../docs/reference/analysis-recovery.md)
+  to resume failed work without discarding accepted results.
 - Distinguish completed candidate analysis from final review. Claim a completed
   assessment only after required coverage and the harness or caller review validate.
 - Use `complete_with_failures` when defensible results exist with coverage loss.

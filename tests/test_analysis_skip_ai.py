@@ -31,7 +31,9 @@ class SkipAiTest(unittest.TestCase):
              mock.patch.object(host, "build_workload", return_value=(plan(), {0: "SECRET_EVIDENCE"})), \
              mock.patch.object(host, "resolve_agent_execution", side_effect=AssertionError("credentials")), \
              mock.patch.object(host, "execute_incremental_analysis_async", side_effect=AssertionError("model")):
-            result = run_analysis(object(), args(skip_ai=True))
+            for selected in ("full", "none"):
+                result = run_analysis(object(), args(skip_ai=True, synthesis=selected))
+                self.assertEqual(result["ai_review_status"], "skipped")
             self.assertEqual(result["ai_review_status"], "skipped")
             self.assertFalse(result["review_complete"])
             saved = Path(result["analysis_plan_file"]).read_text()

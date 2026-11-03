@@ -33,8 +33,8 @@ def add_skip_ai_argument(parser: argparse.ArgumentParser) -> None:
 
 def add_synthesis_argument(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
-        "--synthesis", choices=("none", "full"), default="none",
-        help="none (default) returns preliminary candidates for caller review without artifact/host/hunt AI synthesis; full explicitly requests a final assessment. Run-only.",
+        "--synthesis", choices=("none", "full"), default="full",
+        help="full (default) performs artifact and host/hunt AI synthesis; none returns preliminary candidates without synthesis. --skip-ai disables all AI work. Run-only.",
     )
 
 
@@ -46,6 +46,26 @@ def add_prompt_debug_argument(parser: argparse.ArgumentParser) -> None:
             "Explicitly export up to N standard chunk prompts and their AI responses, "
             "including evidence, under the case debug/chunk-prompts directory. Flag alone "
             "saves one; omitted saves none. Separate from metadata-only --debug."
+        ),
+    )
+    parser.add_argument(
+        "--keep-failed-chunk-evidence", action="store_true",
+        help=(
+            "Explicitly export the prompts, raw AI responses and validator messages of "
+            "chunks that fail every attempt, including evidence, under the case "
+            "debug/failed-chunks directory. The default failed-chunk record holds no "
+            "evidence values or model output."
+        ),
+    )
+
+
+def add_chunk_repair_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--chunk-repair-limit", type=int, choices=range(0, 21), default=None, metavar="N",
+        help=(
+            "After a chunk fails every correction attempt, it is recorded and gets one AI "
+            "repair call that must pass the same validation. N caps repair calls per "
+            "run (default 4, or AI_SKILLS_ANALYST_AGENT_CHUNK_REPAIR_LIMIT); 0 disables."
         ),
     )
 

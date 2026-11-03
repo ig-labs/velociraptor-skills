@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import tempfile
+from dataclasses import replace
 from importlib.metadata import version
 from typing import Any
 
+from vraptor.agent.model_budgets import adaptive_thinking
 from vraptor.agent.providers import (
     _BaseAdapter,
     _get,
@@ -18,9 +20,41 @@ from vraptor.agent.runtime import (
     AgentError,
     AgentProviderException,
     AgentRequest,
+    AgentUsage,
     ProviderCapabilities,
     ProviderResponse,
 )
+
+
+def _message_usage_snapshot(known: dict[str, Any], event: Any) -> AgentUsage:
+    """Merge cumulative message counters without summing repeated stream updates."""
+    raw = (
+        _get(_get(event, "message"), "usage")
+        if _get(event, "type") == "message_start"
+        else _get(event, "usage")
+    )
+    for name in (
+        "input_tokens", "output_tokens", "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+    ):
+        value = _get(raw, name)
+        if value is not None:
+            known[name] = value
+    usage = _usage(known)
+    return (
+        replace(usage, availability="partial")
+        if usage.status != "unavailable"
+        else usage
+    )
+
+
+# Unsuccessful Claude stop reasons; any other non-end_turn stop is incomplete.
+_STOP_CLASSIFICATIONS = {
+    "max_tokens": "output_limit_reached",
+    # Claude 4.5+ accepts input + max_tokens over the window and stops here.
+    "model_context_window_exceeded": "context_window_exceeded",
+    "refusal": "refusal",
+}
 
 
 class AnthropicMessagesAdapter(_BaseAdapter):
@@ -55,7 +89,8 @@ class AnthropicMessagesAdapter(_BaseAdapter):
         }
         output_config: dict[str, Any] = {}
         if self.configuration.reasoning_effort:
-            options["thinking"] = {"type": "adaptive"}
+            if adaptive_thinking("anthropic", self.configuration.model):
+                options["thinking"] = {"type": "adaptive"}
             output_config["effort"] = self.configuration.reasoning_effort
         if request.output_schema:
             output_config["format"] = {
@@ -71,11 +106,7 @@ class AnthropicMessagesAdapter(_BaseAdapter):
         request_id = str(_get(response, "_request_id", "") or _get(response, "id", ""))
         usage = _usage(_get(response, "usage"))
         if reason != "end_turn":
-            classification = (
-                "output_limit_reached"
-                if reason == "max_tokens"
-                else "incomplete_response"
-            )
+            classification = _STOP_CLASSIFICATIONS.get(reason, "incomplete_response")
             raise AgentProviderException(
                 AgentError(
                     classification,
@@ -97,6 +128,9 @@ class AnthropicMessagesAdapter(_BaseAdapter):
                         "unexpected_tool_use",
                         "Anthropic returned a non-text action",
                         False,
+                        request_id=request_id,
+                        usage=usage,
+                        finish_reason=reason,
                     )
                 )
         return ProviderResponse(
@@ -118,6 +152,9 @@ class AnthropicMessagesAdapter(_BaseAdapter):
         if self.client is None:
             self.client = self._build_client()
         options = self._request_options(request)
+        known_usage: dict[str, Any] = {}
+        usage = AgentUsage()
+        request_id = ""
         try:
             if not request.stream:
                 response = await self.client.messages.create(**options)
@@ -127,6 +164,16 @@ class AnthropicMessagesAdapter(_BaseAdapter):
                         if cancellation:
                             cancellation.raise_if_cancelled()
                         kind = _get(event, "type", "")
+                        if kind in {"message_start", "message_delta"}:
+                            if kind == "message_start":
+                                request_id = str(_get(_get(event, "message"), "id", ""))
+                            usage = _message_usage_snapshot(known_usage, event)
+                            if usage.status != "unavailable":
+                                self._emit(
+                                    progress_callback, request, "usage_updated", attempt,
+                                    request_id=request_id, usage_status=usage.status,
+                                    **usage.as_dict(),
+                                )
                         if kind == "message_start":
                             self._emit(
                                 progress_callback,
@@ -156,13 +203,16 @@ class AnthropicMessagesAdapter(_BaseAdapter):
                 "usage_updated",
                 attempt,
                 request_id=result.request_id,
+                usage_status=result.usage.status,
                 **result.usage.as_dict(),
             )
             return result
         except (AgentProviderException, AgentCancelled):
             raise
         except Exception as exc:
-            raise _normalized_exception(exc, "anthropic") from exc
+            raise _normalized_exception(
+                exc, "anthropic", usage=usage, request_id=request_id
+            ) from exc
 
 
 class ClaudeAgentSDKAdapter(_BaseAdapter):
@@ -192,6 +242,9 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                 "Claude managed execution requires claude-agent-sdk>=0.2.140"
             )
         result = None
+        known_usage: dict[str, Any] = {}
+        usage = AgentUsage()
+        request_id = ""
         with tempfile.TemporaryDirectory(prefix="vraptor-claude-") as directory:
             options = ClaudeAgentOptions(
                 model=self.configuration.model,
@@ -220,6 +273,13 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                     "CLAUDE_CODE_USE_FOUNDRY": "",
                     "CLAUDE_CODE_USE_ANTHROPIC_AWS": "",
                     "CLAUDE_AGENT_SDK_DISABLE_BUILTIN_AGENTS": "1",
+                    # Keep Claude Code on the 200K window the budgets assume,
+                    # also when the setting came from a vraptor .env file.
+                    **(
+                        {}
+                        if self.configuration.route.claude_code_1m_context
+                        else {"CLAUDE_CODE_DISABLE_1M_CONTEXT": "1"}
+                    ),
                 },
                 include_partial_messages=True,
                 effort=self.configuration.reasoning_effort or None,
@@ -231,6 +291,7 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                 else None,
             )
             iterator = query(prompt=request.prompt, options=options)
+            api_stop = None
             try:
                 async for message in iterator:
                     if cancellation:
@@ -248,6 +309,8 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                                         "unexpected_tool_use",
                                         "Claude attempted a non-text action",
                                         False,
+                                        request_id=request_id,
+                                        usage=usage,
                                     )
                                 )
                             if block.__class__.__name__ == "TextBlock":
@@ -264,6 +327,18 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                             )
                     elif kind == "StreamEvent":
                         event = message.event
+                        if event.get("type") in {"message_start", "message_delta"}:
+                            request_id = str(_get(message, "session_id", request_id))
+                            api_stop = (event.get("delta") or {}).get(
+                                "stop_reason"
+                            ) or api_stop
+                            usage = _message_usage_snapshot(known_usage, event)
+                            if usage.status != "unavailable":
+                                self._emit(
+                                    progress_callback, request, "usage_updated", attempt,
+                                    request_id=request_id, usage_status=usage.status,
+                                    **usage.as_dict(),
+                                )
                         if event.get("type") == "content_block_start":
                             block = event.get("content_block", {})
                             if block.get("type") not in {
@@ -276,27 +351,64 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                                         "unexpected_tool_use",
                                         "Claude attempted a non-text action",
                                         False,
+                                        request_id=request_id,
+                                        usage=usage,
                                     )
                                 )
                     elif kind == "ResultMessage":
+                        reported_usage = _usage(_get(message, "usage"))
+                        if reported_usage.status != "unavailable":
+                            usage = reported_usage
+                        request_id = str(_get(message, "session_id", ""))
+                        if usage.status != "unavailable":
+                            self._emit(
+                                progress_callback, request, "usage_updated", attempt,
+                                request_id=request_id, usage_status=usage.status,
+                                **usage.as_dict(),
+                            )
+                        stop = getattr(message, "stop_reason", None)
                         if (
                             message.is_error
                             or message.subtype != "success"
                             or getattr(message, "permission_denials", None)
                         ):
+                            # Claude Code reports limit stops and refusals as
+                            # errors; the streamed message_delta keeps the API
+                            # stop reason.
+                            reported = (
+                                stop
+                                if stop == "refusal"
+                                # Claude Code's API error text for an overlong
+                                # prompt, e.g. under unreadable managed settings.
+                                else "model_context_window_exceeded"
+                                if str(message.result or "").startswith(
+                                    "Prompt is too long"
+                                )
+                                else api_stop
+                            )
+                            classification = (
+                                _STOP_CLASSIFICATIONS.get(reported)
+                                if message.subtype == "success"
+                                and not getattr(message, "permission_denials", None)
+                                else None
+                            )
                             raise AgentProviderException(
                                 AgentError(
-                                    "incomplete_response",
+                                    classification or "incomplete_response",
                                     "Claude SDK did not complete analysis",
                                     False,
+                                    request_id=request_id,
+                                    usage=usage,
+                                    finish_reason=str(
+                                        reported
+                                        if classification
+                                        else stop or message.subtype
+                                    ),
                                 )
                             )
-                        stop = getattr(message, "stop_reason", None)
                         if stop not in {None, "end_turn"}:
-                            classification = (
-                                "output_limit_reached"
-                                if stop == "max_tokens"
-                                else "incomplete_response"
+                            classification = _STOP_CLASSIFICATIONS.get(
+                                stop, "incomplete_response"
                             )
                             raise AgentProviderException(
                                 AgentError(
@@ -304,6 +416,8 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                                     "Claude SDK did not complete analysis",
                                     False,
                                     finish_reason=stop,
+                                    request_id=request_id,
+                                    usage=usage,
                                 )
                             )
                         output = (
@@ -314,8 +428,8 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                         )
                         result = ProviderResponse(
                             output=output,
-                            request_id=message.session_id,
-                            usage=_usage(message.usage),
+                            request_id=request_id,
+                            usage=usage,
                             finish_reason="end_turn",
                             protocol="claude_agent_sdk",
                         )
@@ -325,12 +439,16 @@ class ClaudeAgentSDKAdapter(_BaseAdapter):
                             "incomplete_response",
                             "Claude SDK stream ended without a result",
                             False,
+                            request_id=request_id,
+                            usage=usage,
                         )
                     )
                 return result
             except (AgentProviderException, AgentCancelled):
                 raise
             except Exception as exc:
-                raise _normalized_exception(exc, "anthropic") from exc
+                raise _normalized_exception(
+                    exc, "anthropic", usage=usage, request_id=request_id
+                ) from exc
             finally:
                 await iterator.aclose()

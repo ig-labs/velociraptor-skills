@@ -34,7 +34,7 @@ def test_launchers_preserve_dispatch_from_another_directory(tmp_path, launcher, 
     fake_python = repo / ".venv/bin/python3"
     fake_python.parent.mkdir(parents=True)
     fake_python.write_text(
-        '#!/bin/sh\nprintf "%s\\n" "$AI_SKILLS_REPO_ROOT" "$VELOCIRAPTOR_SKILLS_REPO_ROOT" "$PYTHONPATH" "$PWD" "$@"\n'
+        '#!/bin/sh\nprintf "%s\\n" "$AI_SKILLS_REPO_ROOT" "$PYTHONPATH" "$PWD" "$@"\n'
     )
     fake_python.chmod(0o755)
     env = {"PATH": os.defpath, "HOME": str(tmp_path / "home")}
@@ -42,7 +42,7 @@ def test_launchers_preserve_dispatch_from_another_directory(tmp_path, launcher, 
         env["PATH"] = str(repo) + os.pathsep + env["PATH"]
     result = subprocess.run([launcher if via_path else str(repo / launcher), *args], cwd=tmp_path, env=env,
                             text=True, capture_output=True, check=True)
-    assert result.stdout.splitlines() == [str(repo), str(repo), str(repo / "src"), str(tmp_path), "-m", "vraptor.cli", *forwarded]
+    assert result.stdout.splitlines() == [str(repo), str(repo / "src"), str(tmp_path), "-m", "vraptor.cli", *forwarded]
 
 
 @pytest.mark.parametrize("command", [("vraptor",), ("dfir",), ("dfir", "velociraptor")])
@@ -113,6 +113,25 @@ def test_package_finds_public_root_without_launcher(tmp_path):
         cwd=tmp_path, env=env, text=True, capture_output=True, check=True,
     )
     assert Path(result.stdout.strip()) == ROOT
+
+
+def test_installed_package_ignores_unrelated_vraptor_folders(tmp_path):
+    home, cwd = tmp_path / "home", tmp_path / "cwd"
+    package = home / ".local/venv/lib/site-packages/vraptor"
+    (package / "resources").mkdir(parents=True)
+    (package / "__init__.py").write_text("")
+    shutil.copy2(ROOT / "src/vraptor/resources/__init__.py", package / "resources")
+    cwd.mkdir()
+    # A checkout kept at ~/src/vraptor is not the repository of an installed copy.
+    (home / "src/vraptor").mkdir(parents=True)
+    env = {"PATH": os.environ["PATH"], "HOME": str(home),
+           "PYTHONPATH": str(package.parent), "PYTHONNOUSERSITE": "1"}
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "from vraptor.resources import repository_root; print(repository_root())"],
+        cwd=cwd, env=env, text=True, capture_output=True, check=True,
+    )
+    assert Path(result.stdout.strip()) == cwd.resolve()
 
 
 @pytest.mark.parametrize("placeholder", ["api_username", "your_api_user", "<api-user>"])

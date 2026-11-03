@@ -16,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from vraptor.common.hashing import sha256_json
+
 
 SCHEMA_VERSION = 1
 CONTRACT_PATH = (
@@ -363,15 +365,6 @@ def validate_log_preflight(values: dict[str, str]) -> None:
         )
 
 
-def contract_sha256(contract: dict[str, Any]) -> str:
-    canonical = json.dumps(
-        contract,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("utf-8")
-    return hashlib.sha256(canonical).hexdigest()
-
-
 def selected_capability_ids(
     contract: dict[str, Any],
     mode: str,
@@ -411,7 +404,7 @@ def command_for(
     analysis_inputs: dict[str, str],
 ) -> str:
     parts = [
-        "dfir",
+        "vraptor",
         "collect",
         action,
         "--investigation-id",
@@ -661,7 +654,7 @@ def build_plan(
             "log_timezone": values.get("log_timezone", ""),
             "log_format": values.get("log_format", ""),
         },
-        "profile_sha256": contract_sha256(active),
+        "profile_sha256": sha256_json(active, default=None),
         "source_inventory_sha256": inventory_sha256,
         "source_inventory_artifact_count": len(inventory_rows),
         "required_capabilities": required_ids,

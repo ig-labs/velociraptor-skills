@@ -40,7 +40,7 @@ def adopt_flow(api, args, hostname, client):
             if path.exists():
                 raise RuntimeError("A different saved flow owns this request identity; select its --request-id")
             statuses = [collection.artifact_status_from_flow(spec, flow) for spec in specs]
-            state = collection.build_state_payload(client, args.investigation_id, hostname, request, statuses)
+            state = collection.build_state_payload(client, args.investigation_id, request, statuses)
             state["artifact_preflight"] = connection_identity(api)
             collection.write_state(args.investigation_id, hostname, state, update_current_pointer=False)
         payload = collection.status_payload(api, args.investigation_id, hostname, request_id=request_id, client=client)

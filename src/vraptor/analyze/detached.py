@@ -5,12 +5,11 @@ from __future__ import annotations
 
 from vraptor.resources import resource_root
 
-import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
-from vraptor.common.hashing import sha256_file
+from vraptor.common.hashing import canonical_json, sha256_bytes, sha256_file
 
 
 CONTRACT_PATH = (
@@ -21,20 +20,6 @@ CONTRACT_PATH = (
 
 class DetachedEvidenceError(RuntimeError):
     pass
-
-
-def stable_json(value: Any) -> str:
-    return json.dumps(
-        value,
-        sort_keys=True,
-        separators=(",", ":"),
-        ensure_ascii=True,
-        default=str,
-    )
-
-
-def sha256_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
 
 
 def load_contract(path: Path | str = CONTRACT_PATH) -> dict[str, Any]:
@@ -101,7 +86,7 @@ def manifest_identity(payload: dict[str, Any]) -> str:
         for key, value in payload.items()
         if key != "handoff_id"
     }
-    return sha256_bytes(stable_json(identity).encode("utf-8"))
+    return sha256_bytes(canonical_json(identity).encode("utf-8"))
 
 
 def build_manifest(

@@ -4,6 +4,87 @@ Both `live-remote` and `remote-deaddisk` use the same API identity and API-clien
 YAML procedure. Only remote dead-disk additionally needs an endpoint YAML to
 enroll its mapped client; do not generate an endpoint YAML for live API access.
 
+## Account setup comes before YAML generation
+
+Setup passes `--provision-api` under the
+[API-user provisioning rule](../../../docs/reference/velociraptor-operation-authorization.md#api-user-provisioning).
+Inspect the effective identity first; do not infer it from cached YAML, the OS
+login or application defaults. Existing accounts remain unchanged, and failed
+absence checks stop creation.
+
+Use `vraptor setup start --mode live-remote --id CASE --server-profile NAME
+--server-ip HOST --api-user USER --provision-api` for account setup. The same
+account procedure applies to `remote-deaddisk`. Provisioning runs even when the
+operational YAML is already cached. It never changes an existing account's roles,
+password, or organization memberships.
+
+Generic installations have no built-in bootstrap account. Setup displays the
+selected username, roles, organization and an administrator-notebook VQL command.
+The operator verifies the intended running server, checks that the account does
+not already exist (including in another org), coordinates other administrators,
+and creates it only if absent. For an existing account, inspect its permissions;
+resolve differences separately rather than rerunning `user_create()` over it.
+After confirming the account, continue in the terminal or rerun the same setup
+command with `--api-account-ready`. This acknowledgement never bypasses final
+selected-user authentication or authorization checks.
+
+If the existing API YAML is kept (no `--force` or `--regenerate-remote-api`)
+and already authenticates as the selected user with the selected roles, setup
+skips this manual step and says so; a terminal session
+asks whether to run it anyway. Add `--api-account-setup` to run it when the
+operator asks.
+
+An explicitly configured remote administrator may automate this account step:
+`--bootstrap-api-config /secure/admin.yaml --bootstrap-api-user bootstrap-admin`.
+Equivalent named-connection keys are `bootstrap_api_config` and
+`bootstrap_api_user`. There are no generic default values. These credentials stay
+on the SSH host and are never installed locally or used for operational readiness,
+client discovery, collections, hunts or analysis. Only bootstrap identity and
+permission checks, selected-account lookup, creation and creation verification
+may use this connection. A failure stops setup without another identity fallback.
+
+Remote automation requires trusted SSH host keys, a readable protected bootstrap
+YAML and selected server config, Python 3 with PyYAML, and the Velociraptor binary
+on the SSH host. It does not install prerequisites, invoke sudo, or generate an
+administrator credential. It verifies the YAML/server CA binding and authenticated
+bootstrap identity, selected org, ANY_QUERY and SERVER_ADMIN. When operational
+YAML is cached, its CA must also match before any remote API query or account
+creation; the cached private key is never sent to the SSH host. The SSH account must
+be able to read both files. Existing `<profile>_known_hosts` is used when present;
+otherwise normal SSH known-hosts files apply. Establish host trust in the user's
+terminal when missing; do not disable host verification.
+
+The remote API CLI runs with `--verbose --nocolor` so account diagnostics are
+available for validation. Its stdout and stderr stay captured on the SSH host;
+raw diagnostics are never included in the receipt. A null account result confirms
+absence only with the exact selected-user-not-found diagnostic and no other query
+error. Missing diagnostics, permission failures and conflicting results stop
+provisioning; a null result alone never authorizes creation.
+
+A server-local lock beside the bootstrap YAML serializes these provisioning runs.
+The account is checked again immediately before one `user_create()` call. This
+VQL function is an upsert, not an atomic create-if-absent: unrelated GUI/API
+administrators must not modify the same account during provisioning. A private
+`.vraptor-api-*.pending` marker prevents automatic replay after an uncertain write.
+A later run can reconcile a correctly provisioned account read-only; otherwise an
+administrator must resolve the pending operation before another creation attempt.
+Any failure after submitting creation, including its verification lookup, reports
+an uncertain write and retains the marker; it must not claim no creation occurred.
+No service restart or credential regeneration is used to repair authentication.
+
+After account setup, missing YAML is generated **without `--role`** so generation
+cannot replace an existing ACL. Staged local YAML is verified using only the
+selected operational identity before replacing an existing local file. The
+returned identity, organization, expected roles and effective permissions must
+match. Explicit remote YAML replacement still requires `--regenerate-remote-api`.
+
+The lower-level `config fetch-api --provision-api` helper only permits signing a
+missing YAML; it neither creates accounts nor verifies live readiness. Use it only
+after the account step above. A helper's `ready` manifest denotes completed file
+retrieval, not an authenticated account. `api_roles` records expected roles only.
+
+## Credential generation and retrieval
+
 Prefer `vraptor config fetch-api --server-profile NAME --provision-api --force`
 with the configured SSH connection. The helper uses root or sudo, prompts for a
 sudo password directly in the terminal when necessary, then fetches the YAML
@@ -44,7 +125,7 @@ umask 077
 
 # Use a private temporary directory to avoid collisions in shared /tmp.
 config_tmp=$(mktemp -d /tmp/velociraptor-config.XXXXXXXX)
-/usr/local/bin/velociraptor --config /etc/velociraptor/server.config.yaml config api_client --name investigation-api --role administrator,api "$config_tmp/investigation-api_api_client.yaml"
+/usr/local/bin/velociraptor --config /etc/velociraptor/server.config.yaml config api_client --name investigation-api "$config_tmp/investigation-api_api_client.yaml"
 test -s "$config_tmp/investigation-api_api_client.yaml"
 
 # Stop if either generation or validation failed. Otherwise move into place.

@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 import json
@@ -8,11 +9,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from vraptor.agent.config import ResolvedAgentExecution
-from vraptor.agent.config import ResolvedAgentRoute
+from vraptor.agent.config import ResolvedAgentExecution, ResolvedAgentRoute
 from vraptor.analyze import stack_review as generic_stack_review
 from vraptor.hunt import live
-
 
 ARTIFACT = "DetectRaptor.Windows.Detection.Evtx"
 GENERIC_STACK_ARTIFACT = "DetectRaptor.Windows.Detection.Applications"
@@ -304,6 +303,44 @@ class GenericStackReviewTest(unittest.TestCase):
         self.assertEqual(flagged[0]["reason"], "Rare\tgroup.")
         self.assertEqual(followed_up[0]["reason"], "Needs\treview.")
 
+    def test_native_stack_prompts_use_report_priority_not_confidence(self):
+        args = {"csv_text": "RowId\n", "part_number": 1, "row_count": 0,
+                "question": "Is any execution suspicious?"}
+        for prompt in (generic_stack_review._prompt(**args), generic_stack_review._followup_prompt(**args)):
+            self.assertIn("severity must be one of critical, high, medium, low.", prompt)
+            self.assertIn("independently of evidence confidence", prompt)
+            self.assertIn("protocol has no confidence column", prompt)
+
+    def test_new_stack_outputs_reject_legacy_info_priority(self):
+        for level in ("info", "informational", "unranked"):
+            with self.subTest(level=level):
+                with self.assertRaisesRegex(generic_stack_review.GenericStackReviewError, "invalid severity"):
+                    generic_stack_review._validate(
+                        f"FLAG\t1\tnotable\t{level}\tInvestigate context.\nEND",
+                        rows=[{"RowId": "1"}],
+                    )
+                with self.assertRaisesRegex(generic_stack_review.GenericStackReviewError, "invalid classification"):
+                    generic_stack_review._validate_followup(
+                        f"ASSESSMENT\tgroup-1\tnotable\t{level}\tSummary.\tInvestigate context.\nEND",
+                        rows=[{"GroupId": "group-1"}],
+                    )
+
+    def test_new_stack_outputs_preserve_all_four_priorities(self):
+        for level in ("critical", "high", "medium", "low"):
+            with self.subTest(level=level):
+                first = generic_stack_review._validate(
+                    f"FLAG\t1\tnotable\t{level}\tInvestigate context.\nEND",
+                    rows=[{"RowId": "1"}],
+                )
+                followup = generic_stack_review._validate_followup(
+                    f"ASSESSMENT\tgroup-1\tnotable\t{level}\tSummary.\tInvestigate context.\nEND",
+                    rows=[{"GroupId": "group-1"}],
+                )
+                self.assertEqual(first[0]["severity"], level)
+                self.assertEqual(followup[0]["severity"], level)
+                self.assertNotIn("confidence", first[0])
+                self.assertNotIn("confidence", followup[0])
+
     def test_field_statistics_and_deterministic_rejections(self):
         rows = [
             {
@@ -371,6 +408,27 @@ class GenericStackReviewTest(unittest.TestCase):
             result["fallback_reason"],
             "invalid_ai_response_after_retry",
         )
+
+    def test_cancelled_recommendation_closes_shared_runner(self):
+        runner = mock.Mock()
+
+        async def cancelled(**_kwargs):
+            raise asyncio.CancelledError
+
+        review = generic_stack_review.autoruns_ai_review
+        with mock.patch.object(
+            review, "_review_runner", return_value=runner
+        ), mock.patch.object(review, "run_agent_text_async", cancelled):
+            with self.assertRaises(asyncio.CancelledError):
+                generic_stack_review.recommend_runtime_stack_fields(
+                    pslist_rows(),
+                    artifact=PSLIST_ARTIFACT,
+                    question="Review processes",
+                    workdir=Path("."),
+                    execution=_test_execution(),
+                )
+
+        runner.close.assert_called_once_with()
 
     def test_unknown_unsafe_and_excess_dimension_recommendations_fail_closed(self):
         statistics = generic_stack_review.calculate_field_statistics(pslist_rows())

@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Any, Iterable, Mapping
+from collections.abc import Iterable, Mapping
+from typing import Any
+
+from vraptor.analyze.report_priority import (
+    RETAINED_PRIORITIES,
+    display_priority,
+    priority_metadata,
+)
+from vraptor.analyze.reporting import current_policy
 
 
 def hide_unassessed_target_execution(payload: Mapping[str, Any]) -> bool:
@@ -24,8 +32,9 @@ def _compact_text(
     value: Any,
     *,
     fallback: str = "",
-    limit: int = 320,
+    limit: int | None = None,
 ) -> str:
+    limit = current_policy().preview_chars if limit is None else limit
     rendered = " ".join(str(value or "").split()).strip() or fallback
     if len(rendered) > limit:
         rendered = rendered[: limit - 1].rstrip() + "…"
@@ -55,6 +64,8 @@ def grouped_context(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
             for field in (
                 "identity_sha256",
                 "Severity",
+                "report_priority",
+                "priority_rationale",
                 "Reason",
                 "Entry",
                 "EntryLocation",
@@ -129,14 +140,10 @@ def grouped_context(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
             int(row.get("omitted_persistence_count") or 0), 0
         )
 
-    priority = {"critical": 0, "high": 1, "medium": 2, "low": 3, "review": 4}
     return sorted(
         grouped.values(),
         key=lambda item: (
-            priority.get(
-                str(item["row"].get("Severity") or "review").casefold(),
-                5,
-            ),
+            RETAINED_PRIORITIES.index(priority_metadata(item["row"])["report_priority"]),
             -int(item["row_count"]),
             str(item["row"].get("Entry") or ""),
             str(item["row"].get("LaunchString") or ""),
@@ -149,20 +156,23 @@ def render_context(
     *,
     heading_level: int,
     context_group_count: int = 0,
-    max_groups: int = 10,
-    max_endpoints_per_group: int = 10,
+    max_groups: int | None = None,
+    max_endpoints_per_group: int | None = None,
 ) -> list[str]:
     """Render bounded context with explicit legacy and omission semantics."""
 
+    max_groups = current_policy().context_items if max_groups is None else max_groups
+    max_endpoints_per_group = current_policy().examples_per_finding if max_endpoints_per_group is None else max_endpoints_per_group
     groups = grouped_context(rows)
     if not groups:
         return ["- No suspicious context rows.", ""]
     lines = [f"{'#' * heading_level} Representative suspicious context", ""]
     for item in groups[:max_groups]:
         row = item["row"]
-        severity = _compact_text(
-            row.get("Severity"), fallback="review"
-        ).upper()
+        severity = (
+            _compact_text(row["Severity"]).upper()
+            if row.get("Severity") else display_priority(row)
+        )
         endpoints = sorted(item["endpoints"])
         visible_endpoints = endpoints[:max_endpoints_per_group]
         endpoint_text = ", ".join(
@@ -190,6 +200,7 @@ def render_context(
                 f"{'#' * (heading_level + 1)} {severity}: "
                 f"{_markdown_code(title)}",
                 "",
+                f"- Report priority: `{display_priority(row)}`",
                 f"- Reason: {_compact_text(row.get('Reason'))}",
             ]
         )
